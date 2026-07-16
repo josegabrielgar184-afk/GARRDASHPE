@@ -1,0 +1,26 @@
+# Treat the keystore as a binary file to prevent Git from corrupting it
+keystore.jks binary
+
+# Also treat other binary assets as binary
+*.jks binary
+*.keystore binary
+*.p12 binary
+*.pfx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.so binary
+*.aar binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.ogg binary
+*.webm binary

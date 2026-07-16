@@ -1,0 +1,168 @@
+=================================================================
+  GARRDASHPE - FICHA DE SEGURIDAD DE DATOS
+  Plantilla para Google Play Console
+  Fecha: 15 de julio de 2026
+=================================================================
+
+Esta plantilla contiene las respuestas exactas que debes rellenar
+en la seccion "Ficha de seguridad de datos" de la Google Play Console
+para que la app GARRDASHPE sea aprobada sin rechazos.
+
+-----------------------------------------------------------------
+  SECCION 1: ¿Recopila tu app datos personales?
+-----------------------------------------------------------------
+
+Respuesta: SI
+
+La app recopila unicamente los siguientes datos personales:
+
+1. Nickname (Apodo del jugador)
+   - Tipo: Datos de identificacion personal (apodo publico)
+   - Descripcion: Nombre publico elegido por el usuario para
+     identificarse en el Ranking Global.
+   - ¿Se recopila? SI
+   - ¿Se comparte? SI (se muestra publicamente en el Ranking)
+   - ¿Es obligatorio? NO (el usuario puede jugar sin registrarse,
+     pero no aparecera en el Ranking)
+   - Uso: Funcionalidad de la app (Ranking Global)
+
+2. Puntuaciones / Records
+   - Tipo: Otros datos generados por el usuario
+   - Descripcion: Resultados de las partidas (puntos, zombies
+     eliminados, etc.) que se muestran en el Ranking Global.
+   - ¿Se recopila? SI
+   - ¿Se comparte? SI (se muestra publicamente en el Ranking)
+   - ¿Es obligatorio? NO
+   - Uso: Funcionalidad de la app (Ranking Global)
+
+-----------------------------------------------------------------
+  SECCION 2: ¿Recopila tu app datos no personales?
+-----------------------------------------------------------------
+
+Respuesta: NO
+
+La app NO recopila:
+- Identificadores publicitarios (ADID/IDFA)
+- Datos de uso y diagnostico
+- Datos de ubicacion
+- Datos financieros
+- Contactos
+- Fotos, videos o archivos
+- Datos del dispositivo (modelo, SO, etc.)
+
+-----------------------------------------------------------------
+  SECCION 3: Seguridad de los datos
+-----------------------------------------------------------------
+
+- ¿Los datos se cifran en transito? SI
+  (Firebase Firestore utiliza HTTPS/TLS para todas las conexiones)
+
+- ¿Los datos se cifran en reposo? SI
+  (Firebase Firestore cifra los datos en reposo por defecto)
+
+- ¿La app permite a los usuarios solicitar la eliminacion de datos? SI
+  (El usuario puede contactar a privacidad@garrdashpe.app para
+  solicitar la eliminacion de sus puntuaciones del Ranking Global.
+  Adicionalmente, puede borrar los datos locales desinstalando la app.)
+
+-----------------------------------------------------------------
+  SECCION 4: Detalles del almacenamiento de datos
+-----------------------------------------------------------------
+
+- ¿Los datos se almacenan fuera del dispositivo del usuario? SI
+  (Nickname y Puntuaciones se almacenan en Firebase Firestore,
+   un servicio de Google Cloud)
+
+- ¿Los datos se almacenan en el dispositivo del usuario? SI
+  (Monedas, mejoras compradas, configuracion de sonido y personaje
+   seleccionado se almacenan en localStorage del navegador/dispositivo.
+   Estos datos NO se envian a ningun servidor y se eliminan al
+   desinstalar la app o limpiar los datos del navegador.)
+
+-----------------------------------------------------------------
+  SECCION 5: Privacidad de los menores
+-----------------------------------------------------------------
+
+- ¿La app esta dirigida a menores de 13 años? NO
+  (La app esta disenada para todas las edades, con clasificacion
+   de contenido PEGI 10 o similar)
+
+- ¿Recopila datos de menores de 13 años? NO
+  (No recopilamos datos personales de menores. Unicamente
+   procesamos un Nickname publico y puntuaciones de juego, que
+   no constituyen datos personales sensibles.)
+
+-----------------------------------------------------------------
+  SECCION 6: Permisos de la app
+-----------------------------------------------------------------
+
+La app NO solicita los siguientes permisos:
+- Camara
+- Microfono
+- Ubicacion (GPS)
+- Contactos
+- Calendario
+- SMS
+- Llamadas
+- Almacenamiento (lectura/escritura de archivos)
+- Telefonos (estado del dispositivo)
+
+La app SI utiliza:
+- Acceso a Internet (para Firebase Firestore Ranking Global y audio)
+- Vibracion (feedback tactil opcional en controles, si esta disponible)
+
+-----------------------------------------------------------------
+  SECCION 7: Clasificacion de contenido (IARC)
+-----------------------------------------------------------------
+
+Respuestas sugeridas para el cuestionario IARC:
+
+- ¿La app contiene violencia? SI (violencia de fantasia, no realista)
+  Los zombies son criaturas de fantasia y los efectos de sangre
+  son de neón colorido, no realistas. Se incluye una opcion para
+  desactivar los efectos de sangre neón.
+
+- ¿La app contiene violencia realista? NO
+
+- ¿La app contiene lenguaje soez? NO
+
+- ¿La app contiene contenido sexual? NO
+
+- ¿La app contiene apuestas con dinero real? NO
+  (La ruleta del juego utiliza monedas virtuales que se obtienen
+   jugando, no se pueden comprar con dinero real.)
+
+- ¿La app contiene anuncios? SI
+  (Anuncios de recompensa opcionales para revivir o girar la ruleta
+   extra. No se muestran anuncios automaticos intrusivos.)
+
+- ¿La app requiere compras integradas? NO
+  (No hay compras integradas con dinero real. Todas las mejoras
+   y personajes se desbloquean con monedas virtuales obtenidas
+   jugando.)
+
+Clasificacion esperada: PEGI 10 / ESRB E10+ / IARC 10+
+
+-----------------------------------------------------------------
+  SECCION 8: URL de la politica de privacidad
+-----------------------------------------------------------------
+
+URL de la politica de privacidad (debe ser accesible publicamente):
+https://garrdashpe.app/privacy.html
+(o la URL donde alojes el archivo privacy.html)
+
+-----------------------------------------------------------------
+  RESUMEN PARA COPIAR Y PEGAR EN PLAY CONSOLE
+-----------------------------------------------------------------
+
+Tipo de datos recopilados:
+  - Apodo/Nickname (Identificacion personal - Publico)
+  - Puntuaciones (Datos generados por el usuario - Publico)
+
+Cifrado: SI (en transito y en reposo)
+Eliminacion de datos: SI (bajo solicitud via email)
+Datos de menores: NO se recopilan
+Permisos: Internet, Vibracion (opcional)
+Clasificacion: PEGI 10+ (violencia de fantasia no realista)
+
+=================================================================

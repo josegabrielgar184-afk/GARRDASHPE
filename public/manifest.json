@@ -1,0 +1,11 @@
+{
+  "name": "GarrdashpeYT",
+  "short_name": "GarrdashpeYT",
+  "description": "Juego espacial y apocalipsis zombie",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "icons": []
+}
