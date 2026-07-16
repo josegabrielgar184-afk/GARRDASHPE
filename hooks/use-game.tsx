@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { CHARACTERS, getCharacter, getShip, getZombieCharacter, type CharacterDef, type ShipDef, type ZombieCharDef } from '@/lib/characters';
 import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
+  updateDoc, deleteDoc, where,
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import {
@@ -21,7 +22,9 @@ export type Screen =
   | 'shop'
   | 'roulette'
   | 'characters'
-  | 'ranking';
+  | 'ranking'
+  | 'offerwall'
+  | 'admin';
 
 export interface UpgradeState {
   fireRate: number;
@@ -37,6 +40,33 @@ export interface RankEntry {
 
 export type ControlSize = 'small' | 'medium' | 'large';
 export type OrientationMode = 'auto' | 'portrait' | 'landscape';
+
+export interface OfferwallConfig {
+  active: boolean;
+  link: string;
+  rewardPerDownload: number;
+  dailyLimit: number;
+}
+
+export interface PendingRequest {
+  id: string;
+  userId: string;
+  playerID: string;
+  nickname: string;
+  tiempoJugado: number;
+  puntosGastados: number;
+  fecha: any;
+  estado: string;
+}
+
+export interface AdminUserInfo {
+  uid: string;
+  nombre: string;
+  email: string;
+  coins: number;
+  lastLogin: string;
+  inactive: boolean;
+}
 
 interface GameState {
   screen: Screen;
@@ -96,6 +126,21 @@ interface GameState {
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   signUp: (data: SignUpData) => Promise<{ ok: boolean; error?: string }>;
   logOut: () => Promise<void>;
+  claimDiamonds: (playerID: string, nickname: string) => Promise<{ ok: boolean; error?: string }>;
+  sendSuggestion: (text: string) => Promise<{ ok: boolean; error?: string }>;
+  offerwallConfig: OfferwallConfig | null;
+  refreshOfferwallConfig: () => Promise<void>;
+  offerwallDownloadsToday: number;
+  recordOfferwallDownload: () => Promise<{ ok: boolean; error?: string }>;
+  userRole: 'user' | 'operador' | 'admin';
+  pendingRequests: PendingRequest[];
+  refreshPendingRequests: () => Promise<void>;
+  confirmPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
+  adminUserStats: { totalUsers: number; totalCoins: number; reservedAmount: number; availableAmount: number; nearClaimUsers: AdminUserInfo[] };
+  refreshAdminStats: () => Promise<void>;
+  isDeviceBanned: boolean;
+  checkDeviceBan: () => Promise<void>;
+  reportSuspiciousActivity: (type: string, details: string) => void;
 }
 
 export interface SignUpData {
@@ -220,9 +265,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [controlSize, setControlSizeState] = useState<ControlSize>('medium');
   const [orientationMode, setOrientationModeState] = useState<OrientationMode>('auto');
   const [authReady, setAuthReady] = useState(false);
+  const [offerwallConfig, setOfferwallConfig] = useState<OfferwallConfig | null>(null);
+  const [offerwallDownloadsToday, setOfferwallDownloadsToday] = useState(0);
+  const [userRole, setUserRole] = useState<'user' | 'operador' | 'admin'>('user');
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [adminUserStats, setAdminUserStats] = useState({ totalUsers: 0, totalCoins: 0, reservedAmount: 0, availableAmount: 0, nearClaimUsers: [] as AdminUserInfo[] });
+  const [isDeviceBanned, setIsDeviceBanned] = useState(false);
 
   const lastInterstitialTimeRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const scoreRef = useRef(0);
 
   useEffect(() => {
     const s = loadSave();
@@ -255,8 +307,20 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setPlayerName(name);
         saveData({ loggedIn: true, email: user.email ?? '', playerName: name });
         setScreenState((prev) => (prev === 'intro' || prev === 'login' ? 'menu' : prev));
+        // Fetch user role from Firestore
+        try {
+          getDocs(query(collection(db, 'usuarios'), where('email', '==', user.email ?? ''))).then((snap) => {
+            snap.forEach((d) => {
+              const data = d.data();
+              if (data.rol === 'admin') setUserRole('admin');
+              else if (data.rol === 'operador') setUserRole('operador');
+              else setUserRole('user');
+            });
+          }).catch(() => {});
+        } catch {}
       } else {
         setLoggedInState(false);
+        setUserRole('user');
         saveData({ loggedIn: false });
       }
       setAuthReady(true);
@@ -652,9 +716,240 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
     setLoggedInState(false);
+    setUserRole('user');
     saveData({ loggedIn: false });
     setScreenState('login');
   }, []);
+
+  const claimDiamonds = useCallback(async (playerID: string, nickname: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!playerID.trim() || playerID.trim().length < 4) return { ok: false, error: 'Player ID invalido (minimo 4 caracteres).' };
+    if (!nickname.trim() || nickname.trim().length < 2) return { ok: false, error: 'Nickname invalido.' };
+    if (points < 10) return { ok: false, error: 'No tienes suficientes puntos (necesitas 10).' };
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'Debes iniciar sesion.' };
+      if (!spendPoints(10)) return { ok: false, error: 'No se pudieron descontar los puntos.' };
+      await addDoc(collection(db, 'solicitudes_pendientes'), {
+        userId: user.uid,
+        playerID: playerID.trim(),
+        nickname: nickname.trim(),
+        tiempoJugado: scoreRef.current || 0,
+        puntosGastados: 10,
+        fecha: serverTimestamp(),
+        estado: 'pendiente',
+      });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al procesar la solicitud';
+      return { ok: false, error: msg };
+    }
+  }, [points, spendPoints]);
+
+  const sendSuggestion = useCallback(async (text: string): Promise<{ ok: boolean; error?: string }> => {
+    if (text.trim().length < 5) return { ok: false, error: 'La sugerencia debe tener al menos 5 caracteres.' };
+    try {
+      const user = auth.currentUser;
+      await addDoc(collection(db, 'sugerencias'), {
+        userId: user?.uid ?? 'anonymous',
+        correo: user?.email ?? email ?? 'anonymous',
+        mensaje: text.trim(),
+        fecha: serverTimestamp(),
+      });
+      const entry = { id: Date.now(), text: text.trim(), date: new Date().toISOString() };
+      setSuggestions((prev) => {
+        const next = [...prev, entry];
+        saveData({ suggestions: next });
+        return next;
+      });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al enviar sugerencia';
+      return { ok: false, error: msg };
+    }
+  }, [email]);
+
+  const refreshOfferwallConfig = useCallback(async () => {
+    try {
+      const snap = await getDocs(doc(db, 'config', 'offerwall').parent
+        ? query(collection(db, 'config'))
+        : query(collection(db, 'config')));
+      snap.forEach((d) => {
+        if (d.id === 'offerwall') {
+          const data = d.data();
+          setOfferwallConfig({
+            active: data.active ?? false,
+            link: data.link ?? '',
+            rewardPerDownload: data.rewardPerDownload ?? 1000,
+            dailyLimit: data.dailyLimit ?? 2,
+          });
+        }
+      });
+    } catch {
+      // config not set yet, offerwall stays disabled
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshOfferwallConfig();
+    const interval = setInterval(refreshOfferwallConfig, 30000);
+    return () => clearInterval(interval);
+  }, [refreshOfferwallConfig]);
+
+  const recordOfferwallDownload = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!offerwallConfig?.active) return { ok: false, error: 'Las misiones de descarga no estan activas.' };
+    if (offerwallDownloadsToday >= offerwallConfig.dailyLimit) return { ok: false, error: 'Limite alcanzado. Vuelve manana por mas!' };
+    try {
+      addCoins(offerwallConfig.rewardPerDownload);
+      setOfferwallDownloadsToday((prev) => prev + 1);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Error al procesar la recompensa.' };
+    }
+  }, [offerwallConfig, offerwallDownloadsToday, addCoins]);
+
+  // Reset daily offerwall counter at midnight
+  useEffect(() => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setHours(24, 0, 0, 0);
+    const msUntilMidnight = tomorrow.getTime() - now.getTime();
+    const timeout = setTimeout(() => {
+      setOfferwallDownloadsToday(0);
+      // Set daily interval after first reset
+      const interval = setInterval(() => setOfferwallDownloadsToday(0), 24 * 60 * 60 * 1000);
+      return () => clearInterval(interval);
+    }, msUntilMidnight);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const refreshPendingRequests = useCallback(async () => {
+    try {
+      const q = query(collection(db, 'solicitudes_pendientes'), where('estado', '==', 'pendiente'));
+      const snap = await getDocs(q);
+      const reqs: PendingRequest[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        reqs.push({
+          id: d.id,
+          userId: data.userId ?? '',
+          playerID: data.playerID ?? '',
+          nickname: data.nickname ?? '',
+          tiempoJugado: data.tiempoJugado ?? 0,
+          puntosGastados: data.puntosGastados ?? 0,
+          fecha: data.fecha,
+          estado: data.estado ?? 'pendiente',
+        });
+      });
+      setPendingRequests(reqs);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const confirmPendingRequest = useCallback(async (requestId: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const reqRef = doc(db, 'solicitudes_pendientes', requestId);
+      const snap = await getDocs(query(collection(db, 'solicitudes_pendientes'), where('__name__', '==', requestId)));
+      if (snap.empty) return { ok: false, error: 'Solicitud no encontrada' };
+      let requestData: any = {};
+      snap.forEach((d) => { requestData = d.data(); });
+      // Copy to confirmed collection
+      await setDoc(doc(db, 'solicitudes_confirmadas', requestId), {
+        ...requestData,
+        estado: 'completado',
+        procesadoPor: user.uid,
+        procesadoFecha: serverTimestamp(),
+      });
+      // Delete from pending
+      await deleteDoc(reqRef);
+      // Update local state
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al confirmar solicitud';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const refreshAdminStats = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, 'usuarios'));
+      let totalCoins = 0;
+      let totalUsers = 0;
+      const nearClaim: AdminUserInfo[] = [];
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      let activeCoins = 0;
+      let inactiveCoins = 0;
+      snap.forEach((d) => {
+        const data = d.data();
+        const userCoins = data.coins ?? 0;
+        totalCoins += userCoins;
+        totalUsers++;
+        const lastLoginDate = data.lastLogin?.toDate?.() ?? new Date(0);
+        const isInactive = lastLoginDate.getTime() < sevenDaysAgo;
+        if (isInactive) inactiveCoins += userCoins;
+        else activeCoins += userCoins;
+        if (userCoins >= 12000) {
+          nearClaim.push({
+            uid: d.id,
+            nombre: data.nombre ?? data.email ?? 'Unknown',
+            email: data.email ?? '',
+            coins: userCoins,
+            lastLogin: lastLoginDate.toISOString(),
+            inactive: isInactive,
+          });
+        }
+      });
+      nearClaim.sort((a, b) => b.coins - a.coins);
+      // 15000 coins = S/. 3.80 soles / $1.00 USD
+      const reservedAmount = (activeCoins / 15000) * 3.80;
+      const availableAmount = (inactiveCoins / 15000) * 3.80;
+      setAdminUserStats({ totalUsers, totalCoins, reservedAmount, availableAmount, nearClaimUsers: nearClaim });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const checkDeviceBan = useCallback(async () => {
+    try {
+      let deviceId = 'unknown';
+      if (typeof window !== 'undefined') {
+        deviceId = localStorage.getItem('deviceId') || (() => {
+          const id = 'dev_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+          localStorage.setItem('deviceId', id);
+          return id;
+        })();
+      }
+      const snap = await getDocs(query(collection(db, 'blacklist_devices'), where('deviceId', '==', deviceId)));
+      if (!snap.empty) {
+        setIsDeviceBanned(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    checkDeviceBan();
+  }, [checkDeviceBan]);
+
+  const reportSuspiciousActivity = useCallback((type: string, details: string) => {
+    try {
+      const user = auth.currentUser;
+      addDoc(collection(db, 'activity_suspicious'), {
+        userId: user?.uid ?? 'unknown',
+        email: user?.email ?? email ?? 'unknown',
+        type,
+        details,
+        deviceId: typeof window !== 'undefined' ? localStorage.getItem('deviceId') ?? 'unknown' : 'unknown',
+        timestamp: serverTimestamp(),
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  }, [email]);
 
   const value: GameState = {
     screen, coins, points, lives, vip, muted, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
@@ -669,6 +964,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     submitSpaceScore, submitZombieScore, getFreeSpinsRemaining,
     canShowInterstitial, recordInterstitial,
     signIn, signUp, logOut,
+    claimDiamonds, sendSuggestion,
+    offerwallConfig, refreshOfferwallConfig, offerwallDownloadsToday, recordOfferwallDownload,
+    userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest,
+    adminUserStats, refreshAdminStats,
+    isDeviceBanned, checkDeviceBan, reportSuspiciousActivity,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

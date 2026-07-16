@@ -5,10 +5,10 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw } from 'lucide-react';
+import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert } from 'lucide-react';
 
 export function MenuScreen() {
-  const { coins, points, vip, setScreen, getCharacter, logOut, topPlayerName, topPlayerScore, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood, orientationMode, setOrientationMode } = useGame();
+  const { coins, points, vip, setScreen, getCharacter, logOut, topPlayerName, topPlayerScore, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const char = getCharacter();
@@ -110,6 +110,26 @@ export function MenuScreen() {
               <Trophy className="w-8 h-8 text-white" />
               <span className="text-white font-bold text-sm">RANKINGS</span>
             </button>
+          </div>
+
+          {/* Offerwall + Admin row */}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setScreen('offerwall')}
+              className={`rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 ${offerwallConfig?.active ? 'bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 border border-cyan-500/40 text-cyan-400' : 'bg-card border border-border text-white/30'}`}
+            >
+              <Download className="w-4 h-4" />
+              {offerwallConfig?.active ? 'MISIONES' : 'PROXIMAMENTE'}
+            </button>
+            {(userRole === 'admin' || userRole === 'operador') && (
+              <button
+                onClick={() => setScreen('admin')}
+                className="rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/40 text-amber-400"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                {userRole === 'admin' ? 'ADMIN' : 'OPERADOR'}
+              </button>
+            )}
           </div>
 
           {/* VIP + logout */}

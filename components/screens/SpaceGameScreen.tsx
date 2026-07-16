@@ -15,6 +15,7 @@ import {
   clamp, dist, rand,
 } from '@/lib/engine2d';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, initAudio } from '@/lib/audio';
+import { MAX_COINS_PER_GAME } from '@/lib/security';
 
 interface Meteor { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotVel: number; hp: number; maxHp: number; }
 interface EnemyShip { x: number; y: number; vx: number; vy: number; angle: number; hp: number; maxHp: number; size: number; shootTimer: number; }
@@ -22,7 +23,7 @@ interface BossShip { x: number; y: number; vx: number; vy: number; angle: number
 interface Laser { x: number; y: number; vx: number; vy: number; life: number; color: string; fromPlayer: boolean; damage: number; }
 
 export function SpaceGameScreen() {
-  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip } = useGame();
+  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, reportSuspiciousActivity } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -141,6 +142,16 @@ export function SpaceGameScreen() {
   const getFireRate = () => Math.max(4, (18 - fireRateLevelRef.current * 2) / ship.fireRateMult);
   const getDamage = () => (25 + damageLevelRef.current * 15) * ship.damageMult;
 
+  const safeAddCoins = (amount: number) => {
+    if (gameCoinsRef.current + amount > MAX_COINS_PER_GAME) {
+      reportSuspiciousActivity('coin_cap_exceeded', `Attempted to add ${amount} coins, total would be ${gameCoinsRef.current + amount} (max ${MAX_COINS_PER_GAME})`);
+      return;
+    }
+    addCoins(amount);
+    gameCoinsRef.current += amount;
+    setCoinsEarned(gameCoinsRef.current);
+  };
+
   const playerShoot = () => {
     const p = playerRef.current;
     const cx = crosshairRef.current.active ? crosshairRef.current.x : p.x;
@@ -248,7 +259,7 @@ export function SpaceGameScreen() {
         coinTimerRef.current += dt * 16.67;
         if (coinTimerRef.current >= 4000) {
           coinTimerRef.current = 0;
-          addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin();
+          safeAddCoins(1); playCoin();
           addFloatText('+1 moneda', w / 2, h / 2 - 50, '#fbbf24');
         }
 
@@ -348,7 +359,7 @@ export function SpaceGameScreen() {
                   playExplosion();
                   scoreRef.current += 50 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   commonKillCountRef.current++;
-                  if (commonKillCountRef.current % 3 === 0) { addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin(); }
+                  if (commonKillCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
                 }
                 break;
               }
@@ -363,7 +374,7 @@ export function SpaceGameScreen() {
                   playExplosion();
                   scoreRef.current += 100 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   commonKillCountRef.current++;
-                  if (commonKillCountRef.current % 3 === 0) { addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin(); }
+                  if (commonKillCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
                 }
                 break;
               }
@@ -375,7 +386,7 @@ export function SpaceGameScreen() {
                 spawnParticles2D(particlesRef.current, l.x, l.y, 5, '#f59e0b', 3);
                 if (b.hp <= 0) {
                   const reward = b.isMini ? 10 : 30;
-                  addCoins(reward); gameCoinsRef.current += reward; setCoinsEarned(gameCoinsRef.current);
+                  safeAddCoins(reward);
                   scoreRef.current += (b.isMini ? 1000 : 5000) * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, b.x, b.y, b.isMini ? 30 : 50, b.isMini ? '#f59e0b' : '#ef4444', 8);
@@ -514,7 +525,7 @@ export function SpaceGameScreen() {
           </div>
         </div>
       )}
-      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); addCoins(10); gameCoinsRef.current += 10; setCoinsEarned(gameCoinsRef.current); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
+      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); safeAddCoins(10); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
       <MuteButton />
     </div>
   );

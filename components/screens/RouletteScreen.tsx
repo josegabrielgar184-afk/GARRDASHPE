@@ -206,23 +206,6 @@ export function RouletteScreen() {
             </div>
           )}
 
-          {/* Probabilities info */}
-          <div className="mt-6 w-full rounded-xl bg-card border border-border p-4 text-xs space-y-2">
-            <p className="text-white/60 font-bold mb-2">Probabilidades de premios:</p>
-            <div className="flex justify-between text-amber-400">
-              <span>Premios altos (130+ monedas)</span>
-              <span className="font-mono">0.9%</span>
-            </div>
-            <div className="flex justify-between text-blue-400">
-              <span>Premios medios (10-50 monedas)</span>
-              <span className="font-mono">20%</span>
-            </div>
-            <div className="flex justify-between text-white/50">
-              <span>Consolación (5 monedas)</span>
-              <span className="font-mono">79.1%</span>
-            </div>
-          </div>
-
           {/* Current coins */}
           <div className="mt-4 flex items-center gap-2 text-amber-400">
             <Coins className="w-5 h-5" />

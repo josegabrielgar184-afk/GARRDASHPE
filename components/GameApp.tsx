@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from '@/hooks/use-game';
+import { ShieldAlert } from 'lucide-react';
 import { IntroScreen } from '@/components/screens/IntroScreen';
 import { LoginScreen } from '@/components/screens/LoginScreen';
 import { MenuScreen } from '@/components/screens/MenuScreen';
@@ -12,6 +13,8 @@ import { ShopScreen } from '@/components/screens/ShopScreen';
 import { RouletteScreen } from '@/components/screens/RouletteScreen';
 import { CharactersScreen } from '@/components/screens/CharactersScreen';
 import { RankingScreen } from '@/components/screens/RankingScreen';
+import { OfferwallScreen } from '@/components/screens/OfferwallScreen';
+import { AdminScreen } from '@/components/screens/AdminScreen';
 import { AdBanner } from '@/components/game/AdBanner';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game'];
@@ -41,6 +44,10 @@ function GameRouter() {
       return <CharactersScreen />;
     case 'ranking':
       return <RankingScreen />;
+    case 'offerwall':
+      return <OfferwallScreen />;
+    case 'admin':
+      return <AdminScreen />;
     default:
       return <IntroScreen />;
   }
@@ -126,8 +133,18 @@ function OrientationManager() {
 }
 
 function AppShell() {
-  const { screen } = useGame();
+  const { screen, isDeviceBanned } = useGame();
   const isGameplay = GAMEPLAY_SCREENS.includes(screen);
+
+  if (isDeviceBanned) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background px-6 text-center">
+        <ShieldAlert className="w-16 h-16 text-red-500 mb-4" />
+        <h1 className="text-red-400 font-bold text-xl mb-2">Dispositivo suspendido permanentemente</h1>
+        <p className="text-white/40 text-sm">Este dispositivo ha sido baneado por violar los terminos de servicio.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 overflow-hidden flex flex-col">

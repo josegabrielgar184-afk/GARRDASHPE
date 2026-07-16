@@ -17,6 +17,7 @@ import {
   clamp, dist, rand,
 } from '@/lib/engine2d';
 import { playShoot, playShotgun, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
+import { MAX_COINS_PER_GAME } from '@/lib/security';
 
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'grenade';
 
@@ -28,7 +29,7 @@ interface WeaponPickup { x: number; y: number; weapon: WeaponType; }
 interface Bullet { x: number; y: number; vx: number; vy: number; life: number; damage: number; color: string; }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, reportSuspiciousActivity } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -156,6 +157,16 @@ export function ZombieGameScreen() {
 
   const getFireRate = () => Math.max(6, 18 - fireRateLevelRef.current * 2);
   const getDamage = () => (40 + damageLevelRef.current * 15) * damageMultRef.current;
+
+  const safeAddCoins = (amount: number) => {
+    if (gameCoinsRef.current + amount > MAX_COINS_PER_GAME) {
+      reportSuspiciousActivity('coin_cap_exceeded', `Attempted to add ${amount} coins, total would be ${gameCoinsRef.current + amount} (max ${MAX_COINS_PER_GAME})`);
+      return;
+    }
+    addCoins(amount);
+    gameCoinsRef.current += amount;
+    setCoinsEarned(gameCoinsRef.current);
+  };
 
   const shoot = useCallback(() => {
     if (gameOverRef.current || shootCooldownRef.current > 0) return;
@@ -386,7 +397,7 @@ export function ZombieGameScreen() {
                 const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
                 if (z === tankRef.current) {
                   tankRef.current = null; setBossActive(false); finalBossDefeatedRef.current = true;
-                  addCoins(30); gameCoinsRef.current += 30; setCoinsEarned(gameCoinsRef.current);
+                  safeAddCoins(30);
                   scoreRef.current += 5000 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, 50, bloodColor, 8);
@@ -395,21 +406,21 @@ export function ZombieGameScreen() {
                 } else if (z.type === 'giant') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 500 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
-                  addCoins(10); gameCoinsRef.current += 10; setCoinsEarned(gameCoinsRef.current);
+                  safeAddCoins(10);
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, 25, bloodColor, 6);
                   addFloatText('+10 pts', z.x, z.y - 20, '#a855f7');
                 } else if (z.type === 'fast') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 150 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
-                  addCoins(2); gameCoinsRef.current += 2; setCoinsEarned(gameCoinsRef.current);
+                  safeAddCoins(2);
                   playExplosion();
                   spawnParticles2D(particlesRef.current, z.x, z.y, 12, bloodColor, 5);
                   addFloatText('+10 pts', z.x, z.y - 15, '#ef4444');
                 } else {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 100 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
-                  if (killCountRef.current % 3 === 0) { addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin(); }
+                  if (killCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
                   spawnParticles2D(particlesRef.current, z.x, z.y, 10, bloodColor, 4);
                   addFloatText('+10 pts', z.x, z.y - 15, '#65a30d');
                 }
@@ -601,7 +612,7 @@ export function ZombieGameScreen() {
           </div>
         </div>
       )}
-      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; hpRef.current = maxHpRef.current; shieldRef.current = true; setLives(3); setHp(maxHpRef.current); gameOverRef.current = false; setGameOver(false); addCoins(10); gameCoinsRef.current += 10; setCoinsEarned(gameCoinsRef.current); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
+      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; hpRef.current = maxHpRef.current; shieldRef.current = true; setLives(3); setHp(maxHpRef.current); gameOverRef.current = false; setGameOver(false); safeAddCoins(10); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
       <MuteButton />
     </div>
   );

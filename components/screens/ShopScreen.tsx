@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Coins, Star, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield } from 'lucide-react';
+import { ArrowLeft, Coins, Star, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X } from 'lucide-react';
 
 export function ShopScreen() {
   const {
-    coins, points, spendCoins, addPoints, spendPoints, vip, buyVIP, setScreen,
-    upgrades, buyUpgrade,
+    coins, points, spendCoins, addPoints, vip, buyVIP, setScreen,
+    upgrades, buyUpgrade, claimDiamonds,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [tab, setTab] = useState<'upgrades' | 'diamonds'>('upgrades');
@@ -17,6 +17,8 @@ export function ShopScreen() {
   const [nick, setNick] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
   const upgradeCost = (key: keyof typeof UPGRADE_COSTS) =>
     UPGRADE_COSTS[key] * Math.pow(2, upgrades[key]);
@@ -27,14 +29,19 @@ export function ShopScreen() {
     if (spendCoins(15000)) { addPoints(10); setSuccess('¡Has comprado 10 Puntos por 15000 Monedas!'); }
   };
 
-  const handleClaimDiamonds = () => {
+  const handleClaimDiamonds = async () => {
     setError(''); setSuccess('');
     if (points < 10) { setError('No tienes suficientes puntos. Necesitas 10.'); return; }
     if (playerId.trim().length < 4) { setError('Debes ingresar tu Player ID (minimo 4 caracteres).'); return; }
     if (nick.trim().length < 2) { setError('Debes ingresar tu In-Game Nickname.'); return; }
-    if (spendPoints(10)) {
-      setSuccess(`¡Canje exitoso! 100 Diamantes llegaran a la cuenta "${nick}" (ID: ${playerId}) en menos de 24 horas.`);
+    setClaiming(true);
+    const result = await claimDiamonds(playerId.trim(), nick.trim());
+    setClaiming(false);
+    if (result.ok) {
+      setShowClaimModal(true);
       setPlayerId(''); setNick('');
+    } else {
+      setError(result.error || 'Error al procesar la solicitud');
     }
   };
 
@@ -59,7 +66,6 @@ export function ShopScreen() {
         </div>
 
         <div className="max-w-md mx-auto">
-          {/* Balance — full-width 2-col grid, same proportion as the upgrades grid */}
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="rounded-xl bg-card border border-amber-500/30 p-3 flex items-center gap-2 shadow-lg shadow-amber-500/10">
               <Coins className="w-5 h-5 text-amber-400" />
@@ -71,7 +77,6 @@ export function ShopScreen() {
             </div>
           </div>
 
-          {/* Compact VIP banner */}
           <div className="rounded-2xl bg-gradient-to-r from-amber-900/40 via-amber-800/20 to-card border border-amber-500/30 p-3 mb-4 shadow-lg shadow-amber-500/10">
             {vip ? (
               <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
@@ -91,7 +96,6 @@ export function ShopScreen() {
             )}
           </div>
 
-          {/* Tabs */}
           <div className="flex gap-2 mb-4">
             <button onClick={() => setTab('upgrades')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'upgrades' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Upgrades</button>
             <button onClick={() => setTab('diamonds')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'diamonds' ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/20' : 'bg-card border border-border text-white/60'}`}>Diamantes</button>
@@ -158,8 +162,8 @@ export function ShopScreen() {
                     <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-2.5 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
                   </div>
                 </div>
-                <button onClick={handleClaimDiamonds} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
-                  <Gem className="w-5 h-5" />Reclamar 100 Diamantes
+                <button onClick={handleClaimDiamonds} disabled={claiming} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 disabled:opacity-50">
+                  <Gem className="w-5 h-5" />{claiming ? 'Procesando...' : 'Reclamar 100 Diamantes'}
                 </button>
               </div>
             </div>
@@ -175,6 +179,24 @@ export function ShopScreen() {
       </div>
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
+
+      {/* Claim success modal */}
+      {showClaimModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur animate-fade-in">
+          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-card border border-green-500/40 p-8 text-center animate-scale-in shadow-2xl shadow-green-500/20">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-green-400" />
+              </div>
+            </div>
+            <h2 className="text-white font-bold text-xl mb-2">¡Reclamado con exito!</h2>
+            <p className="text-green-300 text-sm mb-6">Tus diamantes te llegaran en un plazo de 24 a 72 horas.</p>
+            <button onClick={() => setShowClaimModal(false)} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-opacity">
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

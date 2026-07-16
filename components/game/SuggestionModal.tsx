@@ -10,21 +10,26 @@ interface SuggestionModalProps {
 }
 
 export function SuggestionModal({ open, onClose }: SuggestionModalProps) {
-  const { addSuggestion } = useGame();
+  const { sendSuggestion } = useGame();
   const [text, setText] = useState('');
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
 
   if (!open) return null;
 
-  const handleSubmit = () => {
-    if (text.trim().length < 5) return;
-    addSuggestion(text.trim());
-    setSent(true);
-    setTimeout(() => {
-      setSent(false);
+  const handleSubmit = async () => {
+    if (text.trim().length < 5 || sending) return;
+    setSending(true);
+    const result = await sendSuggestion(text.trim());
+    setSending(false);
+    if (result.ok) {
       setText('');
-      onClose();
-    }, 1800);
+      setSent(true);
+      setTimeout(() => {
+        setSent(false);
+        onClose();
+      }, 1800);
+    }
   };
 
   return (
@@ -46,8 +51,8 @@ export function SuggestionModal({ open, onClose }: SuggestionModalProps) {
         {sent ? (
           <div className="text-center py-8">
             <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-3" />
-            <p className="text-white font-bold">¡Sugerencia registrada!</p>
-            <p className="text-white/50 text-sm">Tu idea fue guardada en la base de datos.</p>
+            <p className="text-white font-bold">¡Sugerencia enviada!</p>
+            <p className="text-white/50 text-sm">Muchas gracias por ayudarnos a mejorar el juego.</p>
           </div>
         ) : (
           <>
@@ -61,11 +66,11 @@ export function SuggestionModal({ open, onClose }: SuggestionModalProps) {
             <p className="text-right text-xs text-white/30 mt-1">{text.length}/500</p>
             <button
               onClick={handleSubmit}
-              disabled={text.trim().length < 5}
+              disabled={text.trim().length < 5 || sending}
               className="w-full mt-3 py-3 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
             >
               <Send className="w-4 h-4" />
-              Enviar sugerencia
+              {sending ? 'Enviando...' : 'Enviar sugerencia'}
             </button>
           </>
         )}

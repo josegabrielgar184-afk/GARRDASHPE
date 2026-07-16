@@ -1,7 +1,7 @@
 =================================================================
   GARRDASHPE - FICHA DE SEGURIDAD DE DATOS
   Plantilla para Google Play Console
-  Fecha: 15 de julio de 2026
+  Fecha: 16 de julio de 2026
 =================================================================
 
 Esta plantilla contiene las respuestas exactas que debes rellenar
@@ -142,6 +142,45 @@ Respuestas sugeridas para el cuestionario IARC:
    jugando.)
 
 Clasificacion esperada: PEGI 10 / ESRB E10+ / IARC 10+
+
+-----------------------------------------------------------------
+  SECCION 7.1: Nivel de API de Destino (Target SDK)
+-----------------------------------------------------------------
+
+Target SDK Version: 35 (Android 15)
+Compile SDK Version: 35
+Min SDK Version: 23 (Android 6.0)
+
+Cumple con los requisitos anuales de Google Play:
+- Target SDK actualizado al nivel requerido para 2025-2026
+- Soporte para Android 15 (API 35)
+- Compatible con versiones anteriores hasta Android 6.0
+
+-----------------------------------------------------------------
+  SECCION 7.2: Seguridad y Anti-Fraude
+-----------------------------------------------------------------
+
+La app implementa las siguientes medidas de seguridad:
+
+1. Validacion del lado del servidor (Firebase Cloud Functions)
+   - Las monedas se calculan en el servidor, no en el cliente
+   - Deteccion de incrementos incoherentes
+
+2. Deteccion de VPN y Emuladores
+   - Bloqueo de acceso a Offerwall desde VPN/emuladores
+   - Deteccion de BlueStacks, LDPlayer, NoxPlayer, etc.
+
+3. Deteccion de manipulacion de memoria
+   - Deteccion de GameGuardian, Lucky Patcher, Xposed, Frida
+   - Cierre automatico ante herramientas de hackeo detectadas
+
+4. Baneo por ID de Dispositivo (Hardware Ban)
+   - Registro de dispositivos baneados en Firestore (blacklist_devices)
+   - Bloqueo de acceso a cualquier cuenta desde dispositivos baneados
+
+5. Limite fisico de monedas por partida
+   - Maximo 50 monedas por partida (validado en cliente y servidor)
+   - Transacciones sospechosas marcadas para revision manual
 
 -----------------------------------------------------------------
   SECCION 8: URL de la politica de privacidad
