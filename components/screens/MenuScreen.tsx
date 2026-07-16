@@ -5,10 +5,10 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck } from 'lucide-react';
+import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw } from 'lucide-react';
 
 export function MenuScreen() {
-  const { coins, points, vip, setScreen, getCharacter, setLoggedIn, topPlayerName, topPlayerScore, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood } = useGame();
+  const { coins, points, vip, setScreen, getCharacter, logOut, topPlayerName, topPlayerScore, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood, orientationMode, setOrientationMode } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const char = getCharacter();
@@ -123,7 +123,7 @@ export function MenuScreen() {
                 <Crown className="w-4 h-4" />VIP Activo
               </div>
             )}
-            <button onClick={() => { setLoggedIn(false); setScreen('login'); }} className="px-4 py-3 rounded-xl bg-card border border-border text-white/40 hover:text-white/60 transition-colors flex items-center justify-center">
+            <button onClick={() => { logOut(); }} className="px-4 py-3 rounded-xl bg-card border border-border text-white/40 hover:text-white/60 transition-colors flex items-center justify-center">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -170,6 +170,21 @@ export function MenuScreen() {
                   <div className="text-left"><p className="text-white font-bold text-sm">Politica de Privacidad</p><p className="text-white/40 text-xs">Ver documento legal</p></div>
                 </div>
               </a>
+
+              {/* Orientation mode */}
+              <div className="w-full p-3 rounded-xl bg-background/50 border border-border">
+                <div className="flex items-center gap-3 mb-3">
+                  <Smartphone className="w-5 h-5 text-cyan-400" />
+                  <div className="text-left"><p className="text-white font-bold text-sm">Orientacion</p><p className="text-white/40 text-xs">Bloqueo manual de rotacion</p></div>
+                </div>
+                <div className="flex gap-2">
+                  {(['auto', 'portrait', 'landscape'] as const).map((m) => (
+                    <button key={m} onClick={() => setOrientationMode(m)} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${orientationMode === m ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-card border border-border text-white/40'}`}>
+                      {m === 'auto' ? 'Auto' : m === 'portrait' ? 'Vertical' : 'Horizontal'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <p className="mt-6 text-center text-white/30 text-xs">GARRDASHPE v1.0.0 &copy; 2026</p>

@@ -5,7 +5,7 @@ import { useGame } from '@/hooks/use-game';
 import { Joystick } from '@/components/game/Joystick';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Heart, Coins, Crosshair, Rocket } from 'lucide-react';
+import { ArrowLeft, Heart, Coins, Crosshair, Rocket, Video } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   type Particle2D, type Star,
@@ -22,18 +22,19 @@ interface BossShip { x: number; y: number; vx: number; vy: number; angle: number
 interface Laser { x: number; y: number; vx: number; vy: number; life: number; color: string; fromPlayer: boolean; damage: number; }
 
 export function SpaceGameScreen() {
-  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline } = useGame();
+  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  const [showReward, setShowReward] = useState(false);
+  const [showReviveReward, setShowReviveReward] = useState(false);
   const [floatTexts, setFloatTexts] = useState<Array<{ id: number; text: string; x: number; y: number; color: string }>>([]);
   const [bossActive, setBossActive] = useState(false);
   const [bossHp, setBossHp] = useState(0);
   const [bossMaxHp, setBossMaxHp] = useState(0);
   const [bossName, setBossName] = useState('');
+  const [showInterstitial, setShowInterstitial] = useState(false);
 
   const playerRef = useRef({ x: 0, y: 0, vx: 0, vy: 0, angle: 0 });
   const meteorsRef = useRef<Meteor[]>([]);
@@ -63,6 +64,8 @@ export function SpaceGameScreen() {
   const difficultyRef = useRef(1);
   const finalBossDefeatedRef = useRef(false);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
+  const gameCoinsRef = useRef(0);
+  const interstitialCheckedRef = useRef(false);
 
   const ship = getShip();
 
@@ -102,12 +105,13 @@ export function SpaceGameScreen() {
     finalBossThresholdRef.current = 1500;
     difficultyRef.current = 1;
     finalBossDefeatedRef.current = false;
+    gameCoinsRef.current = 0;
+    interstitialCheckedRef.current = false;
     setScore(0); setCoinsEarned(0); setGameOver(false); setBossActive(false);
   }, [ship, upgrades]);
 
   useEffect(() => { initGame(); }, [initGame]);
 
-  // Dynamic canvas resize for any device
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -195,6 +199,17 @@ export function SpaceGameScreen() {
     addFloatText('¡JEFE FINAL!', w / 2, canvasSizeRef.current.h / 3, '#ef4444');
   };
 
+  // Interstitial ad on game over
+  useEffect(() => {
+    if (gameOver && !interstitialCheckedRef.current) {
+      interstitialCheckedRef.current = true;
+      if (!vip && canShowInterstitial()) {
+        setShowInterstitial(true);
+        recordInterstitial();
+      }
+    }
+  }, [gameOver, canShowInterstitial, recordInterstitial, vip]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -207,13 +222,10 @@ export function SpaceGameScreen() {
       lastTime = now;
       const { w, h } = canvasSizeRef.current;
 
-      // Background
       ctx.fillStyle = '#050810';
       ctx.fillRect(0, 0, w, h);
 
-      // Parallax stars (far)
       drawParallaxStars(ctx, starsFarRef.current, dt, w, h, 0.5);
-      // Parallax stars (near)
       drawParallaxStars(ctx, starsRef.current, dt, w, h, 1.5);
 
       if (!gameOverRef.current) {
@@ -223,7 +235,6 @@ export function SpaceGameScreen() {
         p.x = clamp(p.x + p.vx * dt, 25, w - 25);
         p.y = clamp(p.y + p.vy * dt, 25, h - 25);
 
-        // Auto-shoot toward crosshair
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
         if (shootCooldownRef.current <= 0) {
           playerShoot();
@@ -234,15 +245,13 @@ export function SpaceGameScreen() {
         setScore(Math.floor(scoreRef.current));
         difficultyRef.current = 1 + scoreRef.current / 1000;
 
-        // Coin every 4 seconds
         coinTimerRef.current += dt * 16.67;
         if (coinTimerRef.current >= 4000) {
           coinTimerRef.current = 0;
-          addCoins(1); setCoinsEarned((c) => c + 1); playCoin();
+          addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin();
           addFloatText('+1 moneda', w / 2, h / 2 - 50, '#fbbf24');
         }
 
-        // Spawn
         if (!bossRef.current) {
           spawnTimerRef.current += dt;
           const interval = Math.max(12, 25 - difficultyRef.current * 2);
@@ -254,7 +263,6 @@ export function SpaceGameScreen() {
           if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current) { spawnFinalBoss(); }
         }
 
-        // Update meteors
         for (let i = meteorsRef.current.length - 1; i >= 0; i--) {
           const m = meteorsRef.current[i];
           m.x += m.vx * dt; m.y += m.vy * dt; m.rot += m.rotVel * dt;
@@ -270,7 +278,6 @@ export function SpaceGameScreen() {
           }
         }
 
-        // Update enemies
         for (let i = enemiesRef.current.length - 1; i >= 0; i--) {
           const e = enemiesRef.current[i];
           e.x += e.vx * dt; e.y += e.vy * dt;
@@ -290,7 +297,6 @@ export function SpaceGameScreen() {
           }
         }
 
-        // Update boss
         if (bossRef.current) {
           const b = bossRef.current;
           b.x = clamp(b.x + b.vx * dt, b.size, w - b.size);
@@ -325,7 +331,6 @@ export function SpaceGameScreen() {
           }
         }
 
-        // Update lasers
         for (let i = lasersRef.current.length - 1; i >= 0; i--) {
           const l = lasersRef.current[i];
           l.x += l.vx * dt; l.y += l.vy * dt; l.life -= dt;
@@ -343,7 +348,7 @@ export function SpaceGameScreen() {
                   playExplosion();
                   scoreRef.current += 50 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   commonKillCountRef.current++;
-                  if (commonKillCountRef.current % 3 === 0) { addCoins(1); setCoinsEarned((c) => c + 1); playCoin(); }
+                  if (commonKillCountRef.current % 3 === 0) { addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin(); }
                 }
                 break;
               }
@@ -358,7 +363,7 @@ export function SpaceGameScreen() {
                   playExplosion();
                   scoreRef.current += 100 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   commonKillCountRef.current++;
-                  if (commonKillCountRef.current % 3 === 0) { addCoins(1); setCoinsEarned((c) => c + 1); playCoin(); }
+                  if (commonKillCountRef.current % 3 === 0) { addCoins(1); gameCoinsRef.current += 1; setCoinsEarned(gameCoinsRef.current); playCoin(); }
                 }
                 break;
               }
@@ -370,7 +375,7 @@ export function SpaceGameScreen() {
                 spawnParticles2D(particlesRef.current, l.x, l.y, 5, '#f59e0b', 3);
                 if (b.hp <= 0) {
                   const reward = b.isMini ? 10 : 30;
-                  addCoins(reward); setCoinsEarned((c) => c + reward);
+                  addCoins(reward); gameCoinsRef.current += reward; setCoinsEarned(gameCoinsRef.current);
                   scoreRef.current += (b.isMini ? 1000 : 5000) * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, b.x, b.y, b.isMini ? 30 : 50, b.isMini ? '#f59e0b' : '#ef4444', 8);
@@ -391,21 +396,15 @@ export function SpaceGameScreen() {
           }
         }
 
-        // Draw meteors
         for (const m of meteorsRef.current) drawMeteor2D(ctx, m.x, m.y, m.size, m.rot, m.hp, m.maxHp);
-        // Draw enemies
         for (const e of enemiesRef.current) drawEnemyShip2D(ctx, e.x, e.y, e.angle, '#f87171', e.size);
-        // Draw boss
         if (bossRef.current) drawBossShip2D(ctx, bossRef.current.x, bossRef.current.y, bossRef.current.angle, bossRef.current.isMini ? '#f59e0b' : '#ef4444', bossRef.current.size, bossRef.current.hp, bossRef.current.maxHp);
-        // Draw player
         drawShip2D(ctx, p.x, p.y, p.angle, shieldRef.current ? '#34d399' : ship.color, 20, shieldRef.current);
       }
 
-      // Particles
       updateParticles2D(particlesRef.current, dt);
       drawParticles2D(ctx, particlesRef.current);
 
-      // Lasers
       for (const l of lasersRef.current) {
         ctx.fillStyle = l.color;
         ctx.shadowColor = l.color;
@@ -416,7 +415,6 @@ export function SpaceGameScreen() {
         ctx.shadowBlur = 0;
       }
 
-      // Crosshair
       if (crosshairRef.current.active && !gameOverRef.current) {
         drawCrosshair2D(ctx, crosshairRef.current.x, crosshairRef.current.y, '#22d3ee', 22);
       }
@@ -428,7 +426,6 @@ export function SpaceGameScreen() {
     return () => cancelAnimationFrame(rafRef.current);
   }, [addCoins, setLives, ship, submitSpaceScore]);
 
-  // Crosshair: follow touch on right side / mouse
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -458,7 +455,7 @@ export function SpaceGameScreen() {
   }, []);
 
   return (
-    <div className="absolute inset-0 bg-black flex flex-col">
+    <div className="absolute inset-0 bg-black flex flex-col" style={{ paddingTop: vip ? 0 : 'calc(var(--ad-banner-height) + env(safe-area-inset-top))' }}>
       <OfflineBanner />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-3 pb-2">
@@ -484,7 +481,6 @@ export function SpaceGameScreen() {
       {!gameOver && (
         <>
           <div className="absolute bottom-20 left-4 z-10"><Joystick onMove={handleMove} size={120} /></div>
-          {/* Aim hint - auto-fire toward the circular crosshair */}
           <div className="absolute bottom-28 right-6 z-10 flex flex-col items-center gap-1 pointer-events-none">
             <div className="w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center backdrop-blur" style={{ borderColor: `${ship.color}66` }}>
               <Crosshair className="w-6 h-6" style={{ color: ship.color }} />
@@ -499,13 +495,26 @@ export function SpaceGameScreen() {
             <h2 className="text-red-400 font-bold text-2xl mb-2" style={{ textShadow: '0 0 20px rgba(239,68,68,0.5)' }}>Game Over</h2>
             <p className="text-white/60 text-sm mb-1">Puntuacion: {score}</p>
             <p className="text-amber-400 text-sm mb-6">Monedas ganadas: {coinsEarned}</p>
-            <button onClick={() => setShowReward(true)} disabled={!isOnline} className="w-full py-3 rounded-xl bg-green-500 text-white font-bold mb-2 hover:bg-green-400 shadow-lg shadow-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed">{isOnline ? 'Revivir con Anuncio' : 'Anuncios requieren conexión'}</button>
+            <button onClick={() => setShowReviveReward(true)} disabled={!isOnline} className="w-full py-3 rounded-xl bg-green-500 text-white font-bold mb-2 hover:bg-green-400 shadow-lg shadow-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              <Video className="w-4 h-4" />{isOnline ? 'Revivir: 1 vida + 10 Monedas' : 'Anuncios requieren conexión'}
+            </button>
             <button onClick={() => initGame()} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold mb-2 hover:bg-primary/90 shadow-lg shadow-primary/20">Reiniciar (De Nuevo)</button>
             <button onClick={() => setScreen('mode-select')} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
           </div>
         </div>
       )}
-      <RewardAdModal open={showReward} onClose={() => setShowReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); }} title="Revivir" rewardText="¡Has revivido con vida completa y escudo!" />
+      {/* Interstitial ad modal */}
+      {showInterstitial && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 animate-fade-in">
+          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
+            <Video className="w-16 h-16 text-primary animate-pulse mx-auto mb-4" />
+            <p className="text-white font-bold text-lg mb-2">Anuncio Interstitial</p>
+            <p className="text-white/50 text-sm mb-6">Anuncio publicitario - Cierra en 3 segundos...</p>
+            <button onClick={() => setShowInterstitial(false)} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:opacity-90">Cerrar ahora</button>
+          </div>
+        </div>
+      )}
+      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); addCoins(10); gameCoinsRef.current += 10; setCoinsEarned(gameCoinsRef.current); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
       <MuteButton />
     </div>
   );

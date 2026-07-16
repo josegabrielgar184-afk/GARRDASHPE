@@ -5,7 +5,11 @@ import { CHARACTERS, getCharacter, getShip, getZombieCharacter, type CharacterDe
 import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import {
+  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  type User,
+} from 'firebase/auth';
 
 export type Screen =
   | 'intro'
@@ -31,6 +35,9 @@ export interface RankEntry {
   score: number;
 }
 
+export type ControlSize = 'small' | 'medium' | 'large';
+export type OrientationMode = 'auto' | 'portrait' | 'landscape';
+
 interface GameState {
   screen: Screen;
   coins: number;
@@ -43,6 +50,7 @@ interface GameState {
   selectedZombie: string;
   loggedIn: boolean;
   email: string;
+  playerName: string;
   topPlayerName: string;
   topPlayerScore: number;
   absoluteRecord: number;
@@ -55,6 +63,9 @@ interface GameState {
   isOnline: boolean;
   pendingCoins: number;
   bloodEnabled: boolean;
+  controlSize: ControlSize;
+  orientationMode: OrientationMode;
+  lastInterstitialTime: number;
   setScreen: (s: Screen) => void;
   addCoins: (n: number) => void;
   spendCoins: (n: number) => boolean;
@@ -64,6 +75,8 @@ interface GameState {
   buyVIP: () => void;
   toggleMute: () => void;
   toggleBlood: () => void;
+  setControlSize: (s: ControlSize) => void;
+  setOrientationMode: (m: OrientationMode) => void;
   selectCharacter: (id: string) => void;
   selectShip: (id: string) => void;
   selectZombie: (id: string) => void;
@@ -78,6 +91,19 @@ interface GameState {
   refreshRanking: () => Promise<void>;
   submitSpaceScore: (score: number) => Promise<void>;
   submitZombieScore: (score: number) => Promise<void>;
+  canShowInterstitial: () => boolean;
+  recordInterstitial: () => void;
+  signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signUp: (data: SignUpData) => Promise<{ ok: boolean; error?: string }>;
+  logOut: () => Promise<void>;
+}
+
+export interface SignUpData {
+  fullName: string;
+  age: number;
+  country: string;
+  email: string;
+  password: string;
 }
 
 const GameContext = createContext<GameState | null>(null);
@@ -100,11 +126,14 @@ interface SaveData {
   selectedZombie: string;
   loggedIn: boolean;
   email: string;
+  playerName: string;
   lastRouletteDate: string;
   rouletteSpinsToday: number;
   suggestions: Array<{ id: number; text: string; date: string }>;
   upgrades: UpgradeState;
   bloodEnabled: boolean;
+  controlSize: ControlSize;
+  orientationMode: OrientationMode;
 }
 
 function loadSave(): Partial<SaveData> {
@@ -161,6 +190,8 @@ const FALLBACK_ZOMBIE: RankEntry[] = [
   { name: 'LastStand', score: 400 },
 ];
 
+const INTERSTITIAL_COOLDOWN_MS = 5 * 60 * 1000;
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [screen, setScreenState] = useState<Screen>('intro');
   const [coins, setCoins] = useState(0);
@@ -173,6 +204,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [selectedZombie, setSelectedZombie] = useState('soldier');
   const [loggedIn, setLoggedInState] = useState(false);
   const [email, setEmail] = useState('');
+  const [playerName, setPlayerName] = useState('');
   const [topPlayerName, setTopPlayerName] = useState('Garricraft_YT');
   const [topPlayerScore, setTopPlayerScore] = useState(154820);
   const [absoluteRecord, setAbsoluteRecord] = useState(154820);
@@ -185,7 +217,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCoins, setPendingCoins] = useState(0);
   const [bloodEnabled, setBloodEnabled] = useState(true);
+  const [controlSize, setControlSizeState] = useState<ControlSize>('medium');
+  const [orientationMode, setOrientationModeState] = useState<OrientationMode>('auto');
+  const [authReady, setAuthReady] = useState(false);
 
+  const lastInterstitialTimeRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -199,11 +235,33 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.selectedZombie !== undefined) setSelectedZombie(s.selectedZombie);
     if (s.loggedIn !== undefined) setLoggedInState(s.loggedIn);
     if (s.email !== undefined) setEmail(s.email);
+    if (s.playerName !== undefined) setPlayerName(s.playerName);
     if (s.lastRouletteDate !== undefined) setLastRouletteDate(s.lastRouletteDate);
     if (s.rouletteSpinsToday !== undefined) setRouletteSpinsToday(s.rouletteSpinsToday);
     if (s.suggestions !== undefined) setSuggestions(s.suggestions);
     if (s.upgrades !== undefined) setUpgrades(s.upgrades);
     if (s.bloodEnabled !== undefined) setBloodEnabled(s.bloodEnabled);
+    if (s.controlSize !== undefined) setControlSizeState(s.controlSize);
+    if (s.orientationMode !== undefined) setOrientationModeState(s.orientationMode);
+  }, []);
+
+  // Firebase Auth: persistent session via onAuthStateChanged
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user: User | null) => {
+      if (user) {
+        setLoggedInState(true);
+        setEmail(user.email ?? '');
+        const name = user.email?.split('@')[0] ?? 'Player';
+        setPlayerName(name);
+        saveData({ loggedIn: true, email: user.email ?? '', playerName: name });
+        setScreenState((prev) => (prev === 'intro' || prev === 'login' ? 'menu' : prev));
+      } else {
+        setLoggedInState(false);
+        saveData({ loggedIn: false });
+      }
+      setAuthReady(true);
+    });
+    return () => unsub();
   }, []);
 
   // Online/offline detection via navigator.onLine + event listeners
@@ -212,7 +270,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const update = () => {
       const online = navigator.onLine;
       setIsOnline(online);
-      // When coming back online, flush pending coins to permanent balance
       if (online && pendingCoins > 0) {
         setCoins((prev) => {
           const next = prev + pendingCoins;
@@ -231,7 +288,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pendingCoins]);
 
-  // Firebase: subscribe to top1 record (absolute record across all modes)
+  // Firebase: subscribe to top1 record
   useEffect(() => {
     try {
       const topRef = doc(db, 'global', 'top1');
@@ -253,7 +310,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Derive the absolute top player from both rankings (highest score wins)
+  // Derive the absolute top player from both rankings
   useEffect(() => {
     const spaceTop = spaceRanking[0];
     const zombieTop = zombieRanking[0];
@@ -297,7 +354,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const addCoins = useCallback((n: number) => {
     if (!isOnline) {
-      // Queue to pending coins; will flush to permanent balance on reconnect
       setPendingCoins((prev) => prev + n);
       return;
     }
@@ -374,6 +430,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setControlSize = useCallback((s: ControlSize) => {
+    setControlSizeState(s);
+    saveData({ controlSize: s });
+  }, []);
+
+  const setOrientationMode = useCallback((m: OrientationMode) => {
+    setOrientationModeState(m);
+    saveData({ orientationMode: m });
+  }, []);
+
   const selectCharacter = useCallback((id: string) => {
     setSelectedCharacter(id);
     saveData({ selectedCharacter: id });
@@ -391,8 +457,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const setLoggedIn = useCallback((v: boolean, playerEmail?: string) => {
     setLoggedInState(v);
-    if (playerEmail) setEmail(playerEmail);
-    saveData({ loggedIn: v, email: playerEmail ?? '' });
+    if (playerEmail) {
+      setEmail(playerEmail);
+      const name = playerEmail.split('@')[0] ?? 'Player';
+      setPlayerName(name);
+      saveData({ loggedIn: v, email: playerEmail, playerName: name });
+    } else {
+      saveData({ loggedIn: v });
+    }
   }, []);
 
   const recordRouletteSpin = useCallback(() => {
@@ -410,7 +482,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       saveData({ suggestions: next });
       return next;
     });
-    if (!isOnline) return; // Skip Firebase writes when offline
+    if (!isOnline) return;
     try {
       addDoc(collection(db, 'suggestions'), {
         text,
@@ -468,7 +540,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Auto-refresh ranking every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       refreshRanking();
@@ -485,67 +556,119 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [lastRouletteDate, rouletteSpinsToday, vip]);
 
   const submitSpaceScore = useCallback(async (score: number) => {
-    if (!isOnline) return; // Skip Firebase writes when offline
+    if (!isOnline) return;
     try {
-      const playerName = email.split('@')[0] || 'Player';
+      const playerNameToUse = playerName || email.split('@')[0] || 'Player';
       await addDoc(collection(db, 'scores_space'), {
-        name: playerName,
+        name: playerNameToUse,
         score,
         date: serverTimestamp(),
       });
-      // Update local ranking
       setSpaceRanking((prev) => {
-        const next = [...prev, { name: playerName, score }];
+        const next = [...prev, { name: playerNameToUse, score }];
         next.sort((a, b) => b.score - a.score);
         return next.slice(0, 10);
       });
-      // Update global top1 doc if this score beats the absolute record
       if (score > absoluteRecord) {
-        await setDoc(doc(db, 'global', 'top1'), { name: playerName, score }, { merge: true });
+        await setDoc(doc(db, 'global', 'top1'), { name: playerNameToUse, score }, { merge: true });
         setAbsoluteRecord(score);
-        setTopPlayerName(playerName);
+        setTopPlayerName(playerNameToUse);
         setTopPlayerScore(score);
       }
     } catch {
       // ignore
     }
-  }, [email, absoluteRecord, isOnline]);
+  }, [email, playerName, absoluteRecord, isOnline]);
 
   const submitZombieScore = useCallback(async (score: number) => {
-    if (!isOnline) return; // Skip Firebase writes when offline
+    if (!isOnline) return;
     try {
-      const playerName = email.split('@')[0] || 'Player';
+      const playerNameToUse = playerName || email.split('@')[0] || 'Player';
       await addDoc(collection(db, 'scores_zombie'), {
-        name: playerName,
+        name: playerNameToUse,
         score,
         date: serverTimestamp(),
       });
       setZombieRanking((prev) => {
-        const next = [...prev, { name: playerName, score }];
+        const next = [...prev, { name: playerNameToUse, score }];
         next.sort((a, b) => b.score - a.score);
         return next.slice(0, 10);
       });
-      // Update global top1 doc if this score beats the absolute record
       if (score > absoluteRecord) {
-        await setDoc(doc(db, 'global', 'top1'), { name: playerName, score }, { merge: true });
+        await setDoc(doc(db, 'global', 'top1'), { name: playerNameToUse, score }, { merge: true });
         setAbsoluteRecord(score);
-        setTopPlayerName(playerName);
+        setTopPlayerName(playerNameToUse);
         setTopPlayerScore(score);
       }
     } catch {
       // ignore
     }
-  }, [email, absoluteRecord, isOnline]);
+  }, [email, playerName, absoluteRecord, isOnline]);
+
+  const canShowInterstitial = useCallback(() => {
+    const now = Date.now();
+    return now - lastInterstitialTimeRef.current >= INTERSTITIAL_COOLDOWN_MS;
+  }, []);
+
+  const recordInterstitial = useCallback(() => {
+    lastInterstitialTimeRef.current = Date.now();
+  }, []);
+
+  const signIn = useCallback(async (emailAddr: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, emailAddr, password);
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al iniciar sesion';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const signUp = useCallback(async (data: SignUpData) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const uid = cred.user.uid;
+      await setDoc(doc(db, 'usuarios', uid), {
+        nombre: data.fullName,
+        edad: data.age,
+        pais: data.country,
+        email: data.email,
+        createdAt: serverTimestamp(),
+      });
+      const name = data.email.split('@')[0] ?? 'Player';
+      setPlayerName(name);
+      saveData({ playerName: name });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al registrar';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const logOut = useCallback(async () => {
+    try {
+      await signOut(auth);
+    } catch {
+      // ignore
+    }
+    setLoggedInState(false);
+    saveData({ loggedIn: false });
+    setScreenState('login');
+  }, []);
 
   const value: GameState = {
-    screen, coins, points, lives, vip, muted, selectedCharacter, selectedShip, selectedZombie, loggedIn, email,
+    screen, coins, points, lives, vip, muted, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
     topPlayerName, topPlayerScore, absoluteRecord,
     lastRouletteDate, rouletteSpinsToday, suggestions, upgrades,
     spaceRanking, zombieRanking, isOnline, pendingCoins, bloodEnabled,
+    controlSize, orientationMode, lastInterstitialTime: lastInterstitialTimeRef.current,
     setScreen, addCoins, spendCoins, addPoints, spendPoints, setLives,
-    buyVIP, toggleMute, toggleBlood, selectCharacter, selectShip, selectZombie, setLoggedIn, recordRouletteSpin,
+    buyVIP, toggleMute, toggleBlood, setControlSize, setOrientationMode,
+    selectCharacter, selectShip, selectZombie, setLoggedIn, recordRouletteSpin,
     addSuggestion, getCharacter: getChar, getShip: getShipDef, getZombieCharacter: getZombieChar, buyUpgrade, refreshRanking,
     submitSpaceScore, submitZombieScore, getFreeSpinsRemaining,
+    canShowInterstitial, recordInterstitial,
+    signIn, signUp, logOut,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio } from 'lucide-react';
+import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown } from 'lucide-react';
 
 export function RankingScreen() {
   const { setScreen, spaceRanking, zombieRanking, refreshRanking } = useGame();
@@ -12,19 +12,32 @@ export function RankingScreen() {
   const [tab, setTab] = useState<'space' | 'zombie'>('space');
   const [loading, setLoading] = useState(true);
   const [countdown, setCountdown] = useState(10);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showArrow, setShowArrow] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     refreshRanking().finally(() => setLoading(false));
   }, [refreshRanking]);
 
-  // Visual countdown synced to the 10s auto-refresh in context
   useEffect(() => {
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 10 : c - 1));
     }, 1000);
     return () => clearInterval(tick);
   }, []);
+
+  // Show scroll arrow if content overflows
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => {
+      setShowArrow(el.scrollHeight > el.clientHeight + 10 && el.scrollTop < el.scrollHeight - el.clientHeight - 10);
+    };
+    check();
+    el.addEventListener('scroll', check);
+    return () => el.removeEventListener('scroll', check);
+  }, [loading, tab]);
 
   const ranking = tab === 'space' ? spaceRanking : zombieRanking;
   const getMedalColor = (i: number) => i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-white/30';
@@ -34,7 +47,7 @@ export function RankingScreen() {
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      <div className="pt-16 px-6 pb-28 flex-1">
+      <div className="pt-16 px-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
@@ -43,7 +56,6 @@ export function RankingScreen() {
         </div>
 
         <div className="max-w-sm mx-auto">
-          {/* Auto-refresh indicator */}
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/30">
               <Radio className="w-3.5 h-3.5 text-green-400 animate-pulse" />
@@ -53,7 +65,6 @@ export function RankingScreen() {
             </div>
           </div>
 
-          {/* Tabs */}
           <div className="flex gap-2 mb-4">
             <button onClick={() => setTab('space')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-1.5 ${tab === 'space' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-lg shadow-cyan-500/10' : 'bg-card border border-border text-white/50'}`}>
               <Rocket className="w-4 h-4" />Espacio
@@ -62,14 +73,19 @@ export function RankingScreen() {
               <Skull className="w-4 h-4" />Zombies
             </button>
           </div>
+        </div>
+      </div>
 
+      {/* Scrollable ranking list */}
+      <div className="flex-1 min-h-0 px-6 overflow-hidden relative">
+        <div className="max-w-sm mx-auto h-full">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-3" />
               <p className="text-white/40 text-sm">Consultando Firebase...</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div ref={scrollRef} className="h-full overflow-y-auto no-scrollbar space-y-2 pb-4">
               {ranking.map((entry, i) => (
                 <div key={i} className={`flex items-center gap-3 rounded-xl p-3 border transition-all animate-fade-in ${i < 3 ? 'bg-gradient-to-r from-amber-900/20 to-card border-amber-500/30 shadow-lg shadow-amber-500/10' : 'bg-card border-border'}`}>
                   <div className="flex items-center justify-center w-8">
@@ -86,8 +102,18 @@ export function RankingScreen() {
               ))}
             </div>
           )}
+          {/* Animated down arrow indicator */}
+          {showArrow && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none animate-bounce">
+              <ChevronDown className="w-6 h-6 text-cyan-400/70" />
+            </div>
+          )}
+        </div>
+      </div>
 
-          <button onClick={() => { setLoading(true); refreshRanking().finally(() => setLoading(false)); setCountdown(10); }} className="w-full mt-6 py-2.5 rounded-xl bg-card border border-border text-white/60 text-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary">
+      <div className="px-6 pb-28 pt-2 flex-shrink-0">
+        <div className="max-w-sm mx-auto">
+          <button onClick={() => { setLoading(true); refreshRanking().finally(() => setLoading(false)); setCountdown(10); }} className="w-full py-2.5 rounded-xl bg-card border border-border text-white/60 text-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary">
             <RefreshCw className="w-4 h-4" />Actualizar ahora
           </button>
         </div>

@@ -23,8 +23,8 @@ export function ShopScreen() {
 
   const handleBuyPoints = () => {
     setError(''); setSuccess('');
-    if (coins < 1500) { setError('No tienes suficientes monedas. Necesitas 1500.'); return; }
-    if (spendCoins(1500)) { addPoints(10); setSuccess('¡Has comprado 10 Puntos por 1500 Monedas!'); }
+    if (coins < 15000) { setError('No tienes suficientes monedas. Necesitas 15000.'); return; }
+    if (spendCoins(15000)) { addPoints(10); setSuccess('¡Has comprado 10 Puntos por 15000 Monedas!'); }
   };
 
   const handleClaimDiamonds = () => {
@@ -138,9 +138,9 @@ export function ShopScreen() {
               <div className="rounded-2xl bg-card border border-cyan-500/30 p-5 shadow-lg shadow-cyan-500/10">
                 <div className="flex items-center gap-3 mb-3">
                   <Star className="w-8 h-8 text-cyan-400" />
-                  <div><h2 className="text-white font-bold">Comprar 10 Puntos</h2><p className="text-white/40 text-xs">Costo: 1500 Monedas</p></div>
+                  <div><h2 className="text-white font-bold">Comprar 10 Puntos</h2><p className="text-white/40 text-xs">Costo: 15000 Monedas</p></div>
                 </div>
-                <button onClick={handleBuyPoints} className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold hover:opacity-90 transition-opacity shadow-lg shadow-cyan-500/20">Canjear 1500 Monedas por 10 Puntos</button>
+                <button onClick={handleBuyPoints} className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold hover:opacity-90 transition-opacity shadow-lg shadow-cyan-500/20">Canjear 15000 Monedas por 10 Puntos</button>
               </div>
 
               <div className="rounded-2xl bg-card border border-green-500/30 p-5 shadow-lg shadow-green-500/10">

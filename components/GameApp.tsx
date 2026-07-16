@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from '@/hooks/use-game';
 import { IntroScreen } from '@/components/screens/IntroScreen';
 import { LoginScreen } from '@/components/screens/LoginScreen';
@@ -12,6 +13,9 @@ import { RouletteScreen } from '@/components/screens/RouletteScreen';
 import { CharactersScreen } from '@/components/screens/CharactersScreen';
 import { RankingScreen } from '@/components/screens/RankingScreen';
 import { AdBanner } from '@/components/game/AdBanner';
+
+const GAMEPLAY_SCREENS = ['space-game', 'zombie-game'];
+const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'shop', 'roulette', 'characters', 'ranking'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -42,15 +46,106 @@ function GameRouter() {
   }
 }
 
+function BackButtonHandler() {
+  const { screen, setScreen } = useGame();
+  const lastBackPressRef = useRef<number>(0);
+  const [showExitToast, setShowExitToast] = useState(false);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const now = Date.now();
+      if (GAMEPLAY_SCREENS.includes(screen)) {
+        setScreen('mode-select');
+      } else if (screen === 'mode-select') {
+        setScreen('menu');
+      } else if (MENU_SCREENS.includes(screen) && screen !== 'menu' && screen !== 'login' && screen !== 'intro') {
+        setScreen('menu');
+      } else if (screen === 'menu' || screen === 'login' || screen === 'intro') {
+        if (now - lastBackPressRef.current < 2000) {
+          window.close();
+        } else {
+          lastBackPressRef.current = now;
+          setShowExitToast(true);
+          setTimeout(() => setShowExitToast(false), 2000);
+        }
+      }
+      // Push state so back button stays in app
+      if (typeof history !== 'undefined') {
+        history.pushState(null, '', window.location.href);
+      }
+    };
+
+    // Listen for Capacitor/backbutton event
+    const handleBackButton = () => handlePopState();
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('backbutton', handleBackButton as EventListener);
+
+    // Initial push state
+    if (typeof history !== 'undefined') {
+      history.pushState(null, '', window.location.href);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('backbutton', handleBackButton as EventListener);
+    };
+  }, [screen, setScreen]);
+
+  if (!showExitToast) return null;
+
+  return (
+    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-xl bg-card border border-cyan-500/40 shadow-2xl shadow-cyan-500/20 animate-scale-in">
+      <p className="text-white text-sm font-bold">Presione otra vez para salir</p>
+    </div>
+  );
+}
+
+function OrientationManager() {
+  const { screen, orientationMode } = useGame();
+
+  useEffect(() => {
+    if (typeof screen === 'undefined') return;
+
+    const isGameplay = GAMEPLAY_SCREENS.includes(screen);
+
+    if (orientationMode === 'portrait') {
+      document.documentElement.style.setProperty('--app-rotation', '0deg');
+      return;
+    }
+    if (orientationMode === 'landscape') {
+      document.documentElement.style.setProperty('--app-rotation', '90deg');
+      return;
+    }
+
+    // auto mode: gameplay = landscape, menus = portrait
+    document.documentElement.style.setProperty('--app-rotation', isGameplay ? '90deg' : '0deg');
+  }, [screen, orientationMode]);
+
+  return null;
+}
+
+function AppShell() {
+  const { screen } = useGame();
+  const isGameplay = GAMEPLAY_SCREENS.includes(screen);
+
+  return (
+    <div className="fixed inset-0 overflow-hidden flex flex-col">
+      {(isGameplay && screen !== 'intro' && screen !== 'login') && <AdBanner position="top" />}
+      <div className="flex-1 relative overflow-hidden min-h-0">
+        <GameRouter />
+      </div>
+      {!isGameplay && <AdBanner position="bottom" />}
+      <BackButtonHandler />
+      <OrientationManager />
+    </div>
+  );
+}
+
 export default function GameApp() {
   return (
     <GameProvider>
-      <div className="fixed inset-0 overflow-hidden flex flex-col">
-        <div className="flex-1 relative overflow-hidden min-h-0">
-          <GameRouter />
-        </div>
-        <AdBanner />
-      </div>
+      <AppShell />
     </GameProvider>
   );
 }
