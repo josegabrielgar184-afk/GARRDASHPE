@@ -1,6 +1,7 @@
 'use client';
 
 import { useGame } from '@/hooks/use-game';
+import { ADMOB_CONFIG, MODO_PRUEBA } from '@/lib/config';
 import { Ban } from 'lucide-react';
 
 interface AdBannerProps {
@@ -26,10 +27,12 @@ export function AdBanner({ position = 'bottom' }: AdBannerProps) {
     >
       <Ban className="w-5 h-5 text-primary/60 shrink-0" />
       <div className="text-center">
-        <p className="text-xs font-bold text-white/80">Anuncio AdMob</p>
+        <p className="text-xs font-bold text-white/80">{MODO_PRUEBA ? 'AdMob (Test)' : 'Anuncio AdMob'}</p>
         <p className="text-[10px] text-white/40">Banner publicitario - Compra VIP para eliminar anuncios</p>
       </div>
-      <div className="ml-auto text-[10px] text-primary/50 font-mono">AdMob Banner</div>
+      <div className="ml-auto text-[10px] text-primary/50 font-mono hidden sm:block">
+        {MODO_PRUEBA ? 'TEST' : ADMOB_CONFIG.bannerId.slice(-10)}
+      </div>
     </div>
   );
 }

@@ -4,13 +4,23 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { CHARACTERS, getCharacter, getShip, getZombieCharacter, type CharacterDef, type ShipDef, type ZombieCharDef } from '@/lib/characters';
 import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
-  updateDoc, deleteDoc, where,
+  updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp,
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   type User,
 } from 'firebase/auth';
+import {
+  cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
+} from '@/lib/firebase-optimization';
+import {
+  ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
+  NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
+  INFLUENCER_MIN_BALANCE, INFLUENCER_MIN_WITHDRAW, INFLUENCER_RECENT_GAMES,
+  INFLUENCER_RECENT_DAYS, RETURNED_USER_MIN_GAMES, RETURNED_USER_INACTIVE_DAYS,
+  OPERATOR_LUNCH_BREAK_HOURS, RANKING_PAGE_SIZE,
+} from '@/lib/config';
 
 export type Screen =
   | 'intro'
@@ -24,7 +34,9 @@ export type Screen =
   | 'characters'
   | 'ranking'
   | 'offerwall'
-  | 'admin';
+  | 'admin'
+  | 'operator'
+  | 'influencer';
 
 export interface UpgradeState {
   fireRate: number;
@@ -36,6 +48,8 @@ export interface UpgradeState {
 export interface RankEntry {
   name: string;
   score: number;
+  uid?: string;
+  avatar?: string;
 }
 
 export type ControlSize = 'small' | 'medium' | 'large';
@@ -66,6 +80,50 @@ export interface AdminUserInfo {
   coins: number;
   lastLogin: string;
   inactive: boolean;
+  totalRuns?: number;
+  bestScore?: number;
+  rol?: string;
+}
+
+export interface InfluencerInfo {
+  uid: string;
+  nombre: string;
+  email: string;
+  coins: number;
+  totalRuns: number;
+  bestScore: number;
+  rank: 'bronce' | 'plata' | 'oro';
+  canWithdraw: boolean;
+  recentGames: number;
+}
+
+export interface OperatorTurn {
+  id: string;
+  operatorId: string;
+  operatorName: string;
+  startTime: any;
+  endTime?: any;
+  initialBalance: number;
+  currentBalance: number;
+  prizesPaid: number;
+  status: 'activo' | 'cerrado' | 'almuerzo';
+  receiptUrl?: string;
+  checkoutUrl?: string;
+}
+
+export type TransactionLight = 'green' | 'yellow' | 'red';
+
+export interface AdminStats {
+  totalUsers: number;
+  totalCoins: number;
+  activeCoins: number;
+  inactiveCoins: number;
+  reservedAmount: number;
+  availableAmount: number;
+  nearClaimUsers: AdminUserInfo[];
+  activeUsers: number;
+  inactiveUsers: number;
+  returnedUsers: AdminUserInfo[];
 }
 
 interface GameState {
@@ -83,6 +141,7 @@ interface GameState {
   playerName: string;
   topPlayerName: string;
   topPlayerScore: number;
+  topPlayerAvatar?: string;
   absoluteRecord: number;
   lastRouletteDate: string;
   rouletteSpinsToday: number;
@@ -90,6 +149,7 @@ interface GameState {
   upgrades: UpgradeState;
   spaceRanking: RankEntry[];
   zombieRanking: RankEntry[];
+  weeklyRanking: RankEntry[];
   isOnline: boolean;
   pendingCoins: number;
   bloodEnabled: boolean;
@@ -119,6 +179,9 @@ interface GameState {
   getZombieCharacter: () => ZombieCharDef;
   buyUpgrade: (key: keyof UpgradeState, cost: number) => boolean;
   refreshRanking: () => Promise<void>;
+  refreshWeeklyRanking: () => Promise<void>;
+  loadMoreRanking: (type: 'space' | 'zombie' | 'weekly') => Promise<void>;
+  hasMoreRanking: (type: 'space' | 'zombie' | 'weekly') => boolean;
   submitSpaceScore: (score: number) => Promise<void>;
   submitZombieScore: (score: number) => Promise<void>;
   canShowInterstitial: () => boolean;
@@ -136,11 +199,27 @@ interface GameState {
   pendingRequests: PendingRequest[];
   refreshPendingRequests: () => Promise<void>;
   confirmPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
-  adminUserStats: { totalUsers: number; totalCoins: number; reservedAmount: number; availableAmount: number; nearClaimUsers: AdminUserInfo[] };
+  rejectPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
+  adminUserStats: AdminStats;
   refreshAdminStats: () => Promise<void>;
   isDeviceBanned: boolean;
   checkDeviceBan: () => Promise<void>;
   reportSuspiciousActivity: (type: string, details: string) => void;
+  delegateWork: boolean;
+  setDelegateWork: (v: boolean) => Promise<void>;
+  operatorTurn: OperatorTurn | null;
+  startOperatorTurn: (initialBalance: number, receiptFile?: Blob) => Promise<{ ok: boolean; error?: string }>;
+  endOperatorTurn: (checkoutFile?: Blob) => Promise<{ ok: boolean; error?: string }>;
+  operatorOnLunch: boolean;
+  influencerInfo: InfluencerInfo | null;
+  refreshInfluencerInfo: () => Promise<void>;
+  requestInfluencerWithdraw: (amount: number) => Promise<{ ok: boolean; error?: string }>;
+  adminManualIncome: (amount: number) => Promise<{ ok: boolean; error?: string }>;
+  adminSetExchangeLimit: (limit: number) => Promise<{ ok: boolean; error?: string }>;
+  adminBanUser: (uid: string) => Promise<{ ok: boolean; error?: string }>;
+  adminPanicButton: () => Promise<{ ok: boolean; error?: string }>;
+  transactionLight: TransactionLight;
+  currentUserRank: number | null;
 }
 
 export interface SignUpData {
@@ -197,9 +276,7 @@ function saveData(data: Partial<SaveData>) {
   try {
     const existing = loadSave();
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, ...data }));
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 export const UPGRADE_COSTS: Record<keyof UpgradeState, number> = {
@@ -252,6 +329,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [playerName, setPlayerName] = useState('');
   const [topPlayerName, setTopPlayerName] = useState('Garricraft_YT');
   const [topPlayerScore, setTopPlayerScore] = useState(154820);
+  const [topPlayerAvatar, setTopPlayerAvatar] = useState<string | undefined>(undefined);
   const [absoluteRecord, setAbsoluteRecord] = useState(154820);
   const [lastRouletteDate, setLastRouletteDate] = useState('');
   const [rouletteSpinsToday, setRouletteSpinsToday] = useState(0);
@@ -259,6 +337,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [upgrades, setUpgrades] = useState<UpgradeState>({ fireRate: 0, damage: 0, coinMagnet: 0, superShield: 0 });
   const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(FALLBACK_SPACE);
   const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(FALLBACK_ZOMBIE);
+  const [weeklyRanking, setWeeklyRanking] = useState<RankEntry[]>([]);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCoins, setPendingCoins] = useState(0);
   const [bloodEnabled, setBloodEnabled] = useState(true);
@@ -269,12 +348,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [offerwallDownloadsToday, setOfferwallDownloadsToday] = useState(0);
   const [userRole, setUserRole] = useState<'user' | 'operador' | 'admin'>('user');
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [adminUserStats, setAdminUserStats] = useState({ totalUsers: 0, totalCoins: 0, reservedAmount: 0, availableAmount: 0, nearClaimUsers: [] as AdminUserInfo[] });
+  const [adminUserStats, setAdminUserStats] = useState<AdminStats>({
+    totalUsers: 0, totalCoins: 0, activeCoins: 0, inactiveCoins: 0,
+    reservedAmount: 0, availableAmount: 0, nearClaimUsers: [], activeUsers: 0, inactiveUsers: 0, returnedUsers: [],
+  });
   const [isDeviceBanned, setIsDeviceBanned] = useState(false);
+  const [delegateWork, setDelegateWorkState] = useState(false);
+  const [operatorTurn, setOperatorTurn] = useState<OperatorTurn | null>(null);
+  const [operatorOnLunch, setOperatorOnLunch] = useState(false);
+  const [influencerInfo, setInfluencerInfo] = useState<InfluencerInfo | null>(null);
+  const [transactionLight, setTransactionLight] = useState<TransactionLight>('green');
+  const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
 
   const lastInterstitialTimeRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const scoreRef = useRef(0);
+  const rankingPaginationRef = useRef<{ space: number; zombie: number; weekly: number }>({ space: RANKING_PAGE_SIZE, zombie: RANKING_PAGE_SIZE, weekly: RANKING_PAGE_SIZE });
+  const hasMoreRankingRef = useRef<{ space: boolean; zombie: boolean; weekly: boolean }>({ space: true, zombie: true, weekly: true });
 
   useEffect(() => {
     const s = loadSave();
@@ -297,27 +387,35 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.orientationMode !== undefined) setOrientationModeState(s.orientationMode);
   }, []);
 
-  // Firebase Auth: persistent session via onAuthStateChanged
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user: User | null) => {
+    const unsub = onAuthStateChanged(auth, async (user: User | null) => {
       if (user) {
         setLoggedInState(true);
         setEmail(user.email ?? '');
         const name = user.email?.split('@')[0] ?? 'Player';
         setPlayerName(name);
         saveData({ loggedIn: true, email: user.email ?? '', playerName: name });
-        setScreenState((prev) => (prev === 'intro' || prev === 'login' ? 'menu' : prev));
-        // Fetch user role from Firestore
+        let role: 'user' | 'operador' | 'admin' = 'user';
         try {
-          getDocs(query(collection(db, 'usuarios'), where('email', '==', user.email ?? ''))).then((snap) => {
-            snap.forEach((d) => {
-              const data = d.data();
-              if (data.rol === 'admin') setUserRole('admin');
-              else if (data.rol === 'operador') setUserRole('operador');
-              else setUserRole('user');
-            });
-          }).catch(() => {});
+          const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.rol === 'admin') role = 'admin';
+            else if (data.rol === 'operador') role = 'operador';
+            else role = 'user';
+            if (data.lastLogin) {
+              await updateDoc(doc(db, 'usuarios', user.uid), { lastLogin: serverTimestamp() });
+            }
+          }
         } catch {}
+        setUserRole(role);
+        if (role === 'admin') {
+          setScreenState('admin');
+        } else if (role === 'operador') {
+          setScreenState('operator');
+        } else {
+          setScreenState('menu');
+        }
       } else {
         setLoggedInState(false);
         setUserRole('user');
@@ -328,7 +426,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, []);
 
-  // Online/offline detection via navigator.onLine + event listeners
   useEffect(() => {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
     const update = () => {
@@ -352,7 +449,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pendingCoins]);
 
-  // Firebase: subscribe to top1 record
   useEffect(() => {
     try {
       const topRef = doc(db, 'global', 'top1');
@@ -361,20 +457,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           const data = snap.data();
           const name = data.name || data.nickname || 'Garricraft_YT';
           const score = data.score || 0;
+          const avatar = data.avatar;
           if (score > 0) {
             setTopPlayerName(name);
             setTopPlayerScore(score);
             setAbsoluteRecord(score);
+            if (avatar) setTopPlayerAvatar(avatar);
           }
         }
       });
       return () => unsub();
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
-  // Derive the absolute top player from both rankings
   useEffect(() => {
     const spaceTop = spaceRanking[0];
     const zombieTop = zombieRanking[0];
@@ -391,7 +486,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [spaceRanking, zombieRanking, absoluteRecord]);
 
-  // Audio: copyright-free loop from Pixabay
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (audioRef.current) return;
@@ -552,9 +646,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         text,
         date: serverTimestamp(),
       }).catch(() => {});
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [isOnline]);
 
   const getChar = useCallback(() => getCharacter(selectedCharacter), [selectedCharacter]);
@@ -581,35 +673,107 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshRanking = useCallback(async () => {
+    const cached = cacheGet<RankEntry[]>('ranking_space');
+    if (cached && cached.length > 0) {
+      setSpaceRanking(cached);
+    }
+    const cachedZ = cacheGet<RankEntry[]>('ranking_zombie');
+    if (cachedZ && cachedZ.length > 0) {
+      setZombieRanking(cachedZ);
+    }
     try {
-      const sq = query(collection(db, 'scores_space'), orderBy('score', 'desc'), limit(10));
+      const sq = query(collection(db, 'scores_space'), orderBy('score', 'desc'), limit(RANKING_PAGE_SIZE));
       const sSnap = await getDocs(sq);
       const sEntries: RankEntry[] = [];
       sSnap.forEach((d) => {
         const data = d.data();
-        sEntries.push({ name: data.name || 'Unknown', score: data.score || 0 });
+        sEntries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
       });
-      if (sEntries.length > 0) setSpaceRanking(sEntries);
+      if (sEntries.length > 0) {
+        setSpaceRanking(sEntries);
+        cacheSet('ranking_space', sEntries);
+      }
+      rankingPaginationRef.current.space = RANKING_PAGE_SIZE;
+      hasMoreRankingRef.current.space = sEntries.length === RANKING_PAGE_SIZE;
 
-      const zq = query(collection(db, 'scores_zombie'), orderBy('score', 'desc'), limit(10));
+      const zq = query(collection(db, 'scores_zombie'), orderBy('score', 'desc'), limit(RANKING_PAGE_SIZE));
       const zSnap = await getDocs(zq);
       const zEntries: RankEntry[] = [];
       zSnap.forEach((d) => {
         const data = d.data();
-        zEntries.push({ name: data.name || 'Unknown', score: data.score || 0 });
+        zEntries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
       });
-      if (zEntries.length > 0) setZombieRanking(zEntries);
-    } catch {
-      // keep fallbacks
-    }
+      if (zEntries.length > 0) {
+        setZombieRanking(zEntries);
+        cacheSet('ranking_zombie', zEntries);
+      }
+      rankingPaginationRef.current.zombie = RANKING_PAGE_SIZE;
+      hasMoreRankingRef.current.zombie = zEntries.length === RANKING_PAGE_SIZE;
+    } catch {}
   }, []);
 
+  const refreshWeeklyRanking = useCallback(async () => {
+    const cached = cacheGet<RankEntry[]>('ranking_weekly');
+    if (cached && cached.length > 0) {
+      setWeeklyRanking(cached);
+    }
+    try {
+      const weekStart = getStartOfWeek();
+      const wq = query(collection(db, 'scores_weekly'), where('date', '>=', weekStart), orderBy('date', 'desc'), orderBy('score', 'desc'), limit(RANKING_PAGE_SIZE));
+      const wSnap = await getDocs(wq);
+      const wEntries: RankEntry[] = [];
+      wSnap.forEach((d) => {
+        const data = d.data();
+        wEntries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
+      });
+      wEntries.sort((a, b) => b.score - a.score);
+      if (wEntries.length > 0) {
+        setWeeklyRanking(wEntries);
+        cacheSet('ranking_weekly', wEntries, 60 * 1000);
+      }
+      rankingPaginationRef.current.weekly = RANKING_PAGE_SIZE;
+      hasMoreRankingRef.current.weekly = wEntries.length === RANKING_PAGE_SIZE;
+    } catch {}
+  }, []);
+
+  const loadMoreRanking = useCallback(async (type: 'space' | 'zombie' | 'weekly') => {
+    if (!hasMoreRankingRef.current[type]) return;
+    try {
+      const offset = rankingPaginationRef.current[type];
+      const collName = type === 'space' ? 'scores_space' : type === 'zombie' ? 'scores_zombie' : 'scores_weekly';
+      const q = query(collection(db, collName), orderBy('score', 'desc'), limit(offset + RANKING_PAGE_SIZE));
+      const snap = await getDocs(q);
+      const entries: RankEntry[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        entries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
+      });
+      if (type === 'space') {
+        setSpaceRanking(entries);
+        cacheSet('ranking_space', entries);
+      } else if (type === 'zombie') {
+        setZombieRanking(entries);
+        cacheSet('ranking_zombie', entries);
+      } else {
+        setWeeklyRanking(entries);
+        cacheSet('ranking_weekly', entries, 60 * 1000);
+      }
+      rankingPaginationRef.current[type] = offset + RANKING_PAGE_SIZE;
+      hasMoreRankingRef.current[type] = entries.length === offset + RANKING_PAGE_SIZE;
+    } catch {}
+  }, []);
+
+  const hasMoreRanking = useCallback((type: 'space' | 'zombie' | 'weekly') => hasMoreRankingRef.current[type], []);
+
   useEffect(() => {
+    refreshRanking();
+    refreshWeeklyRanking();
     const interval = setInterval(() => {
       refreshRanking();
-    }, 10000);
+      refreshWeeklyRanking();
+    }, 15000);
     return () => clearInterval(interval);
-  }, [refreshRanking]);
+  }, [refreshRanking, refreshWeeklyRanking]);
 
   const getFreeSpinsRemaining = useCallback((): number => {
     const today = new Date().toISOString().slice(0, 10);
@@ -622,51 +786,75 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const submitSpaceScore = useCallback(async (score: number) => {
     if (!isOnline) return;
     try {
+      const user = auth.currentUser;
       const playerNameToUse = playerName || email.split('@')[0] || 'Player';
-      await addDoc(collection(db, 'scores_space'), {
-        name: playerNameToUse,
-        score,
-        date: serverTimestamp(),
-      });
+      const uid = user?.uid ?? 'anonymous';
+      const scoreDoc = {
+        name: playerNameToUse, score, uid, date: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'scores_space'), scoreDoc);
+      const weekStart = getStartOfWeek();
+      await setDoc(doc(db, 'scores_weekly', `${uid}_${weekStart.toISOString().slice(0,10)}`), {
+        ...scoreDoc, weekStart,
+      }, { merge: true });
       setSpaceRanking((prev) => {
-        const next = [...prev, { name: playerNameToUse, score }];
+        const next = [...prev, { name: playerNameToUse, score, uid }];
         next.sort((a, b) => b.score - a.score);
-        return next.slice(0, 10);
+        return next.slice(0, 20);
       });
       if (score > absoluteRecord) {
-        await setDoc(doc(db, 'global', 'top1'), { name: playerNameToUse, score }, { merge: true });
+        await setDoc(doc(db, 'global', 'top1'), { name: playerNameToUse, score, uid }, { merge: true });
         setAbsoluteRecord(score);
         setTopPlayerName(playerNameToUse);
         setTopPlayerScore(score);
       }
-    } catch {
-      // ignore
-    }
-  }, [email, playerName, absoluteRecord, isOnline]);
+      if (user) {
+        const userRef = doc(db, 'usuarios', user.uid);
+        const userDoc = await getDoc(userRef);
+        const currentCoins = userDoc.data()?.coins ?? coins;
+        const totalRuns = (userDoc.data()?.totalRuns ?? 0) + 1;
+        const bestScore = Math.max(userDoc.data()?.bestScore ?? 0, score);
+        await updateDoc(userRef, { totalRuns, bestScore, lastActive: serverTimestamp() });
+        void currentCoins;
+      }
+      cacheInvalidatePattern('ranking');
+    } catch {}
+  }, [email, playerName, absoluteRecord, isOnline, coins]);
 
   const submitZombieScore = useCallback(async (score: number) => {
     if (!isOnline) return;
     try {
+      const user = auth.currentUser;
       const playerNameToUse = playerName || email.split('@')[0] || 'Player';
-      await addDoc(collection(db, 'scores_zombie'), {
-        name: playerNameToUse,
-        score,
-        date: serverTimestamp(),
-      });
+      const uid = user?.uid ?? 'anonymous';
+      const scoreDoc = {
+        name: playerNameToUse, score, uid, date: serverTimestamp(),
+      };
+      await addDoc(collection(db, 'scores_zombie'), scoreDoc);
+      const weekStart = getStartOfWeek();
+      await setDoc(doc(db, 'scores_weekly', `${uid}_${weekStart.toISOString().slice(0,10)}`), {
+        ...scoreDoc, weekStart,
+      }, { merge: true });
       setZombieRanking((prev) => {
-        const next = [...prev, { name: playerNameToUse, score }];
+        const next = [...prev, { name: playerNameToUse, score, uid }];
         next.sort((a, b) => b.score - a.score);
-        return next.slice(0, 10);
+        return next.slice(0, 20);
       });
       if (score > absoluteRecord) {
-        await setDoc(doc(db, 'global', 'top1'), { name: playerNameToUse, score }, { merge: true });
+        await setDoc(doc(db, 'global', 'top1'), { name: playerNameToUse, score, uid }, { merge: true });
         setAbsoluteRecord(score);
         setTopPlayerName(playerNameToUse);
         setTopPlayerScore(score);
       }
-    } catch {
-      // ignore
-    }
+      if (user) {
+        const userRef = doc(db, 'usuarios', user.uid);
+        const userDoc = await getDoc(userRef);
+        const totalRuns = (userDoc.data()?.totalRuns ?? 0) + 1;
+        const bestScore = Math.max(userDoc.data()?.bestScore ?? 0, score);
+        await updateDoc(userRef, { totalRuns, bestScore, lastActive: serverTimestamp() });
+      }
+      cacheInvalidatePattern('ranking');
+    } catch {}
   }, [email, playerName, absoluteRecord, isOnline]);
 
   const canShowInterstitial = useCallback(() => {
@@ -697,7 +885,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         edad: data.age,
         pais: data.country,
         email: data.email,
+        coins: 0,
+        totalRuns: 0,
+        bestScore: 0,
         createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        rol: 'user',
       });
       const name = data.email.split('@')[0] ?? 'Player';
       setPlayerName(name);
@@ -712,9 +905,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const logOut = useCallback(async () => {
     try {
       await signOut(auth);
-    } catch {
-      // ignore
-    }
+    } catch {}
     setLoggedInState(false);
     setUserRole('user');
     saveData({ loggedIn: false });
@@ -770,23 +961,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const refreshOfferwallConfig = useCallback(async () => {
     try {
-      const snap = await getDocs(doc(db, 'config', 'offerwall').parent
-        ? query(collection(db, 'config'))
-        : query(collection(db, 'config')));
-      snap.forEach((d) => {
-        if (d.id === 'offerwall') {
-          const data = d.data();
-          setOfferwallConfig({
-            active: data.active ?? false,
-            link: data.link ?? '',
-            rewardPerDownload: data.rewardPerDownload ?? 1000,
-            dailyLimit: data.dailyLimit ?? 2,
-          });
-        }
-      });
-    } catch {
-      // config not set yet, offerwall stays disabled
-    }
+      const snap = await getDoc(doc(db, 'config', 'offerwall'));
+      if (snap.exists()) {
+        const data = snap.data();
+        setOfferwallConfig({
+          active: data.active ?? false,
+          link: data.link ?? '',
+          rewardPerDownload: data.rewardPerDownload ?? 1000,
+          dailyLimit: data.dailyLimit ?? 2,
+        });
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -807,7 +992,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [offerwallConfig, offerwallDownloadsToday, addCoins]);
 
-  // Reset daily offerwall counter at midnight
   useEffect(() => {
     const now = new Date();
     const tomorrow = new Date(now);
@@ -815,7 +999,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const msUntilMidnight = tomorrow.getTime() - now.getTime();
     const timeout = setTimeout(() => {
       setOfferwallDownloadsToday(0);
-      // Set daily interval after first reset
       const interval = setInterval(() => setOfferwallDownloadsToday(0), 24 * 60 * 60 * 1000);
       return () => clearInterval(interval);
     }, msUntilMidnight);
@@ -841,9 +1024,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         });
       });
       setPendingRequests(reqs);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   const confirmPendingRequest = useCallback(async (requestId: string): Promise<{ ok: boolean; error?: string }> => {
@@ -851,24 +1032,51 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const user = auth.currentUser;
       if (!user) return { ok: false, error: 'No autenticado' };
       const reqRef = doc(db, 'solicitudes_pendientes', requestId);
-      const snap = await getDocs(query(collection(db, 'solicitudes_pendientes'), where('__name__', '==', requestId)));
-      if (snap.empty) return { ok: false, error: 'Solicitud no encontrada' };
-      let requestData: any = {};
-      snap.forEach((d) => { requestData = d.data(); });
-      // Copy to confirmed collection
+      const reqDoc = await getDoc(reqRef);
+      if (!reqDoc.exists()) return { ok: false, error: 'Solicitud no encontrada' };
+      const requestData = reqDoc.data();
       await setDoc(doc(db, 'solicitudes_confirmadas', requestId), {
         ...requestData,
         estado: 'completado',
         procesadoPor: user.uid,
         procesadoFecha: serverTimestamp(),
       });
-      // Delete from pending
       await deleteDoc(reqRef);
-      // Update local state
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      if (operatorTurn) {
+        const prizeAmount = (requestData.puntosGastados ?? 0) / 10 * (COINS_PER_USD / 100);
+        setOperatorTurn((prev) => prev ? {
+          ...prev,
+          prizesPaid: prev.prizesPaid + (requestData.puntosGastados ?? 0),
+          currentBalance: prev.currentBalance - prizeAmount,
+        } : null);
+      }
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al confirmar solicitud';
+      return { ok: false, error: msg };
+    }
+  }, [operatorTurn]);
+
+  const rejectPendingRequest = useCallback(async (requestId: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const reqRef = doc(db, 'solicitudes_pendientes', requestId);
+      const reqDoc = await getDoc(reqRef);
+      if (!reqDoc.exists()) return { ok: false, error: 'Solicitud no encontrada' };
+      const requestData = reqDoc.data();
+      await setDoc(doc(db, 'solicitudes_confirmadas', requestId), {
+        ...requestData,
+        estado: 'rechazado',
+        procesadoPor: user.uid,
+        procesadoFecha: serverTimestamp(),
+      });
+      await deleteDoc(reqRef);
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al rechazar solicitud';
       return { ok: false, error: msg };
     }
   }, []);
@@ -878,20 +1086,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const snap = await getDocs(collection(db, 'usuarios'));
       let totalCoins = 0;
       let totalUsers = 0;
-      const nearClaim: AdminUserInfo[] = [];
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       let activeCoins = 0;
       let inactiveCoins = 0;
+      let activeUsers = 0;
+      let inactiveUsers = 0;
+      const nearClaim: AdminUserInfo[] = [];
+      const returnedUsers: AdminUserInfo[] = [];
+      const sevenDaysAgo = getDaysAgo(INACTIVITY_THRESHOLD_DAYS);
+      const fifteenDaysAgo = getDaysAgo(RETURNED_USER_INACTIVE_DAYS);
+
       snap.forEach((d) => {
         const data = d.data();
         const userCoins = data.coins ?? 0;
         totalCoins += userCoins;
         totalUsers++;
-        const lastLoginDate = data.lastLogin?.toDate?.() ?? new Date(0);
-        const isInactive = lastLoginDate.getTime() < sevenDaysAgo;
-        if (isInactive) inactiveCoins += userCoins;
-        else activeCoins += userCoins;
-        if (userCoins >= 12000) {
+        const lastLoginRaw = data.lastLogin ?? data.lastActive;
+        let lastLoginDate: Date;
+        if (lastLoginRaw && typeof lastLoginRaw.toDate === 'function') {
+          lastLoginDate = lastLoginRaw.toDate();
+        } else if (lastLoginRaw) {
+          lastLoginDate = new Date(lastLoginRaw);
+        } else {
+          lastLoginDate = new Date(0);
+        }
+        const isInactive = lastLoginDate < sevenDaysAgo;
+        if (isInactive) {
+          inactiveCoins += userCoins;
+          inactiveUsers++;
+        } else {
+          activeCoins += userCoins;
+          activeUsers++;
+        }
+        if (userCoins >= NEAR_CLAIM_THRESHOLD) {
           nearClaim.push({
             uid: d.id,
             nombre: data.nombre ?? data.email ?? 'Unknown',
@@ -899,17 +1125,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             coins: userCoins,
             lastLogin: lastLoginDate.toISOString(),
             inactive: isInactive,
+            totalRuns: data.totalRuns ?? 0,
+            bestScore: data.bestScore ?? 0,
+            rol: data.rol ?? 'user',
+          });
+        }
+        if (lastLoginDate < fifteenDaysAgo && (data.totalRuns ?? 0) < RETURNED_USER_MIN_GAMES) {
+          returnedUsers.push({
+            uid: d.id,
+            nombre: data.nombre ?? data.email ?? 'Unknown',
+            email: data.email ?? '',
+            coins: userCoins,
+            lastLogin: lastLoginDate.toISOString(),
+            inactive: true,
+            totalRuns: data.totalRuns ?? 0,
+            bestScore: data.bestScore ?? 0,
+            rol: data.rol ?? 'user',
           });
         }
       });
       nearClaim.sort((a, b) => b.coins - a.coins);
-      // 15000 coins = S/. 3.80 soles / $1.00 USD
-      const reservedAmount = (activeCoins / 15000) * 3.80;
-      const availableAmount = (inactiveCoins / 15000) * 3.80;
-      setAdminUserStats({ totalUsers, totalCoins, reservedAmount, availableAmount, nearClaimUsers: nearClaim });
-    } catch {
-      // ignore
-    }
+      const reservedAmount = (activeCoins / COINS_PER_USD) * SOLES_PER_USD;
+      const availableAmount = (inactiveCoins / COINS_PER_USD) * SOLES_PER_USD;
+      setAdminUserStats({
+        totalUsers, totalCoins, activeCoins, inactiveCoins,
+        reservedAmount, availableAmount, nearClaimUsers: nearClaim,
+        activeUsers, inactiveUsers, returnedUsers,
+      });
+      if (reservedAmount > 0) {
+        const ratio = activeCoins / (totalCoins || 1);
+        if (ratio > 0.8) setTransactionLight('green');
+        else if (ratio > 0.5) setTransactionLight('yellow');
+        else setTransactionLight('red');
+      }
+    } catch {}
   }, []);
 
   const checkDeviceBan = useCallback(async () => {
@@ -926,9 +1175,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (!snap.empty) {
         setIsDeviceBanned(true);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -946,29 +1193,242 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         deviceId: typeof window !== 'undefined' ? localStorage.getItem('deviceId') ?? 'unknown' : 'unknown',
         timestamp: serverTimestamp(),
       }).catch(() => {});
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [email]);
+
+  const setDelegateWork = useCallback(async (v: boolean) => {
+    setDelegateWorkState(v);
+    try {
+      await setDoc(doc(db, 'config', 'admin'), { delegateWork: v }, { merge: true });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      getDoc(doc(db, 'config', 'admin')).then((snap) => {
+        if (snap.exists()) {
+          setDelegateWorkState(snap.data()?.delegateWork ?? false);
+        }
+      }).catch(() => {});
+    } catch {}
+  }, []);
+
+  const startOperatorTurn = useCallback(async (initialBalance: number, receiptFile?: Blob): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const turnData = {
+        operatorId: user.uid,
+        operatorName: user.email ?? 'Operator',
+        startTime: serverTimestamp(),
+        initialBalance,
+        currentBalance: initialBalance,
+        prizesPaid: 0,
+        status: 'activo',
+      };
+      const turnRef = await addDoc(collection(db, 'operator_turns'), turnData);
+      setOperatorTurn({
+        id: turnRef.id,
+        ...turnData,
+        startTime: new Date().toISOString(),
+        status: 'activo',
+      });
+      setOperatorOnLunch(false);
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al iniciar turno';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const endOperatorTurn = useCallback(async (checkoutFile?: Blob): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (!operatorTurn) return { ok: false, error: 'No hay turno activo' };
+      await updateDoc(doc(db, 'operator_turns', operatorTurn.id), {
+        endTime: serverTimestamp(),
+        status: 'cerrado',
+      });
+      setOperatorTurn(null);
+      setOperatorOnLunch(false);
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al cerrar turno';
+      return { ok: false, error: msg };
+    }
+  }, [operatorTurn]);
+
+  useEffect(() => {
+    if (!operatorTurn) return;
+    const startMs = operatorTurn.startTime instanceof Timestamp
+      ? operatorTurn.startTime.toDate().getTime()
+      : new Date(operatorTurn.startTime).getTime();
+    const lunchBreakMs = OPERATOR_LUNCH_BREAK_HOURS * 60 * 60 * 1000;
+    const checkLunch = () => {
+      if (Date.now() - startMs >= lunchBreakMs) {
+        setOperatorOnLunch(true);
+      }
+    };
+    const interval = setInterval(checkLunch, 60000);
+    return () => clearInterval(interval);
+  }, [operatorTurn]);
+
+  const refreshInfluencerInfo = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+      if (!userDoc.exists()) return;
+      const data = userDoc.data();
+      const totalRuns = data.totalRuns ?? 0;
+      const bestScore = data.bestScore ?? 0;
+      const userCoins = data.coins ?? 0;
+      let rank: 'bronce' | 'plata' | 'oro' = 'bronce';
+      if (bestScore >= 20000) rank = 'oro';
+      else if (bestScore >= 10000) rank = 'plata';
+
+      const weekStart = getStartOfWeek();
+      const recentSnap = await getDocs(query(
+        collection(db, 'scores_weekly'),
+        where('uid', '==', user.uid),
+        where('date', '>=', weekStart),
+      ));
+      let recentGames = 0;
+      recentSnap.forEach(() => recentGames++);
+
+      const meetsRuns = totalRuns >= INFLUENCER_MIN_RUNS;
+      const meetsScore = bestScore >= INFLUENCER_MIN_SCORE;
+      const meetsBalance = userCoins >= INFLUENCER_MIN_BALANCE;
+      const meetsRecentGames = recentGames >= INFLUENCER_RECENT_GAMES;
+      const canWithdraw = meetsRuns && meetsScore && meetsBalance && meetsRecentGames && userCoins >= INFLUENCER_MIN_WITHDRAW;
+
+      setInfluencerInfo({
+        uid: user.uid,
+        nombre: data.nombre ?? user.email?.split('@')[0] ?? 'Player',
+        email: data.email ?? '',
+        coins: userCoins,
+        totalRuns,
+        bestScore,
+        rank,
+        canWithdraw,
+        recentGames,
+      });
+    } catch {}
+  }, []);
+
+  const requestInfluencerWithdraw = useCallback(async (amount: number): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      if (amount < INFLUENCER_MIN_WITHDRAW) return { ok: false, error: `Minimo ${INFLUENCER_MIN_WITHDRAW} diamantes.` };
+      if (!influencerInfo) return { ok: false, error: 'Info no cargada' };
+      if (!influencerInfo.canWithdraw) return { ok: false, error: 'No cumples los requisitos para retiro.' };
+      if (influencerInfo.coins < amount) return { ok: false, error: 'Saldo insuficiente.' };
+
+      const batch = writeBatch(db);
+      const userRef = doc(db, 'usuarios', user.uid);
+      batch.update(userRef, { coins: influencerInfo.coins - amount });
+      const withdrawRef = doc(collection(db, 'retiros_influencers'));
+      batch.set(withdrawRef, {
+        uid: user.uid,
+        amount,
+        fecha: serverTimestamp(),
+        estado: 'pendiente',
+        rank: influencerInfo.rank,
+      });
+      await batch.commit();
+      await refreshInfluencerInfo();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al solicitar retiro';
+      return { ok: false, error: msg };
+    }
+  }, [influencerInfo, refreshInfluencerInfo]);
+
+  const adminManualIncome = useCallback(async (amount: number): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      await addDoc(collection(db, 'admin_income'), {
+        amount,
+        date: serverTimestamp(),
+        type: 'manual',
+      });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al registrar ingreso';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const adminSetExchangeLimit = useCallback(async (limit: number): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      await setDoc(doc(db, 'config', 'exchange'), { maxDaily: limit }, { merge: true });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al actualizar limite';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const adminBanUser = useCallback(async (uid: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      await updateDoc(doc(db, 'usuarios', uid), { banned: true, bannedDate: serverTimestamp() });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al banear usuario';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const adminPanicButton = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      await setDoc(doc(db, 'config', 'global'), { panicMode: true, panicTime: serverTimestamp() }, { merge: true });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al activar panico';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loggedIn || !auth.currentUser) return;
+    const userUid = auth.currentUser.uid;
+    const checkRank = () => {
+      const rankings = [spaceRanking, zombieRanking, weeklyRanking];
+      for (const ranking of rankings) {
+        const idx = ranking.findIndex((e) => e.uid === userUid || e.name === playerName);
+        if (idx >= 0) {
+          setCurrentUserRank(idx + 1);
+          return;
+        }
+      }
+      setCurrentUserRank(null);
+    };
+    checkRank();
+  }, [spaceRanking, zombieRanking, weeklyRanking, loggedIn, playerName]);
 
   const value: GameState = {
     screen, coins, points, lives, vip, muted, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
-    topPlayerName, topPlayerScore, absoluteRecord,
+    topPlayerName, topPlayerScore, topPlayerAvatar, absoluteRecord,
     lastRouletteDate, rouletteSpinsToday, suggestions, upgrades,
-    spaceRanking, zombieRanking, isOnline, pendingCoins, bloodEnabled,
+    spaceRanking, zombieRanking, weeklyRanking, isOnline, pendingCoins, bloodEnabled,
     controlSize, orientationMode, lastInterstitialTime: lastInterstitialTimeRef.current,
     setScreen, addCoins, spendCoins, addPoints, spendPoints, setLives,
     buyVIP, toggleMute, toggleBlood, setControlSize, setOrientationMode,
     selectCharacter, selectShip, selectZombie, setLoggedIn, recordRouletteSpin,
-    addSuggestion, getCharacter: getChar, getShip: getShipDef, getZombieCharacter: getZombieChar, buyUpgrade, refreshRanking,
+    addSuggestion, getCharacter: getChar, getShip: getShipDef, getZombieCharacter: getZombieChar, buyUpgrade,
+    refreshRanking, refreshWeeklyRanking, loadMoreRanking, hasMoreRanking,
     submitSpaceScore, submitZombieScore, getFreeSpinsRemaining,
     canShowInterstitial, recordInterstitial,
     signIn, signUp, logOut,
     claimDiamonds, sendSuggestion,
     offerwallConfig, refreshOfferwallConfig, offerwallDownloadsToday, recordOfferwallDownload,
-    userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest,
+    userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
     adminUserStats, refreshAdminStats,
     isDeviceBanned, checkDeviceBan, reportSuspiciousActivity,
+    delegateWork, setDelegateWork,
+    operatorTurn, startOperatorTurn, endOperatorTurn, operatorOnLunch,
+    influencerInfo, refreshInfluencerInfo, requestInfluencerWithdraw,
+    adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton,
+    transactionLight, currentUserRank,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

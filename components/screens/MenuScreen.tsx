@@ -1,17 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert } from 'lucide-react';
+import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert, Sparkles, Gem } from 'lucide-react';
 
 export function MenuScreen() {
-  const { coins, points, vip, setScreen, getCharacter, logOut, topPlayerName, topPlayerScore, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole } = useGame();
+  const { coins, points, vip, setScreen, getCharacter, logOut, topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole, influencerInfo, refreshInfluencerInfo } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const char = getCharacter();
+
+  useEffect(() => {
+    refreshInfluencerInfo();
+  }, [refreshInfluencerInfo]);
 
   // Floating particle positions (generated once on client)
   const [particles] = useState(() =>
@@ -62,12 +66,35 @@ export function MenuScreen() {
             <h1 className="neon-title text-5xl font-black tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
               GARRDASHPE
             </h1>
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-amber-500/30 backdrop-blur">
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-amber-300 text-xs font-bold">TOP 1:</span>
-              <span className="text-white text-xs font-bold">{topPlayerName}</span>
-              <span className="text-white/30 text-xs">-</span>
-              <span className="text-amber-400 text-xs font-mono">{topPlayerScore.toLocaleString()} pts</span>
+          </div>
+
+          {/* Throne of the Global King */}
+          <div className="mb-4 rounded-2xl bg-gradient-to-br from-amber-900/40 via-amber-800/20 to-card border border-amber-500/40 p-4 shadow-lg shadow-amber-500/20">
+            <div className="flex items-center gap-3">
+              <div className="relative shrink-0">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                  {topPlayerAvatar ? (
+                    <img src={topPlayerAvatar} alt="King" className="w-full h-full rounded-2xl object-cover" />
+                  ) : (
+                    <Crown className="w-7 h-7 text-white" />
+                  )}
+                </div>
+                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-3 h-3 text-white" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-amber-300 text-[10px] font-bold uppercase tracking-wider">Rey Global</span>
+                </div>
+                <p className="text-white font-bold text-sm truncate">{topPlayerName}</p>
+                <p className="text-amber-400 font-mono text-xs">{topPlayerScore.toLocaleString()} pts</p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[10px] text-white/40 uppercase">Racha</div>
+                <div className="text-amber-400 font-bold text-lg">#1</div>
+              </div>
             </div>
           </div>
 
@@ -123,7 +150,7 @@ export function MenuScreen() {
             </button>
             {(userRole === 'admin' || userRole === 'operador') && (
               <button
-                onClick={() => setScreen('admin')}
+                onClick={() => setScreen(userRole === 'admin' ? 'admin' : 'operator')}
                 className="rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/40 text-amber-400"
               >
                 <ShieldAlert className="w-4 h-4" />
@@ -131,6 +158,19 @@ export function MenuScreen() {
               </button>
             )}
           </div>
+
+          {/* Influencer button - only if eligible */}
+          {influencerInfo && influencerInfo.totalRuns >= 30 && (
+            <div className="mt-3">
+              <button
+                onClick={() => setScreen('influencer')}
+                className="w-full rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-purple-600/20 to-pink-500/20 border border-purple-500/40 text-purple-400"
+              >
+                <Gem className="w-4 h-4" />
+                PANEL CREADOR ({influencerInfo.rank.toUpperCase()})
+              </button>
+            </div>
+          )}
 
           {/* VIP + logout */}
           <div className="mt-6 flex items-center gap-3">

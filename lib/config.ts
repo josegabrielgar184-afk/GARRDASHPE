@@ -1,0 +1,42 @@
+export const MODO_PRUEBA = true;
+
+export const ADMOB_CONFIG = {
+  appId: MODO_PRUEBA
+    ? 'ca-app-pub-3940256099942544~3347511713'
+    : 'ca-app-pub-4019857759287283~2238402676',
+  bannerId: MODO_PRUEBA
+    ? 'ca-app-pub-3940256099942544/6300978111'
+    : 'ca-app-pub-4019857759287283/9166507177',
+  anuncioTiempoId: MODO_PRUEBA
+    ? 'ca-app-pub-3940256099942544/1033173712'
+    : 'ca-app-pub-4019857759287283/9604799919',
+  revivirId: MODO_PRUEBA
+    ? 'ca-app-pub-3940256099942544/5224354917'
+    : 'ca-app-pub-4019857759287283/4624626939',
+  ruletaId: MODO_PRUEBA
+    ? 'ca-app-pub-3940256099942544/5224354917'
+    : 'ca-app-pub-4019857759287283/3914180497',
+};
+
+export const URL_OFFERWALL_REAL = '';
+
+export const INTERSTITIAL_COOLDOWN_SECONDS = 300;
+
+export const COINS_PER_USD = 15000;
+export const SOLES_PER_USD = 3.80;
+export const COINS_PER_SOLES = COINS_PER_USD / SOLES_PER_USD;
+
+export const INACTIVITY_THRESHOLD_DAYS = 7;
+export const NEAR_CLAIM_THRESHOLD = 12000;
+export const DIAMOND_CLAIM_COST_POINTS = 10;
+export const INFLUENCER_MIN_RUNS = 30;
+export const INFLUENCER_MIN_SCORE = 5000;
+export const INFLUENCER_MIN_BALANCE = 2000;
+export const INFLUENCER_MIN_WITHDRAW = 110;
+export const INFLUENCER_RECENT_GAMES = 5;
+export const INFLUENCER_RECENT_DAYS = 7;
+export const RETURNED_USER_MIN_GAMES = 5;
+export const RETURNED_USER_INACTIVE_DAYS = 15;
+export const OPERATOR_LUNCH_BREAK_HOURS = 4;
+export const RANKING_PAGE_SIZE = 20;
+export const IMAGE_MAX_SIZE_KB = 500;

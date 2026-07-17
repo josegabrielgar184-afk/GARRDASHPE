@@ -15,10 +15,12 @@ import { CharactersScreen } from '@/components/screens/CharactersScreen';
 import { RankingScreen } from '@/components/screens/RankingScreen';
 import { OfferwallScreen } from '@/components/screens/OfferwallScreen';
 import { AdminScreen } from '@/components/screens/AdminScreen';
+import { OperatorScreen } from '@/components/screens/OperatorScreen';
+import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
 import { AdBanner } from '@/components/game/AdBanner';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game'];
-const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'shop', 'roulette', 'characters', 'ranking'];
+const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -48,6 +50,10 @@ function GameRouter() {
       return <OfferwallScreen />;
     case 'admin':
       return <AdminScreen />;
+    case 'operator':
+      return <OperatorScreen />;
+    case 'influencer':
+      return <InfluencerScreen />;
     default:
       return <IntroScreen />;
   }
