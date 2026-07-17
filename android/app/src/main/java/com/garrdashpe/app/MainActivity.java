@@ -1,4 +1,4 @@
-package com.garrdashpe.app;
+package com.garricraft.garrdash;
 
 import com.getcapacitor.BridgeActivity;
 
