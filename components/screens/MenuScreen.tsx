@@ -1,23 +1,106 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X, Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert, Sparkles, Gem } from 'lucide-react';
+import { URL_OFFERWALL_REAL } from '@/lib/config';
+import {
+  Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X,
+  Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert,
+  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye,
+} from 'lucide-react';
+import {
+  INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
+} from '@/lib/config';
 
 export function MenuScreen() {
-  const { coins, points, vip, setScreen, getCharacter, logOut, topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute, bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole, influencerInfo, refreshInfluencerInfo } = useGame();
+  const {
+    coins, points, vip, vipAvailable, vipExpiry, setScreen, getCharacter, logOut,
+    topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
+    bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
+    influencerInfo, refreshInfluencerInfo,
+  } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const [canScrollUp, setCanScrollUp] = useState(false);
   const char = getCharacter();
 
   useEffect(() => {
     refreshInfluencerInfo();
   }, [refreshInfluencerInfo]);
 
-  // Floating particle positions (generated once on client)
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const checkScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollDown(el.scrollTop < el.scrollHeight - el.clientHeight - 10);
+    setCanScrollUp(el.scrollTop > 10);
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll);
+    const interval = setInterval(checkScroll, 500);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const scrollDown = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: 200, behavior: 'smooth' });
+  };
+  const scrollUp = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: -200, behavior: 'smooth' });
+  };
+
+  const handleOfferwall = () => {
+    if (URL_OFFERWALL_REAL) {
+      window.open(URL_OFFERWALL_REAL, '_blank', 'noopener,noreferrer');
+    } else {
+      setScreen('offerwall');
+    }
+  };
+
+  const handleInfluencer = () => {
+    if (!influencerInfo) {
+      showToast('Cargando informacion de creador...');
+      return;
+    }
+    const missing: string[] = [];
+    if (influencerInfo.totalRuns < INFLUENCER_MIN_RUNS) missing.push(`Partidas: ${influencerInfo.totalRuns}/${INFLUENCER_MIN_RUNS}`);
+    if (influencerInfo.bestScore < INFLUENCER_MIN_SCORE) missing.push(`Mejor score: ${influencerInfo.bestScore.toLocaleString()}/${INFLUENCER_MIN_SCORE.toLocaleString()}`);
+    if (influencerInfo.coins < INFLUENCER_MIN_BALANCE) missing.push(`Monedas: ${influencerInfo.coins.toLocaleString()}/${INFLUENCER_MIN_BALANCE.toLocaleString()}`);
+    if (missing.length > 0) {
+      showToast('Requisitos faltantes: ' + missing.join(' · '));
+      return;
+    }
+    setScreen('influencer');
+  };
+
+  const influencerEligible = influencerInfo
+    ? influencerInfo.totalRuns >= INFLUENCER_MIN_RUNS
+      && influencerInfo.bestScore >= INFLUENCER_MIN_SCORE
+      && influencerInfo.coins >= INFLUENCER_MIN_BALANCE
+    : false;
+
+  const vipDaysLeft = vipExpiry ? Math.ceil((new Date(vipExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+
   const [particles] = useState(() =>
     Array.from({ length: 18 }, () => ({
       left: Math.random() * 100,
@@ -31,7 +114,6 @@ export function MenuScreen() {
   return (
     <div className="h-full flex flex-col space-bg relative overflow-hidden">
       <OfflineBanner />
-      {/* Floating light particles */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {particles.map((p, i) => (
           <div
@@ -59,9 +141,8 @@ export function MenuScreen() {
         <Settings className="w-5 h-5" />
       </button>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-24 relative z-10">
+      <div ref={scrollRef} className="flex-1 flex flex-col items-center px-4 pb-28 relative z-10 overflow-y-auto no-scrollbar pt-16">
         <div className="w-full max-w-sm">
-          {/* Imperial Neon Title */}
           <div className="text-center mb-4">
             <h1 className="neon-title text-5xl font-black tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
               GARRDASHPE
@@ -139,14 +220,14 @@ export function MenuScreen() {
             </button>
           </div>
 
-          {/* Offerwall + Admin row */}
+          {/* Monedas Gratis + Admin row */}
           <div className="mt-3 grid grid-cols-2 gap-3">
             <button
-              onClick={() => setScreen('offerwall')}
-              className={`rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 ${offerwallConfig?.active ? 'bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 border border-cyan-500/40 text-cyan-400' : 'bg-card border border-border text-white/30'}`}
+              onClick={handleOfferwall}
+              className="rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-green-500/20 to-cyan-500/20 border border-green-500/40 text-green-400 hover:from-green-500/30 hover:to-cyan-500/30"
             >
-              <Download className="w-4 h-4" />
-              {offerwallConfig?.active ? 'MISIONES' : 'PROXIMAMENTE'}
+              <Gift className="w-4 h-4" />
+              Monedas Gratis
             </button>
             {(userRole === 'admin' || userRole === 'operador') && (
               <button
@@ -159,28 +240,38 @@ export function MenuScreen() {
             )}
           </div>
 
-          {/* Influencer button - only if eligible */}
-          {influencerInfo && influencerInfo.totalRuns >= 30 && (
-            <div className="mt-3">
-              <button
-                onClick={() => setScreen('influencer')}
-                className="w-full rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-purple-600/20 to-pink-500/20 border border-purple-500/40 text-purple-400"
-              >
-                <Gem className="w-4 h-4" />
-                PANEL CREADOR ({influencerInfo.rank.toUpperCase()})
-              </button>
-            </div>
-          )}
+          {/* Influencer / Creadores button */}
+          <div className="mt-3">
+            <button
+              onClick={handleInfluencer}
+              className={`w-full rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 ${
+                influencerEligible
+                  ? 'bg-gradient-to-r from-purple-600/20 to-pink-500/20 border border-purple-500/40 text-purple-400'
+                  : 'bg-card border border-border text-white/30'
+              }`}
+            >
+              {influencerEligible ? <Gem className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              {influencerEligible
+                ? `CREADORES (${influencerInfo?.rank.toUpperCase() ?? 'NUEVO'})`
+                : 'CREADORES (BLOQUEADO)'}
+            </button>
+          </div>
 
           {/* VIP + logout */}
           <div className="mt-6 flex items-center gap-3">
             {!vip ? (
-              <button onClick={() => setScreen('shop')} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20">
-                <Crown className="w-4 h-4" />Comprar VIP
-              </button>
+              vipAvailable ? (
+                <button onClick={() => setScreen('shop')} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20">
+                  <Crown className="w-4 h-4" />Comprar VIP
+                </button>
+              ) : (
+                <div className="flex-1 py-3 rounded-xl bg-card border border-border text-white/30 font-bold text-sm flex items-center justify-center gap-2">
+                  <Lock className="w-4 h-4" />VIP Proximamente
+                </div>
+              )
             ) : (
               <div className="flex-1 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-sm flex items-center justify-center gap-2">
-                <Crown className="w-4 h-4" />VIP Activo
+                <Crown className="w-4 h-4" />VIP Activo{vipDaysLeft > 0 ? ` (${vipDaysLeft}d)` : ''}
               </div>
             )}
             <button onClick={() => { logOut(); }} className="px-4 py-3 rounded-xl bg-card border border-border text-white/40 hover:text-white/60 transition-colors flex items-center justify-center">
@@ -189,6 +280,31 @@ export function MenuScreen() {
           </div>
         </div>
       </div>
+
+      {/* Floating scroll arrows */}
+      {canScrollDown && (
+        <button
+          onClick={scrollDown}
+          className="fixed bottom-24 right-4 z-40 w-10 h-10 rounded-full bg-cyan-500/20 backdrop-blur border border-cyan-500/40 flex items-center justify-center text-cyan-400 hover:bg-cyan-500/30 transition-colors shadow-lg animate-fade-in"
+        >
+          <ChevronDown className="w-5 h-5" />
+        </button>
+      )}
+      {canScrollUp && (
+        <button
+          onClick={scrollUp}
+          className="fixed top-20 right-4 z-40 w-10 h-10 rounded-full bg-cyan-500/20 backdrop-blur border border-cyan-500/40 flex items-center justify-center text-cyan-400 hover:bg-cyan-500/30 transition-colors shadow-lg animate-fade-in"
+        >
+          <ChevronUp className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-xl bg-card border border-purple-500/40 shadow-2xl shadow-purple-500/20 animate-scale-in max-w-xs">
+          <p className="text-white text-xs font-bold text-center">{toast}</p>
+        </div>
+      )}
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
 
@@ -201,7 +317,6 @@ export function MenuScreen() {
             </div>
 
             <div className="space-y-4">
-              {/* Sound toggle */}
               <button onClick={toggleMute} className="w-full flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border">
                 <div className="flex items-center gap-3">
                   {muted ? <VolumeX className="w-5 h-5 text-white/40" /> : <Volume2 className="w-5 h-5 text-cyan-400" />}
@@ -212,7 +327,6 @@ export function MenuScreen() {
                 </div>
               </button>
 
-              {/* Blood toggle */}
               <button onClick={toggleBlood} className="w-full flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border">
                 <div className="flex items-center gap-3">
                   <Droplet className={`w-5 h-5 ${bloodEnabled ? 'text-red-400' : 'text-white/40'}`} />
@@ -223,7 +337,6 @@ export function MenuScreen() {
                 </div>
               </button>
 
-              {/* Privacy policy link */}
               <a href="/privacy.html" target="_blank" rel="noopener" className="w-full flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border hover:bg-secondary/30 transition-colors">
                 <div className="flex items-center gap-3">
                   <ShieldCheck className="w-5 h-5 text-green-400" />
@@ -231,7 +344,6 @@ export function MenuScreen() {
                 </div>
               </a>
 
-              {/* Orientation mode */}
               <div className="w-full p-3 rounded-xl bg-background/50 border border-border">
                 <div className="flex items-center gap-3 mb-3">
                   <Smartphone className="w-5 h-5 text-cyan-400" />

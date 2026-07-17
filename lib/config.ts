@@ -1,5 +1,8 @@
 export const MODO_PRUEBA = true;
 
+export const VIP_DISPONIBLE_PLAYSTORE = false;
+export const VIP_DURATION_DAYS = 60;
+
 export const ADMOB_CONFIG = {
   appId: MODO_PRUEBA
     ? 'ca-app-pub-3940256099942544~3347511713'

@@ -6,16 +6,17 @@ import { MuteButton } from '@/components/game/MuteButton';
 import {
   ArrowLeft, DollarSign, Users, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
-  Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown,
+  Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, Eye, EyeOff,
 } from 'lucide-react';
 
-type Tab = 'finance' | 'requests' | 'near' | 'users' | 'su' | 'control';
+type Tab = 'finance' | 'requests' | 'near' | 'users' | 'su' | 'control' | 'observer';
 
 export function AdminScreen() {
   const {
     setScreen, userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
     adminUserStats, refreshAdminStats, isOnline, delegateWork, setDelegateWork,
     adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton, transactionLight,
+    observerMode, toggleObserverMode,
   } = useGame();
   const [tab, setTab] = useState<Tab>('finance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -114,6 +115,7 @@ export function AdminScreen() {
     { id: 'users', label: 'Usuarios', icon: Users },
     { id: 'su', label: 'SU', icon: Shield },
     { id: 'control', label: 'Control', icon: Settings2 },
+    { id: 'observer', label: 'Observador', icon: Eye },
   ];
 
   return (
@@ -448,6 +450,101 @@ export function AdminScreen() {
                 <Siren className="w-6 h-6" />BOTON DE PANICO
               </button>
               <p className="text-white/30 text-xs text-center">Bloquea todos los canjes globalmente hasta desactivarlo manualmente</p>
+            </div>
+          )}
+
+          {/* Observer Tab */}
+          {tab === 'observer' && (
+            <div className="space-y-4">
+              <div className={`rounded-2xl p-4 border shadow-lg ${observerMode ? 'bg-gradient-to-br from-cyan-900/30 to-card border-cyan-500/40' : 'bg-card border-border'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${observerMode ? 'bg-cyan-500/20' : 'bg-white/5'}`}>
+                      {observerMode ? <Eye className="w-6 h-6 text-cyan-400" /> : <EyeOff className="w-6 h-6 text-white/40" />}
+                    </div>
+                    <div>
+                      <h2 className="text-white font-bold">Modo Observador / Ver Todo</h2>
+                      <p className="text-white/40 text-xs">{observerMode ? 'Navegacion libre activa - sin permisos de edicion' : 'Activa para navegar por todos los datos del flujo del juego'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleObserverMode}
+                    className={`w-14 h-7 rounded-full transition-colors ${observerMode ? 'bg-cyan-500' : 'bg-white/10'}`}
+                  >
+                    <div className={`w-6 h-6 rounded-full bg-white transition-transform ${observerMode ? 'translate-x-7' : 'translate-x-0.5'} mt-0.5`} />
+                  </button>
+                </div>
+              </div>
+
+              {observerMode ? (
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/30 p-3">
+                    <p className="text-cyan-400 text-xs font-bold mb-2 flex items-center gap-2"><Eye className="w-4 h-4" />Vista Activa - Solo Lectura</p>
+                    <p className="text-white/40 text-xs">Puedes navegar libremente por todas las pantallas del juego sin afectar el estado. Las acciones de edicion estan deshabilitadas.</p>
+                  </div>
+
+                  <div className="rounded-2xl bg-card border border-border p-4">
+                    <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Activity className="w-4 h-4 text-cyan-400" />Estado del Sistema en Tiempo Real</p>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between"><span className="text-white/40">Usuarios totales:</span><span className="text-white font-bold">{adminUserStats.totalUsers}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Usuarios activos:</span><span className="text-green-400 font-bold">{adminUserStats.activeUsers}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Usuarios inactivos:</span><span className="text-red-400 font-bold">{adminUserStats.inactiveUsers}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Monedas totales:</span><span className="text-amber-400 font-bold">{adminUserStats.totalCoins.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Solicitudes pendientes:</span><span className="text-cyan-400 font-bold">{pendingRequests.length}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Semaforo:</span><span className={`font-bold ${transactionLight === 'green' ? 'text-green-400' : transactionLight === 'yellow' ? 'text-yellow-400' : 'text-red-400'}`}>{transactionLight === 'green' ? 'VERDE' : transactionLight === 'yellow' ? 'AMARILLO' : 'ROJO'}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Delegacion:</span><span className={`font-bold ${delegateWork ? 'text-green-400' : 'text-white/40'}`}>{delegateWork ? 'ON (Operador)' : 'OFF (Admin)'}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Reserva obligatoria:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.reservedAmount.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Fondo liberado:</span><span className="text-green-400 font-bold">S/. {adminUserStats.availableAmount.toFixed(2)}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-card border border-border p-4">
+                    <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-cyan-400" />Usuarios Cercanos al Canje (Vista)</p>
+                    {adminUserStats.nearClaimUsers.length === 0 ? (
+                      <p className="text-white/30 text-xs">No hay usuarios cercanos</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {adminUserStats.nearClaimUsers.map((u) => (
+                          <div key={u.uid} className="flex items-center justify-between text-xs py-1.5 border-b border-border/50 last:border-0">
+                            <div className="min-w-0">
+                              <p className="text-white/60 truncate">{u.nombre}</p>
+                              <p className="text-white/30 text-[10px]">{u.email}</p>
+                            </div>
+                            <div className="text-right shrink-0 ml-2">
+                              <p className="text-amber-400 font-bold">{u.coins.toLocaleString()}</p>
+                              <p className={`text-[10px] ${u.inactive ? 'text-red-400' : 'text-green-400'}`}>{u.inactive ? 'Inactivo' : 'Activo'}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl bg-card border border-border p-4">
+                    <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><ScrollText className="w-4 h-4 text-cyan-400" />Flujo de Solicitudes Recientes</p>
+                    {pendingRequests.length === 0 ? (
+                      <p className="text-white/30 text-xs">No hay solicitudes activas</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {pendingRequests.slice(0, 5).map((req) => (
+                          <div key={req.id} className="flex items-center justify-between text-xs py-1.5 border-b border-border/50 last:border-0">
+                            <div className="min-w-0">
+                              <p className="text-white/60 truncate">{req.nickname}</p>
+                              <p className="text-white/30 text-[10px] font-mono">{req.playerID}</p>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold shrink-0 ml-2">{req.estado.toUpperCase()}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-card border border-border p-6 text-center">
+                  <EyeOff className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                  <p className="text-white/40 text-sm">Activa el Modo Observador para navegar libremente por los datos del flujo del juego.</p>
+                </div>
+              )}
             </div>
           )}
         </div>

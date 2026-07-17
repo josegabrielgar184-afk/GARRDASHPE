@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Coins, Star, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X } from 'lucide-react';
+import { ArrowLeft, Coins, Star, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X, Lock } from 'lucide-react';
+import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
 
 export function ShopScreen() {
   const {
-    coins, points, spendCoins, addPoints, vip, buyVIP, setScreen,
+    coins, points, spendCoins, addPoints, vip, vipExpiry, buyVIP, setScreen,
     upgrades, buyUpgrade, claimDiamonds,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -82,16 +83,28 @@ export function ShopScreen() {
               <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
                 <Crown className="w-5 h-5 text-amber-400" />
                 <span>VIP Activo</span>
-                <span className="text-white/40 text-xs font-normal ml-1">· 2x monedas · 3 ruletas gratis</span>
+                {vipExpiry && (
+                  <span className="text-white/40 text-xs font-normal ml-1">
+                    · {Math.max(0, Math.ceil((new Date(vipExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} dias restantes
+                  </span>
+                )}
               </div>
-            ) : (
+            ) : VIP_DISPONIBLE_PLAYSTORE ? (
               <div className="flex items-center gap-3">
                 <Crown className="w-6 h-6 text-amber-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-white font-bold text-sm">Pase VIP</h2>
+                  <h2 className="text-white font-bold text-sm">Pase VIP (60 dias)</h2>
                   <p className="text-white/40 text-[11px] leading-tight">Sin anuncios · 2x monedas en partida · 3 ruletas gratis diarias</p>
                 </div>
                 <button onClick={buyVIP} className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20 shrink-0">Comprar</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 opacity-60">
+                <Lock className="w-6 h-6 text-white/40 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-white/50 font-bold text-sm">Pase VIP Proximamente</h2>
+                  <p className="text-white/30 text-[11px] leading-tight">El pase VIP estara disponible muy pronto en la Play Store</p>
+                </div>
               </div>
             )}
           </div>

@@ -19,7 +19,7 @@ import {
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
   INFLUENCER_MIN_BALANCE, INFLUENCER_MIN_WITHDRAW, INFLUENCER_RECENT_GAMES,
   INFLUENCER_RECENT_DAYS, RETURNED_USER_MIN_GAMES, RETURNED_USER_INACTIVE_DAYS,
-  OPERATOR_LUNCH_BREAK_HOURS, RANKING_PAGE_SIZE,
+  OPERATOR_LUNCH_BREAK_HOURS, RANKING_PAGE_SIZE, VIP_DURATION_DAYS, VIP_DISPONIBLE_PLAYSTORE,
 } from '@/lib/config';
 
 export type Screen =
@@ -163,6 +163,8 @@ interface GameState {
   spendPoints: (n: number) => boolean;
   setLives: (n: number) => void;
   buyVIP: () => void;
+  vipAvailable: boolean;
+  vipExpiry: string | null;
   toggleMute: () => void;
   toggleBlood: () => void;
   setControlSize: (s: ControlSize) => void;
@@ -220,6 +222,8 @@ interface GameState {
   adminPanicButton: () => Promise<{ ok: boolean; error?: string }>;
   transactionLight: TransactionLight;
   currentUserRank: number | null;
+  observerMode: boolean;
+  toggleObserverMode: () => void;
 }
 
 export interface SignUpData {
@@ -244,6 +248,7 @@ interface SaveData {
   coins: number;
   points: number;
   vip: boolean;
+  vipExpiry?: string | null;
   muted: boolean;
   selectedCharacter: string;
   selectedShip: string;
@@ -359,6 +364,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [influencerInfo, setInfluencerInfo] = useState<InfluencerInfo | null>(null);
   const [transactionLight, setTransactionLight] = useState<TransactionLight>('green');
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
+  const [vipExpiry, setVipExpiry] = useState<string | null>(null);
+  const [observerMode, setObserverMode] = useState(false);
 
   const lastInterstitialTimeRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -371,6 +378,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.coins !== undefined) setCoins(s.coins);
     if (s.points !== undefined) setPoints(s.points);
     if (s.vip !== undefined) setVip(s.vip);
+    if (s.vipExpiry !== undefined) setVipExpiry(s.vipExpiry);
     if (s.muted !== undefined) setMuted(s.muted);
     if (s.selectedCharacter !== undefined) setSelectedCharacter(s.selectedCharacter);
     if (s.selectedShip !== undefined) setSelectedShip(s.selectedShip);
@@ -561,8 +569,45 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const setLives = useCallback((n: number) => setLivesState(n), []);
 
   const buyVIP = useCallback(() => {
+    if (!VIP_DISPONIBLE_PLAYSTORE) return;
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + VIP_DURATION_DAYS);
+    const expiryIso = expiryDate.toISOString();
     setVip(true);
-    saveData({ vip: true });
+    setVipExpiry(expiryIso);
+    saveData({ vip: true, vipExpiry: expiryIso });
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        updateDoc(doc(db, 'usuarios', user.uid), {
+          vip: true,
+          vipExpiry: Timestamp.fromDate(expiryDate),
+        }).catch(() => {});
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!vipExpiry) return;
+    const expiry = new Date(vipExpiry);
+    if (new Date() > expiry) {
+      setVip(false);
+      setVipExpiry(null);
+      saveData({ vip: false, vipExpiry: null });
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          updateDoc(doc(db, 'usuarios', user.uid), {
+            vip: false,
+            vipExpiry: null,
+          }).catch(() => {});
+        } catch {}
+      }
+    }
+  }, [vipExpiry]);
+
+  const toggleObserverMode = useCallback(() => {
+    setObserverMode((prev) => !prev);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -1412,7 +1457,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     spaceRanking, zombieRanking, weeklyRanking, isOnline, pendingCoins, bloodEnabled,
     controlSize, orientationMode, lastInterstitialTime: lastInterstitialTimeRef.current,
     setScreen, addCoins, spendCoins, addPoints, spendPoints, setLives,
-    buyVIP, toggleMute, toggleBlood, setControlSize, setOrientationMode,
+    buyVIP, vipAvailable: VIP_DISPONIBLE_PLAYSTORE, vipExpiry, toggleMute, toggleBlood, setControlSize, setOrientationMode,
     selectCharacter, selectShip, selectZombie, setLoggedIn, recordRouletteSpin,
     addSuggestion, getCharacter: getChar, getShip: getShipDef, getZombieCharacter: getZombieChar, buyUpgrade,
     refreshRanking, refreshWeeklyRanking, loadMoreRanking, hasMoreRanking,
@@ -1429,6 +1474,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     influencerInfo, refreshInfluencerInfo, requestInfluencerWithdraw,
     adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton,
     transactionLight, currentUserRank,
+    observerMode, toggleObserverMode,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
