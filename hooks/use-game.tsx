@@ -249,6 +249,8 @@ interface GameState {
   observerMode: boolean;
   toggleObserverMode: () => void;
   addPlayTime: (ms: number) => void;
+  startGameBatch: () => void;
+  endGameBatch: () => void;
 }
 
 export interface SignUpData {
@@ -547,6 +549,33 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const setScreen = useCallback((s: Screen) => setScreenState(s), []);
 
+  const gameBatchModeRef = useRef(false);
+  const pendingGameCoinsRef = useRef(0);
+  const pendingGamePointsRef = useRef(0);
+
+  const startGameBatch = useCallback(() => {
+    gameBatchModeRef.current = true;
+    pendingGameCoinsRef.current = 0;
+    pendingGamePointsRef.current = 0;
+  }, []);
+
+  const endGameBatch = useCallback(() => {
+    gameBatchModeRef.current = false;
+    const user = auth.currentUser;
+    if (user && isOnline) {
+      const updates: Record<string, ReturnType<typeof increment>> = {};
+      if (pendingGameCoinsRef.current !== 0) updates.coins = increment(pendingGameCoinsRef.current);
+      if (pendingGamePointsRef.current !== 0) updates.puntos = increment(pendingGamePointsRef.current);
+      if (Object.keys(updates).length > 0) {
+        try { updateDoc(doc(db, 'usuarios', user.uid), updates); } catch {}
+      }
+    } else if (!isOnline) {
+      if (pendingGameCoinsRef.current > 0) setPendingCoins((prev) => prev + pendingGameCoinsRef.current);
+    }
+    pendingGameCoinsRef.current = 0;
+    pendingGamePointsRef.current = 0;
+  }, [isOnline]);
+
   const addCoins = useCallback((n: number) => {
     const user = auth.currentUser;
     if (!user || !isOnline) {
@@ -555,6 +584,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setCoins((prev) => prev + n);
+    if (gameBatchModeRef.current) {
+      pendingGameCoinsRef.current += n;
+      return;
+    }
     try { updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(n) }); } catch {}
   }, [isOnline]);
 
@@ -581,6 +614,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setPoints((prev) => prev + n);
+    if (gameBatchModeRef.current) {
+      pendingGamePointsRef.current += n;
+      return;
+    }
     try { updateDoc(doc(db, 'usuarios', user.uid), { puntos: increment(n) }); } catch {}
   }, [isOnline]);
 
@@ -778,6 +815,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const hasMoreRanking = useCallback((_type: 'space' | 'zombie' | 'weekly') => false, []);
 
+  const BOT_NAMES = ['NeonHunter', 'CyberWolf', 'PixelKing', 'StarLord', 'GhostRider', 'DarkPhoenix', 'IronFist', 'ShadowBlade', 'StormBringer', 'VoidWalker', 'FrostByte', 'TurboNinja', 'RogueAce', 'BlazeX', 'NovaStrike'];
+
+  const fillWithBots = useCallback((entries: RankEntry[], field: 'space' | 'zombie' | 'weekly'): RankEntry[] => {
+    if (entries.length >= 15) return entries.slice(0, 15);
+    const realUids = new Set(entries.map((e) => e.uid));
+    const realScores = entries.map((e) => e.score);
+    const maxReal = realScores.length > 0 ? Math.max(...realScores) : 0;
+    const bots: RankEntry[] = [];
+    const usedNames = new Set(entries.map((e) => e.name));
+    for (let i = entries.length; i < 15; i++) {
+      let name = BOT_NAMES[i % BOT_NAMES.length];
+      if (usedNames.has(name)) name = `${name}${i}`;
+      usedNames.add(name);
+      const botScore = Math.max(50, Math.floor(maxReal * (1 - i * 0.07) - Math.random() * 200));
+      bots.push({ name, score: Math.max(10, botScore), uid: `bot_${field}_${i}` });
+    }
+    return [...entries, ...bots].slice(0, 15);
+  }, []);
+
   useEffect(() => {
     const unsubs: Array<() => void> = [];
     try {
@@ -788,8 +844,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           const data = d.data();
           entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_espacio ?? 0, uid: d.id });
         });
-        setSpaceRanking(entries);
-      }, () => setSpaceRanking([])));
+        setSpaceRanking(fillWithBots(entries, 'space'));
+      }, () => setSpaceRanking(fillWithBots([], 'space'))));
 
       const zombieQ = query(collection(db, 'usuarios'), orderBy('puntos_zombies', 'desc'), limit(RANKING_PAGE_SIZE));
       unsubs.push(onSnapshot(zombieQ, (snap) => {
@@ -798,8 +854,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           const data = d.data();
           entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_zombies ?? 0, uid: d.id });
         });
-        setZombieRanking(entries);
-      }, () => setZombieRanking([])));
+        setZombieRanking(fillWithBots(entries, 'zombie'));
+      }, () => setZombieRanking(fillWithBots([], 'zombie'))));
 
       const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
       unsubs.push(onSnapshot(weeklyQ, (snap) => {
@@ -808,11 +864,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           const data = d.data();
           entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_semanales ?? 0, uid: d.id });
         });
-        setWeeklyRanking(entries);
-      }, () => setWeeklyRanking([])));
+        setWeeklyRanking(fillWithBots(entries, 'weekly'));
+      }, () => setWeeklyRanking(fillWithBots([], 'weekly'))));
     } catch {}
     return () => unsubs.forEach((u) => u());
-  }, []);
+  }, [fillWithBots]);
 
   const getFreeSpinsRemaining = useCallback((): number => {
     const today = new Date().toISOString().slice(0, 10);
@@ -847,18 +903,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setTopPlayerName(playerNameToUse);
         setTopPlayerScore(score);
       }
+      endGameBatch();
       if (user) {
         const userRef = doc(db, 'usuarios', user.uid);
         const userDoc = await getDoc(userRef);
-        const currentCoins = userDoc.data()?.coins ?? coins;
         const totalRuns = (userDoc.data()?.totalRuns ?? 0) + 1;
         const bestScore = Math.max(userDoc.data()?.bestScore ?? 0, score);
-        await updateDoc(userRef, { totalRuns, bestScore, lastActive: serverTimestamp() });
-        void currentCoins;
+        const currentSpacePoints = userDoc.data()?.puntos_espacio ?? 0;
+        await updateDoc(userRef, {
+          totalRuns, bestScore,
+          puntos_espacio: currentSpacePoints + score,
+          puntos_semanales: (userDoc.data()?.puntos_semanales ?? 0) + score,
+          lastActive: serverTimestamp(),
+        });
       }
       cacheInvalidatePattern('ranking');
-    } catch {}
-  }, [email, playerName, absoluteRecord, isOnline, coins]);
+    } catch { endGameBatch(); }
+  }, [email, playerName, absoluteRecord, isOnline, coins, endGameBatch]);
 
   const submitZombieScore = useCallback(async (score: number) => {
     if (!isOnline) return;
@@ -885,16 +946,23 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setTopPlayerName(playerNameToUse);
         setTopPlayerScore(score);
       }
+      endGameBatch();
       if (user) {
         const userRef = doc(db, 'usuarios', user.uid);
         const userDoc = await getDoc(userRef);
         const totalRuns = (userDoc.data()?.totalRuns ?? 0) + 1;
         const bestScore = Math.max(userDoc.data()?.bestScore ?? 0, score);
-        await updateDoc(userRef, { totalRuns, bestScore, lastActive: serverTimestamp() });
+        const currentZombiePoints = userDoc.data()?.puntos_zombies ?? 0;
+        await updateDoc(userRef, {
+          totalRuns, bestScore,
+          puntos_zombies: currentZombiePoints + score,
+          puntos_semanales: (userDoc.data()?.puntos_semanales ?? 0) + score,
+          lastActive: serverTimestamp(),
+        });
       }
       cacheInvalidatePattern('ranking');
-    } catch {}
-  }, [email, playerName, absoluteRecord, isOnline]);
+    } catch { endGameBatch(); }
+  }, [email, playerName, absoluteRecord, isOnline, endGameBatch]);
 
   const canShowInterstitial = useCallback(() => {
     const now = Date.now();
@@ -1615,6 +1683,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     transactionLight, currentUserRank,
     observerMode, toggleObserverMode,
     addPlayTime,
+    startGameBatch, endGameBatch,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

@@ -33,7 +33,7 @@ function makePowerUp(): PowerUp { return { x: 0, y: 0, vy: 0, type: 'doubleShot'
 function makeAsteroid(): Asteroid { return { x: 0, y: 0, vx: 0, vy: 0, size: 0, rot: 0, rotVel: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.size = 0; this.rot = 0; this.rotVel = 0; } }; }
 
 export function SpaceGameScreen() {
-  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, addPlayTime } = useGame();
+  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -151,7 +151,8 @@ export function SpaceGameScreen() {
     nuclearActiveRef.current = false; nuclearTimerRef.current = 0;
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
     setScore(0); setCoinsEarned(0); setGameOver(false); setBossActive(false); setPaused(false);
-  }, [ship, upgrades]);
+    startGameBatch();
+  }, [ship, upgrades, startGameBatch]);
 
   useEffect(() => { initGame(); }, [initGame]);
 

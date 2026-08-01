@@ -32,28 +32,26 @@ export function IntroScreen() {
     resize();
     window.addEventListener('resize', resize);
 
-    const stars: { x: number; y: number; z: number; size: number }[] = [];
-    for (let i = 0; i < 200; i++) {
+    const stars: { x: number; y: number; z: number; size: number; color: string }[] = [];
+    const colors = ['#22d3ee', '#fbbf24', '#ffffff', '#34d399', '#f472b6'];
+    for (let i = 0; i < 300; i++) {
       stars.push({
         x: (Math.random() - 0.5) * 2000,
         y: (Math.random() - 0.5) * 2000,
         z: Math.random() * 2000 + 100,
-        size: Math.random() * 2 + 0.5,
+        size: Math.random() * 2.5 + 0.5,
+        color: colors[Math.floor(Math.random() * colors.length)],
       });
     }
 
     let lastTime = performance.now();
     startTimeRef.current = lastTime;
 
-    const cam = { fov: 500, x: 0, y: 0, w: canvas.width, h: canvas.height };
+    const cam = { fov: 500, w: canvas.width, h: canvas.height };
 
     const project = (x: number, y: number, z: number) => {
       const scale = cam.fov / Math.max(z, 1);
-      return {
-        sx: cam.w / 2 + x * scale,
-        sy: cam.h / 2 + y * scale,
-        scale,
-      };
+      return { sx: cam.w / 2 + x * scale, sy: cam.h / 2 + y * scale, scale };
     };
 
     const render = (now: number) => {
@@ -61,33 +59,57 @@ export function IntroScreen() {
       lastTime = now;
       const elapsed = (now - startTimeRef.current) / 1000;
 
-      ctx.fillStyle = '#050810';
+      const bgGrad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.width);
+      bgGrad.addColorStop(0, '#0a0a1a');
+      bgGrad.addColorStop(0.5, '#050510');
+      bgGrad.addColorStop(1, '#000005');
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      ctx.save();
+      const vignette = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.3, canvas.width / 2, canvas.height / 2, canvas.height * 0.8);
+      vignette.addColorStop(0, 'rgba(0,0,0,0)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.6)');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
       for (const star of stars) {
-        star.z -= 3 * dt;
+        star.z -= 5 * dt;
         if (star.z <= 1) {
           star.x = (Math.random() - 0.5) * 2000;
           star.y = (Math.random() - 0.5) * 2000;
           star.z = 2000;
         }
         const pp = project(star.x, star.y, star.z);
-        ctx.fillStyle = `rgba(255,255,255,${Math.min(pp.scale * 2, 0.8)})`;
-        ctx.fillRect(pp.sx, pp.sy, star.size, star.size);
+        const alpha = Math.min(pp.scale * 2.5, 0.9);
+        const trailLen = Math.min(pp.scale * 8, 20);
+        ctx.strokeStyle = star.color;
+        ctx.globalAlpha = alpha * 0.3;
+        ctx.lineWidth = star.size;
+        ctx.beginPath();
+        ctx.moveTo(pp.sx, pp.sy);
+        ctx.lineTo(pp.sx, pp.sy + trailLen);
+        ctx.stroke();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = star.color;
+        ctx.fillRect(pp.sx - star.size / 2, pp.sy - star.size / 2, star.size, star.size);
       }
+      ctx.globalAlpha = 1;
 
-      const titleScale = Math.min(elapsed / 1.5, 1);
-      const glowIntensity = 20 + Math.sin(elapsed * 3) * 10;
+      const titleScale = Math.min(elapsed / 1.2, 1);
+      const pulse = 1 + Math.sin(elapsed * 4) * 0.05;
+      const glowIntensity = 25 + Math.sin(elapsed * 3) * 15;
 
       ctx.save();
       ctx.globalAlpha = titleScale;
-      ctx.translate(canvas.width / 2, canvas.height / 2 - 30);
-      ctx.scale(titleScale, titleScale);
+      ctx.translate(canvas.width / 2, canvas.height / 2 - 40);
+      ctx.scale(titleScale * pulse, titleScale * pulse);
 
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const fontSize = Math.min(canvas.width * 0.12, 64);
-      ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+      const fontSize = Math.min(canvas.width * 0.13, 72);
+      ctx.font = `900 ${fontSize}px Inter, sans-serif`;
 
       ctx.shadowColor = '#22d3ee';
       ctx.shadowBlur = glowIntensity;
@@ -99,9 +121,9 @@ export function IntroScreen() {
       ctx.fillText('Dash', fontSize * 0.9, 0);
 
       ctx.shadowBlur = 0;
-      ctx.font = `${Math.min(canvas.width * 0.035, 14)}px Inter, sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.fillText('Juego Espacial y Apocalipsis Zombie', 0, fontSize * 0.8);
+      ctx.font = `600 ${Math.min(canvas.width * 0.04, 16)}px Inter, sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText('Juegos 2D & Recompensas', 0, fontSize * 0.85);
       ctx.restore();
 
       rafRef.current = requestAnimationFrame(render);
@@ -111,18 +133,15 @@ export function IntroScreen() {
 
     const progressInterval = setInterval(() => {
       setProgress((p) => {
-        const next = p + Math.random() * 8 + 2;
-        if (next >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
+        const next = p + Math.random() * 6 + 2;
+        if (next >= 100) { clearInterval(progressInterval); return 100; }
         return next;
       });
-    }, 120);
+    }, 100);
 
     const textInterval = setInterval(() => {
       setTextIndex((i) => (i + 1) % LOADING_TEXTS.length);
-    }, 700);
+    }, 600);
 
     const doneTimeout = setTimeout(() => {
       cancelAnimationFrame(rafRef.current);
@@ -139,39 +158,47 @@ export function IntroScreen() {
   }, [setScreen]);
 
   return (
-    <div className="absolute inset-0 bg-black flex flex-col items-center justify-center">
+    <div className="absolute inset-0 bg-black flex flex-col items-center justify-center overflow-hidden">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
-      <div className="relative z-10 flex flex-col items-center justify-center flex-1">
+      <div className="relative z-10 flex flex-col items-center justify-center flex-1 pointer-events-none">
         <h1
-          className="font-black text-5xl sm:text-6xl tracking-tight select-none"
+          className="font-black text-5xl sm:text-7xl tracking-tight select-none"
           style={{
             color: '#fbbf24',
-            textShadow: '0 0 20px rgba(34,211,238,0.8), 0 0 40px rgba(251,191,36,0.6)',
+            textShadow: '0 0 30px rgba(34,211,238,0.9), 0 0 60px rgba(251,191,36,0.7)',
+            animation: 'pulse-glow 2s ease-in-out infinite',
           }}
         >
-          <span style={{ color: '#22d3ee', textShadow: '0 0 20px rgba(34,211,238,0.9)' }}>Garr</span>
-          <span style={{ color: '#fbbf24', textShadow: '0 0 20px rgba(251,191,36,0.9)' }}>Dash</span>
+          <span style={{ color: '#22d3ee', textShadow: '0 0 30px rgba(34,211,238,1), 0 0 60px rgba(34,211,238,0.5)' }}>Garr</span>
+          <span style={{ color: '#fbbf24', textShadow: '0 0 30px rgba(251,191,36,1), 0 0 60px rgba(251,191,36,0.5)' }}>Dash</span>
         </h1>
-        <p className="text-white/40 text-sm mt-2">Juego Espacial y Apocalipsis Zombie</p>
+        <p className="text-white/50 text-sm sm:text-base mt-3 font-medium tracking-widest uppercase">Juegos 2D & Recompensas</p>
       </div>
 
-      <div className="relative z-10 w-full max-w-xs px-8 pb-12">
-        <div className="h-2.5 rounded-full bg-white/10 overflow-hidden border border-cyan-500/20">
+      <div className="relative z-10 w-full max-w-xs px-8 pb-16">
+        <div className="h-2.5 rounded-full bg-white/5 overflow-hidden border border-cyan-500/30 shadow-lg shadow-cyan-500/20">
           <div
-            className="h-full transition-all duration-150 ease-out"
+            className="h-full transition-all duration-100 ease-out rounded-full"
             style={{
               width: `${progress}%`,
               background: 'linear-gradient(90deg, #22d3ee, #34d399, #fbbf24)',
-              boxShadow: '0 0 10px rgba(34,211,238,0.6)',
+              boxShadow: '0 0 15px rgba(34,211,238,0.8), 0 0 30px rgba(251,191,36,0.4)',
             }}
           />
         </div>
-        <div className="flex justify-between items-center mt-2">
-          <p className="text-white/50 text-xs animate-pulse">{LOADING_TEXTS[textIndex]}</p>
+        <div className="flex justify-between items-center mt-3">
+          <p className="text-white/40 text-xs animate-pulse font-mono">{LOADING_TEXTS[textIndex]}</p>
           <p className="text-cyan-400 font-mono text-xs font-bold">{Math.round(progress)}%</p>
         </div>
       </div>
+
+      <style>{`
+        @keyframes pulse-glow {
+          0%, 100% { filter: brightness(1) drop-shadow(0 0 20px rgba(34,211,238,0.8)); }
+          50% { filter: brightness(1.2) drop-shadow(0 0 40px rgba(34,211,238,1)); }
+        }
+      `}</style>
     </div>
   );
 }

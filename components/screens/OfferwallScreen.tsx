@@ -16,7 +16,7 @@ export function OfferwallScreen() {
 
   const getBitlabsUrl = () => {
     const uid = auth.currentUser?.uid ?? 'guest';
-    return `https://web.bitlabs.ai/offerwall?token=${BITLABS_CONFIG.integrationToken}&uid=${uid}`;
+    return `https://web.bitlabs.ai/?token=${BITLABS_CONFIG.integrationToken}&uid=${uid}`;
   };
 
   const handleOpenOfferwall = async () => {

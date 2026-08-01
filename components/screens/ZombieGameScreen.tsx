@@ -40,7 +40,7 @@ function makeBloodSplat(): BloodSplat { return { x: 0, y: 0, size: 0, alpha: 0.6
 interface AllyUnit { x: number; y: number; type: 'cowgirl' | 'soldier'; walkCycle: number; muzzleFlash: number; shootTimer: number; hp: number; maxHp: number; deployed: boolean; }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -158,7 +158,8 @@ export function ZombieGameScreen() {
     cowgirlsDeployedRef.current = 0; soldiersDeployedRef.current = 0;
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setHp(char.maxHp); setGameOver(false); setBossActive(false);
-  }, [char, upgrades]);
+    startGameBatch();
+  }, [char, upgrades, startGameBatch]);
 
   useEffect(() => { initGame(); }, [initGame]);
 

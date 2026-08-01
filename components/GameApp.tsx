@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from '@/hooks/use-game';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, X } from 'lucide-react';
 import { IntroScreen } from '@/components/screens/IntroScreen';
 import { LoginScreen } from '@/components/screens/LoginScreen';
 import { MenuScreen } from '@/components/screens/MenuScreen';
@@ -18,6 +18,7 @@ import { AdminScreen } from '@/components/screens/AdminScreen';
 import { OperatorScreen } from '@/components/screens/OperatorScreen';
 import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
 import { AdBanner } from '@/components/game/AdBanner';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game'];
@@ -140,8 +141,21 @@ function OrientationManager() {
 }
 
 function AppShell() {
-  const { screen, isDeviceBanned } = useGame();
+  const { screen, isDeviceBanned, canShowInterstitial, recordInterstitial, vip } = useGame();
   const isGameplay = GAMEPLAY_SCREENS.includes(screen);
+  const [showInterstitial, setShowInterstitial] = useState(false);
+  const lastScreenRef = useRef(screen);
+  const menuScreens = ['menu', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
+
+  useEffect(() => {
+    const fromMenu = menuScreens.includes(lastScreenRef.current);
+    const toMenu = menuScreens.includes(screen);
+    if (fromMenu && toMenu && lastScreenRef.current !== screen && !vip && canShowInterstitial()) {
+      setShowInterstitial(true);
+      recordInterstitial();
+    }
+    lastScreenRef.current = screen;
+  }, [screen]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -177,13 +191,13 @@ function AppShell() {
 
   return (
     <div className="fixed inset-0 overflow-hidden flex flex-col">
-      {(isGameplay && screen !== 'intro' && screen !== 'login') && <AdBanner position="top" />}
-      <div className="flex-1 relative overflow-hidden min-h-0">
+      <div className="flex-1 relative overflow-hidden min-h-0" style={{ paddingBottom: '50px' }}>
         <GameRouter />
       </div>
-      {!isGameplay && <AdBanner position="bottom" />}
+      <AdBanner />
       <BackButtonHandler />
       <OrientationManager />
+      {showInterstitial && <InterstitialAd onDone={() => setShowInterstitial(false)} />}
     </div>
   );
 }
