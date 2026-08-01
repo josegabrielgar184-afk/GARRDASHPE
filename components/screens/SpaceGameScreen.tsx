@@ -2,24 +2,22 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
-import { Joystick } from '@/components/game/Joystick';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Heart, Coins, Crosshair, Rocket, Video, Pause, Play, Radiation } from 'lucide-react';
+import { ArrowLeft, Heart, Coins, Video, Pause, Play, Radiation } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   type Particle2D, type Star,
   spawnParticles2D, updateParticles2D, drawParticles2D,
-  drawCrosshair2D, drawShip2D, drawMeteor2D, drawEnemyShip2D, drawBossShip2D,
+  drawShip2D, drawMeteor2D, drawBossShip2D,
   makeStars, drawParallaxStars,
   drawNebula, drawLavaPlanet, drawRockyPlanet, drawAsteroid,
-  drawBeetleEnemy, drawDoubleShotPowerup, drawNuclearIcon,
+  drawBeetleEnemy, drawDoubleShotPowerup,
   drawDebugFooter,
   clamp, dist, rand,
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, initAudio } from '@/lib/audio';
-import { MAX_COINS_PER_GAME } from '@/lib/security';
 
 interface Meteor { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotVel: number; hp: number; maxHp: number; active: boolean; reset(): void; }
 interface EnemyShip { x: number; y: number; vx: number; vy: number; angle: number; hp: number; maxHp: number; size: number; shootTimer: number; oscillation: number; active: boolean; reset(): void; }
@@ -35,7 +33,7 @@ function makePowerUp(): PowerUp { return { x: 0, y: 0, vy: 0, type: 'doubleShot'
 function makeAsteroid(): Asteroid { return { x: 0, y: 0, vx: 0, vy: 0, size: 0, rot: 0, rotVel: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.size = 0; this.rot = 0; this.rotVel = 0; } }; }
 
 export function SpaceGameScreen() {
-  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, reportSuspiciousActivity, addPlayTime } = useGame();
+  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, addPlayTime } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -65,8 +63,7 @@ export function SpaceGameScreen() {
   const nebulaRef = useRef<Array<{ x: number; y: number; size: number; color: string; speed: number }>>([]);
   const lavaPlanetRef = useRef({ x: 0, y: 0, r: 0 });
   const rockyPlanetRef = useRef({ x: 0, y: 0, r: 0 });
-  const moveRef = useRef({ dx: 0, dy: 0 });
-  const crosshairRef = useRef({ x: 0, y: 0, active: false });
+  const touchTargetRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
   const scoreRef = useRef(0);
   const coinTimerRef = useRef(0);
   const commonKillCountRef = useRef(0);
@@ -176,34 +173,29 @@ export function SpaceGameScreen() {
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  const handleMove = useCallback((dx: number, dy: number) => { moveRef.current = { dx, dy }; }, []);
-
   const addFloatText = (text: string, x: number, y: number, color = '#22d3ee') => {
     const id = Date.now() + Math.random();
     setFloatTexts((prev) => [...prev, { id, text, x, y, color }]);
     setTimeout(() => setFloatTexts((prev) => prev.filter((f) => f.id !== id)), 1000);
   };
 
-  const getFireRate = () => Math.max(4, (18 - fireRateLevelRef.current * 2) / ship.fireRateMult);
-  const getDamage = () => (25 + damageLevelRef.current * 15) * ship.damageMult;
+  const MAX_GAME_COINS = vip ? 15 : 10;
 
   const safeAddCoins = (amount: number) => {
-    const multiplied = vip ? Math.floor(amount * 1.5) : amount;
-    if (gameCoinsRef.current + multiplied > MAX_COINS_PER_GAME) {
-      reportSuspiciousActivity('coin_cap_exceeded', `Attempted to add ${multiplied} coins, total would be ${gameCoinsRef.current + multiplied} (max ${MAX_COINS_PER_GAME})`);
-      return;
-    }
-    addCoins(multiplied);
-    gameCoinsRef.current += multiplied;
+    if (gameCoinsRef.current >= MAX_GAME_COINS) return;
+    const toAdd = Math.min(amount, MAX_GAME_COINS - gameCoinsRef.current);
+    if (toAdd <= 0) return;
+    addCoins(toAdd);
+    gameCoinsRef.current += toAdd;
     setCoinsEarned(gameCoinsRef.current);
   };
 
+  const getFireRate = () => Math.max(4, (18 - fireRateLevelRef.current * 2) / ship.fireRateMult);
+  const getDamage = () => (25 + damageLevelRef.current * 15) * ship.damageMult;
+
   const playerShoot = () => {
     const p = playerRef.current;
-    const cx = crosshairRef.current.active ? crosshairRef.current.x : p.x;
-    const cy = crosshairRef.current.active ? crosshairRef.current.y : p.y - 100;
-    const angle = Math.atan2(cy - p.y, cx - p.x);
-    p.angle = angle;
+    const angle = p.angle;
     const speed = 12;
     const dmg = getDamage() * (nuclearActiveRef.current ? 3 : 1);
 
@@ -352,20 +344,32 @@ export function SpaceGameScreen() {
 
       if (!gameOverRef.current && !pausedRef.current) {
         const p = playerRef.current;
-        p.vx = moveRef.current.dx * 5 * speedMultRef.current;
-        p.vy = moveRef.current.dy * 5 * speedMultRef.current;
-        p.x = clamp(p.x + p.vx * dt, 25, w - 25);
-        p.y = clamp(p.y + p.vy * dt, 25, h - 25);
+        if (touchTargetRef.current.active) {
+          const targetX = touchTargetRef.current.x;
+          const targetY = touchTargetRef.current.y;
+          const dx = targetX - p.x;
+          const dy = targetY - p.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 2) {
+            const moveSpeed = Math.min(d * 0.25, 8) * speedMultRef.current;
+            p.x = clamp(p.x + (dx / d) * moveSpeed * dt, 25, w - 25);
+            p.y = clamp(p.y + (dy / d) * moveSpeed * dt, 25, h - 25);
+            p.angle = Math.atan2(dy, dx);
+          }
+        }
 
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
-        if (shootCooldownRef.current <= 0) { playerShoot(); shootCooldownRef.current = getFireRate(); }
+        if (touchTargetRef.current.active && shootCooldownRef.current <= 0) {
+          playerShoot();
+          shootCooldownRef.current = getFireRate();
+        }
 
         scoreRef.current += dt * 10 * scoreMultRef.current;
         setScore(Math.floor(scoreRef.current));
         difficultyRef.current = 1 + scoreRef.current / 1000;
 
         coinTimerRef.current += dt * 16.67;
-        if (coinTimerRef.current >= 4000) {
+        if (coinTimerRef.current >= 8000 && gameCoinsRef.current < MAX_GAME_COINS) {
           coinTimerRef.current = 0;
           safeAddCoins(1); playCoin();
           addFloatText('+1 moneda', w / 2, h / 2 - 50, '#fbbf24');
@@ -504,7 +508,7 @@ export function SpaceGameScreen() {
                   playExplosion();
                   scoreRef.current += 50 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   commonKillCountRef.current++;
-                  if (commonKillCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
+                  if (commonKillCountRef.current % 5 === 0) { safeAddCoins(1); playCoin(); }
                 }
                 break;
               }
@@ -518,7 +522,7 @@ export function SpaceGameScreen() {
                   playExplosion();
                   scoreRef.current += 100 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   commonKillCountRef.current++;
-                  if (commonKillCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
+                  if (commonKillCountRef.current % 5 === 0) { safeAddCoins(1); playCoin(); }
                 }
                 break;
               }
@@ -529,12 +533,12 @@ export function SpaceGameScreen() {
                 b.hp -= l.damage; hit = true; setBossHp(b.hp);
                 spawnParticles2D(particlesRef.current, l.x, l.y, 5, '#f59e0b', 3);
                 if (b.hp <= 0) {
-                  const reward = b.isMini ? 10 : 30;
+                  const reward = b.isMini ? 2 : 5;
                   safeAddCoins(reward);
                   scoreRef.current += (b.isMini ? 1000 : 5000) * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(b.isMini ? 30 : 50), b.isMini ? '#f59e0b' : '#ef4444', 8);
-                  addFloatText(`¡+${reward} monedas!`, w / 2, h / 3, '#fbbf24');
+                  addFloatText(`+${reward} monedas`, w / 2, h / 3, '#fbbf24');
                   bossRef.current = null; setBossActive(false);
                   if (!b.isMini) { finalBossDefeatedRef.current = true; finalBossThresholdRef.current += 3000; }
                 }
@@ -570,17 +574,30 @@ export function SpaceGameScreen() {
       drawParticles2D(ctx, particlesRef.current);
 
       for (const l of laserPoolRef.current.getActive()) {
-        ctx.fillStyle = l.color;
+        ctx.save();
+        const angle = Math.atan2(l.vy, l.vx);
+        ctx.translate(l.x, l.y);
+        ctx.rotate(angle);
         ctx.shadowColor = l.color;
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = l.color;
         ctx.beginPath();
-        ctx.ellipse(l.x, l.y, 4, 6, Math.atan2(l.vy, l.vx), 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 8, 3, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.shadowBlur = 0;
-      }
-
-      if (crosshairRef.current.active && !gameOverRef.current && !pausedRef.current) {
-        drawCrosshair2D(ctx, crosshairRef.current.x, crosshairRef.current.y, '#22d3ee', 22);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.ellipse(-6, 0, 6, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.2;
+        ctx.beginPath();
+        ctx.ellipse(-12, 0, 5, 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.ellipse(2, 0, 3, 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
 
       drawDebugFooter(ctx, w, h, fpsMon.current);
@@ -590,33 +607,39 @@ export function SpaceGameScreen() {
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins, setLives, ship, submitSpaceScore, isOnline, addPlayTime, vip, reportSuspiciousActivity]);
+  }, [addCoins, setLives, ship, submitSpaceScore, isOnline, addPlayTime, vip]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const update = (cx: number, cy: number) => {
       const rect = canvas.getBoundingClientRect();
-      crosshairRef.current = { x: cx - rect.left, y: cy - rect.top, active: true };
+      touchTargetRef.current = { x: cx - rect.left, y: cy - rect.top, active: true };
     };
-    const onTouch = (e: TouchEvent) => {
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        const rect = canvas.getBoundingClientRect();
-        if (t.clientX - rect.left > rect.width * 0.35) { update(t.clientX, t.clientY); break; }
-      }
+    const onTouchStart = (e: TouchEvent) => {
+      initAudio();
+      if (e.touches.length > 0) update(e.touches[0].clientX, e.touches[0].clientY);
     };
-    const onMouse = (e: MouseEvent) => update(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) update(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchEnd = () => { touchTargetRef.current.active = false; };
     const onMouseDown = (e: MouseEvent) => { initAudio(); update(e.clientX, e.clientY); };
-    canvas.addEventListener('touchstart', onTouch, { passive: true });
-    canvas.addEventListener('touchmove', onTouch, { passive: true });
-    canvas.addEventListener('mousemove', onMouse);
+    const onMouseMove = (e: MouseEvent) => { if (touchTargetRef.current.active) update(e.clientX, e.clientY); };
+    const onMouseUp = () => { touchTargetRef.current.active = false; };
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
     canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup', onMouseUp);
     return () => {
-      canvas.removeEventListener('touchstart', onTouch);
-      canvas.removeEventListener('touchmove', onTouch);
-      canvas.removeEventListener('mousemove', onMouse);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('touchend', onTouchEnd);
       canvas.removeEventListener('mousedown', onMouseDown);
+      canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('mouseup', onMouseUp);
     };
   }, []);
 
@@ -653,17 +676,13 @@ export function SpaceGameScreen() {
       {floatTexts.map((ft) => <div key={ft.id} className="absolute z-20 font-bold text-sm animate-float-up pointer-events-none" style={{ left: ft.x, top: ft.y, transform: 'translate(-50%, -50%)', color: ft.color }}>{ft.text}</div>)}
       {!gameOver && !paused && (
         <>
-          <div className="absolute bottom-20 left-4 z-10"><Joystick onMove={handleMove} size={120} /></div>
-          <div className="absolute bottom-28 right-6 z-10 flex flex-col items-center gap-1 pointer-events-none">
-            <div className="w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center backdrop-blur" style={{ borderColor: `${ship.color}66` }}>
-              <Crosshair className="w-6 h-6" style={{ color: ship.color }} />
-            </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/50" style={{ color: ship.color }}>AUTO-FIRE</span>
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+            <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-cyan-400 border border-cyan-400/20">ARRASTRA PARA MOVER · SOSTIEN PARA DISPARAR</span>
           </div>
           <button
             onClick={activateNuclear}
             disabled={!nuclearReady}
-            className={`absolute bottom-24 left-1/2 -translate-x-1/2 z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}
+            className={`absolute bottom-24 right-6 z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}
           >
             <Radiation className={`w-7 h-7 ${nuclearReady ? 'text-amber-400' : 'text-white/30'}`} />
           </button>
@@ -704,7 +723,7 @@ export function SpaceGameScreen() {
           </div>
         </div>
       )}
-      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); safeAddCoins(10); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
+      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); safeAddCoins(3); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 3 monedas extra!" />
       <MuteButton />
     </div>
   );

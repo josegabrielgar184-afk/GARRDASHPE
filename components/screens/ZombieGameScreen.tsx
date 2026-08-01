@@ -2,16 +2,15 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
-import { Joystick } from '@/components/game/Joystick';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Heart, Coins, Crosshair, Target, Zap, Bomb, Video } from 'lucide-react';
+import { ArrowLeft, Heart, Coins, Crosshair, Target, Zap, Bomb, Video, Clock } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   type Particle2D,
   spawnParticles2D, updateParticles2D, drawParticles2D,
   drawCrosshair2D,
-  drawIsoGround, drawIsoSoldier, drawIsoZombie,
+  drawIsoSoldier, drawIsoZombie,
   drawWeaponPickup2D, drawMedKit2D,
   drawFlashlight,
   drawSchoolBus, drawAmbulance, drawCrane, drawTaxi,
@@ -22,7 +21,6 @@ import {
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playShotgun, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
-import { MAX_COINS_PER_GAME } from '@/lib/security';
 
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'grenade';
 type ZombieType = 'normal' | 'fast' | 'giant';
@@ -42,7 +40,7 @@ function makeBloodSplat(): BloodSplat { return { x: 0, y: 0, size: 0, alpha: 0.6
 interface AllyUnit { x: number; y: number; type: 'cowgirl' | 'soldier'; walkCycle: number; muzzleFlash: number; shootTimer: number; hp: number; maxHp: number; deployed: boolean; }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, reportSuspiciousActivity, addPlayTime } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -59,8 +57,7 @@ export function ZombieGameScreen() {
   const [bossName, setBossName] = useState('');
   const [showInterstitial, setShowInterstitial] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<'cowgirl' | 'soldier'>('cowgirl');
-  const [cowgirlsDeployed, setCowgirlsDeployed] = useState(0);
-  const [soldiersDeployed, setSoldiersDeployed] = useState(0);
+  const [allyCooldown, setAllyCooldown] = useState(0);
 
   const playerRef = useRef({ x: 0, y: 0, vx: 0, vy: 0, angle: 0, walkCycle: 0, muzzleFlash: 0 });
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 20));
@@ -70,9 +67,10 @@ export function ZombieGameScreen() {
   const bloodPoolRef = useRef<ObjectPool<BloodSplat>>(new ObjectPool(makeBloodSplat, 15));
   const bossRef = useRef<Zombie | null>(null);
   const particlesRef = useRef<Particle2D[]>([]);
+  const allyCooldownRef = useRef(0);
   const alliesRef = useRef<AllyUnit[]>([]);
-  const moveRef = useRef({ dx: 0, dy: 0 });
-  const crosshairRef = useRef({ x: 0, y: 0, active: false });
+  const touchTargetRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
+  const isFiringRef = useRef(false);
   const scoreRef = useRef(0);
   const killCountRef = useRef(0);
   const hpRef = useRef(100);
@@ -101,7 +99,6 @@ export function ZombieGameScreen() {
   const canvasSizeRef = useRef({ w: 0, h: 0 });
   const scrollYRef = useRef(0);
   const bloodEnabledRef = useRef(true);
-  const isFiringRef = useRef(false);
   const whiteFlashRef = useRef(0);
   const gameCoinsRef = useRef(0);
   const interstitialCheckedRef = useRef(false);
@@ -130,6 +127,7 @@ export function ZombieGameScreen() {
 
   useEffect(() => { bloodEnabledRef.current = bloodEnabled; }, [bloodEnabled]);
   useEffect(() => { selectedUnitRef.current = selectedUnit; }, [selectedUnit]);
+  useEffect(() => { allyCooldownRef.current = allyCooldown; }, [allyCooldown]);
 
   const initGame = useCallback(() => {
     const canvas = canvasRef.current;
@@ -147,6 +145,7 @@ export function ZombieGameScreen() {
     bossRef.current = null;
     particlesRef.current = [];
     alliesRef.current = [];
+    allyCooldownRef.current = 0; setAllyCooldown(0);
     scoreRef.current = 0; killCountRef.current = 0;
     hpRef.current = char.maxHp; maxHpRef.current = char.maxHp;
     livesRef.current = 3;
@@ -157,7 +156,6 @@ export function ZombieGameScreen() {
     finalBossDefeatedRef.current = false; scrollYRef.current = 0;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
     cowgirlsDeployedRef.current = 0; soldiersDeployedRef.current = 0;
-    setCowgirlsDeployed(0); setSoldiersDeployed(0);
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setHp(char.maxHp); setGameOver(false); setBossActive(false);
   }, [char, upgrades]);
@@ -182,48 +180,44 @@ export function ZombieGameScreen() {
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  const handleMove = useCallback((dx: number, dy: number) => { moveRef.current = { dx, dy }; }, []);
-
   const addFloatText = (text: string, x: number, y: number, color = '#fbbf24') => {
     const id = Date.now() + Math.random();
     setFloatTexts((prev) => [...prev, { id, text, x, y, color }]);
     setTimeout(() => setFloatTexts((prev) => prev.filter((f) => f.id !== id)), 1000);
   };
 
-  const getFireRate = () => Math.max(6, 18 - fireRateLevelRef.current * 2);
-  const getDamage = () => (40 + damageLevelRef.current * 15) * damageMultRef.current;
+  const MAX_GAME_COINS = vip ? 15 : 10;
 
   const safeAddCoins = (amount: number) => {
-    const multiplied = vip ? Math.floor(amount * 1.5) : amount;
-    if (gameCoinsRef.current + multiplied > MAX_COINS_PER_GAME) {
-      reportSuspiciousActivity('coin_cap_exceeded', `Attempted to add ${multiplied} coins, total would be ${gameCoinsRef.current + multiplied} (max ${MAX_COINS_PER_GAME})`);
-      return;
-    }
-    addCoins(multiplied);
-    gameCoinsRef.current += multiplied;
+    if (gameCoinsRef.current >= MAX_GAME_COINS) return;
+    const toAdd = Math.min(amount, MAX_GAME_COINS - gameCoinsRef.current);
+    if (toAdd <= 0) return;
+    addCoins(toAdd);
+    gameCoinsRef.current += toAdd;
     setCoinsEarned(gameCoinsRef.current);
   };
 
+  const getFireRate = () => Math.max(6, 18 - fireRateLevelRef.current * 2);
+  const getDamage = () => (40 + damageLevelRef.current * 15) * damageMultRef.current;
+
   const deployAlly = () => {
     const { w, h } = canvasSizeRef.current;
+    if (allyCooldownRef.current > 0) return;
     const type = selectedUnitRef.current;
-    if (type === 'cowgirl' && cowgirlsDeployedRef.current >= 3) return;
-    if (type === 'soldier' && soldiersDeployedRef.current >= 3) return;
     alliesRef.current.push({
       x: w * 0.15, y: h * 0.5 + Math.random() * h * 0.2,
       type, walkCycle: 0, muzzleFlash: 0, shootTimer: 30 + Math.random() * 30,
       hp: 100, maxHp: 100, deployed: true,
     });
-    if (type === 'cowgirl') { cowgirlsDeployedRef.current++; setCowgirlsDeployed(cowgirlsDeployedRef.current); }
-    else { soldiersDeployedRef.current++; setSoldiersDeployed(soldiersDeployedRef.current); }
+    allyCooldownRef.current = 600; setAllyCooldown(600);
   };
 
   const shoot = useCallback(() => {
     if (gameOverRef.current || shootCooldownRef.current > 0) return;
     initAudio();
     const p = playerRef.current;
-    const aimAngle = crosshairRef.current.active
-      ? Math.atan2(crosshairRef.current.y - p.y, crosshairRef.current.x - p.x)
+    const aimAngle = touchTargetRef.current.active
+      ? Math.atan2(touchTargetRef.current.y - p.y, touchTargetRef.current.x - p.x)
       : p.angle;
     p.angle = aimAngle;
     p.muzzleFlash = 1;
@@ -334,34 +328,68 @@ export function ZombieGameScreen() {
       const { w, h } = canvasSizeRef.current;
 
       scrollYRef.current += dt * 0.5;
-      drawIsoGround(ctx, w, h, scrollYRef.current);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#1a1a0a');
+      grad.addColorStop(0.3, '#2a2a1a');
+      grad.addColorStop(0.6, '#1a2a1a');
+      grad.addColorStop(1, '#0a1a0a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
 
       if (fpsMon.quality !== 'low') {
-        const grad = ctx.createLinearGradient(0, 0, 0, h * 0.5);
-        grad.addColorStop(0, 'rgba(120,60,20,0.15)');
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = grad;
+        const fogGrad = ctx.createLinearGradient(0, 0, 0, h * 0.5);
+        fogGrad.addColorStop(0, 'rgba(120,60,20,0.2)');
+        fogGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = fogGrad;
         ctx.fillRect(0, 0, w, h * 0.5);
       }
 
-      drawSchoolBus(ctx, w * 0.15, h * 0.25, 0.6);
-      drawAmbulance(ctx, w * 0.75, h * 0.2, 0.5);
-      drawCrane(ctx, w * 0.5, h * 0.15, 0.4);
-      drawTaxi(ctx, w * 0.85, h * 0.4, 0.5, 0.3);
+      for (let i = 0; i < 8; i++) {
+        const tx = (i * 137 + scrollYRef.current * 0.3) % (w + 60) - 30;
+        const ty = h * 0.1 + Math.sin(i * 2.3) * 20;
+        ctx.fillStyle = '#1a2a0a';
+        ctx.fillRect(tx, ty, 20, h * 0.35);
+        ctx.fillStyle = '#2a3a1a';
+        ctx.fillRect(tx + 2, ty - 10, 16, 25);
+      }
+
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(0, h * 0.75, w, h * 0.25);
+      ctx.fillStyle = '#2a1a0a';
+      for (let i = 0; i < w; i += 8) {
+        ctx.fillRect(i, h * 0.75 + Math.sin(i * 0.1) * 3, 4, 6);
+      }
+
+      drawSchoolBus(ctx, w * 0.15, h * 0.7, 0.5);
+      drawAmbulance(ctx, w * 0.75, h * 0.65, 0.4);
+      drawCrane(ctx, w * 0.5, h * 0.5, 0.3);
+      drawTaxi(ctx, w * 0.85, h * 0.78, 0.4, 0.3);
 
       if (!gameOverRef.current) {
         const p = playerRef.current;
-        p.vx = moveRef.current.dx * 4 * speedMultRef.current;
-        p.vy = moveRef.current.dy * 4 * speedMultRef.current;
-        p.x = clamp(p.x + p.vx * dt, 30, w - 30);
-        p.y = clamp(p.y + p.vy * dt, h * 0.35, h - 40);
-        if (Math.abs(p.vx) > 0.1 || Math.abs(p.vy) > 0.1) {
-          if (!crosshairRef.current.active) p.angle = Math.atan2(p.vy, p.vx);
-          p.walkCycle += dt * 0.3;
+        if (touchTargetRef.current.active) {
+          const targetX = touchTargetRef.current.x;
+          const targetY = touchTargetRef.current.y;
+          const dx = targetX - p.x;
+          const dy = targetY - p.y;
+          const d = Math.hypot(dx, dy);
+          if (d > 2) {
+            const moveSpeed = Math.min(d * 0.2, 6) * speedMultRef.current;
+            p.x = clamp(p.x + (dx / d) * moveSpeed * dt, 30, w - 30);
+            p.y = clamp(p.y + (dy / d) * moveSpeed * dt, h * 0.3, h - 40);
+            p.angle = Math.atan2(dy, dx);
+            p.walkCycle += dt * 0.3;
+          }
         }
         if (p.muzzleFlash > 0) p.muzzleFlash = Math.max(0, p.muzzleFlash - dt * 0.15);
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
-        if (isFiringRef.current && shootCooldownRef.current <= 0) shoot();
+        if (touchTargetRef.current.active && shootCooldownRef.current <= 0) shoot();
+
+        if (allyCooldownRef.current > 0) {
+          allyCooldownRef.current -= dt;
+          if (allyCooldownRef.current <= 0) setAllyCooldown(0);
+        }
 
         for (const ally of alliesRef.current) {
           ally.walkCycle += dt * 0.2;
@@ -413,9 +441,9 @@ export function ZombieGameScreen() {
           const dy = p.y - z.y;
           const d = Math.max(Math.hypot(dx, dy), 1);
           let speed: number;
-          if (z.type === 'fast') speed = 3.5;
-          else if (z.type === 'giant') speed = z === bossRef.current ? 2.5 : 1.2;
-          else speed = 1.8 + Math.random() * 0.3;
+          if (z.type === 'fast') speed = 4.5;
+          else if (z.type === 'giant') speed = z === bossRef.current ? 3.5 : 2.0;
+          else speed = 2.8 + Math.random() * 0.5;
           z.x += (dx / d) * speed * dt;
           z.y += (dy / d) * speed * dt;
           z.angle = Math.atan2(dy, dx);
@@ -485,32 +513,30 @@ export function ZombieGameScreen() {
                 const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
                 if (z === bossRef.current) {
                   bossRef.current = null; setBossActive(false); finalBossDefeatedRef.current = true;
-                  safeAddCoins(30);
+                  safeAddCoins(5);
                   scoreRef.current += 5000 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(50), bloodColor, 8);
-                  addFloatText('¡+30 monedas!', w / 2, h / 3, '#fbbf24');
+                  addFloatText('+5 monedas', w / 2, h / 3, '#fbbf24');
                   finalBossThresholdRef.current += 3000;
                 } else if (z.type === 'giant') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 500 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
-                  safeAddCoins(10);
+                  safeAddCoins(2);
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(25), bloodColor, 6);
-                  addFloatText('+10 🪙', z.x, z.y - 20, '#fbbf24');
+                  addFloatText('+2 monedas', z.x, z.y - 20, '#fbbf24');
                 } else if (z.type === 'fast') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 150 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
-                  safeAddCoins(2);
-                  playExplosion();
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(12), bloodColor, 5);
-                  addFloatText('+10 🪙', z.x, z.y - 15, '#ef4444');
+                  addFloatText('+10', z.x, z.y - 15, '#ef4444');
                 } else {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 100 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
-                  if (killCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
+                  if (killCountRef.current % 5 === 0) { safeAddCoins(1); playCoin(); }
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(10), bloodColor, 4);
-                  addFloatText('+10 🪙', z.x, z.y - 15, '#65a30d');
+                  addFloatText('+10', z.x, z.y - 15, '#65a30d');
                 }
               }
               break;
@@ -590,8 +616,8 @@ export function ZombieGameScreen() {
         whiteFlashRef.current = Math.max(0, whiteFlashRef.current - dt * 0.08);
       }
 
-      if (crosshairRef.current.active && !gameOverRef.current) {
-        drawCrosshair2D(ctx, crosshairRef.current.x, crosshairRef.current.y, char.color, 24);
+      if (touchTargetRef.current.active && !gameOverRef.current) {
+        drawCrosshair2D(ctx, touchTargetRef.current.x, touchTargetRef.current.y, char.color, 24);
       }
 
       drawDebugFooter(ctx, w, h, fpsMon.current);
@@ -601,47 +627,41 @@ export function ZombieGameScreen() {
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins, setLives, char, submitZombieScore, weapon, shoot, spawnZombie, spawnBossBomber, spawnWeaponPickup, spawnMedKit, isOnline, addPlayTime, vip, reportSuspiciousActivity]);
+  }, [addCoins, setLives, char, submitZombieScore, weapon, shoot, spawnZombie, spawnBossBomber, spawnWeaponPickup, spawnMedKit, isOnline, addPlayTime, vip]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const update = (cx: number, cy: number) => {
-      const rect = canvas.getBoundingClientRect();
-      crosshairRef.current = { x: cx - rect.left, y: cy - rect.top, active: true };
-    };
-    const onTouch = (e: TouchEvent) => {
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        const rect = canvas.getBoundingClientRect();
-        if (t.clientX - rect.left > rect.width * 0.35) { update(t.clientX, t.clientY); break; }
-      }
-    };
     const onTouchStart = (e: TouchEvent) => {
       initAudio();
       isFiringRef.current = true;
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
+      if (e.touches.length > 0) {
         const rect = canvas.getBoundingClientRect();
-        if (t.clientX - rect.left > rect.width * 0.35) { update(t.clientX, t.clientY); break; }
+        touchTargetRef.current = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top, active: true };
       }
     };
-    const onTouchEnd = () => { isFiringRef.current = false; };
-    const onMouse = (e: MouseEvent) => update(e.clientX, e.clientY);
-    const onMouseDown = (e: MouseEvent) => { initAudio(); isFiringRef.current = true; update(e.clientX, e.clientY); };
-    const onMouseUp = () => { isFiringRef.current = false; };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const rect = canvas.getBoundingClientRect();
+        touchTargetRef.current = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top, active: true };
+      }
+    };
+    const onTouchEnd = () => { isFiringRef.current = false; touchTargetRef.current.active = false; };
+    const onMouseDown = (e: MouseEvent) => { initAudio(); isFiringRef.current = true; const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top, active: true }; };
+    const onMouseMove = (e: MouseEvent) => { if (touchTargetRef.current.active) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top, active: true }; } };
+    const onMouseUp = () => { isFiringRef.current = false; touchTargetRef.current.active = false; };
     canvas.addEventListener('touchstart', onTouchStart, { passive: true });
-    canvas.addEventListener('touchmove', onTouch, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
     canvas.addEventListener('touchend', onTouchEnd, { passive: true });
-    canvas.addEventListener('mousemove', onMouse);
     canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
     return () => {
       canvas.removeEventListener('touchstart', onTouchStart);
-      canvas.removeEventListener('touchmove', onTouch);
+      canvas.removeEventListener('touchmove', onTouchMove);
       canvas.removeEventListener('touchend', onTouchEnd);
-      canvas.removeEventListener('mousemove', onMouse);
       canvas.removeEventListener('mousedown', onMouseDown);
+      canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('mouseup', onMouseUp);
     };
   }, [shoot]);
@@ -683,12 +703,8 @@ export function ZombieGameScreen() {
       {floatTexts.map((ft) => <div key={ft.id} className="absolute z-20 font-bold text-sm animate-float-up pointer-events-none" style={{ left: ft.x, top: ft.y, transform: 'translate(-50%, -50%)', color: ft.color }}>{ft.text}</div>)}
       {!gameOver && (
         <>
-          <div className="absolute bottom-20 left-4 z-10"><Joystick onMove={handleMove} size={120} /></div>
-          <div className="absolute bottom-28 right-6 z-10 flex flex-col items-center gap-1 pointer-events-none">
-            <div className="w-14 h-14 rounded-full border-2 border-dashed flex items-center justify-center backdrop-blur" style={{ borderColor: `${char.color}66` }}>
-              <Crosshair className="w-6 h-6" style={{ color: char.color }} />
-            </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-black/50" style={{ color: char.color }}>MANTENER PARA DISPARAR</span>
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+            <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10">ARRASTRA PARA MOVER · SOSTIEN PARA DISPARAR</span>
           </div>
         </>
       )}
@@ -699,20 +715,21 @@ export function ZombieGameScreen() {
             className={`px-3 py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all ${selectedUnit === 'cowgirl' ? 'bg-amber-500/30 border border-amber-400/50 text-amber-400' : 'bg-black/50 border border-white/10 text-white/50'}`}
           >
             <span className="text-base">🤠</span>
-            <span>Vaquera ({cowgirlsDeployed}/3)</span>
+            <span>Vaquera</span>
           </button>
           <button
             onClick={deployAlly}
-            className="px-3 py-2 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 text-xs font-bold hover:bg-green-500/30"
+            disabled={allyCooldown > 0}
+            className="px-3 py-2 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 text-xs font-bold hover:bg-green-500/30 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center gap-0.5"
           >
-            Desplegar
+            {allyCooldown > 0 ? <><Clock className="w-3 h-3" /><span>{Math.ceil(allyCooldown / 60)}s</span></> : <><span className="text-base">+</span><span>Desplegar</span></>}
           </button>
           <button
             onClick={() => setSelectedUnit('soldier')}
             className={`px-3 py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all ${selectedUnit === 'soldier' ? 'bg-green-500/30 border border-green-400/50 text-green-400' : 'bg-black/50 border border-white/10 text-white/50'}`}
           >
             <span className="text-base">🪖</span>
-            <span>Soldado ({soldiersDeployed}/3)</span>
+            <span>Soldado</span>
           </button>
         </div>
       )}
@@ -741,7 +758,7 @@ export function ZombieGameScreen() {
           </div>
         </div>
       )}
-      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; hpRef.current = maxHpRef.current; shieldRef.current = true; setLives(3); setHp(maxHpRef.current); gameOverRef.current = false; setGameOver(false); safeAddCoins(10); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 10 monedas extra!" />
+      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; hpRef.current = maxHpRef.current; shieldRef.current = true; setLives(3); setHp(maxHpRef.current); gameOverRef.current = false; setGameOver(false); safeAddCoins(3); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 3 monedas extra!" />
       <MuteButton />
     </div>
   );

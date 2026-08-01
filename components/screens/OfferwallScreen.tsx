@@ -1,24 +1,29 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Download, Coins, Lock, Clock, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Download, Coins, Lock, Clock, CheckCircle2, AlertCircle, ExternalLink, X } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { BITLABS_CONFIG } from '@/lib/config';
+import { auth } from '@/lib/firebase';
 
 export function OfferwallScreen() {
-  const { setScreen, isOnline, userRole } = useGame();
+  const { setScreen, isOnline } = useGame();
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showOfferwall, setShowOfferwall] = useState(false);
 
-  const bitlabsUrl = `https://web.bitlabs.ai/offerwall?token=${BITLABS_CONFIG.integrationToken}&userid=${userRole}`;
+  const getBitlabsUrl = () => {
+    const uid = auth.currentUser?.uid ?? 'guest';
+    return `https://web.bitlabs.ai/offerwall?token=${BITLABS_CONFIG.integrationToken}&uid=${uid}`;
+  };
 
   const handleOpenOfferwall = async () => {
     setResult(null);
     setLoading(true);
     try {
-      window.open(bitlabsUrl, '_blank', 'noopener,noreferrer');
+      setShowOfferwall(true);
       setResult({ ok: true });
     } catch {
       setResult({ ok: false, error: 'No se pudo abrir el offerwall' });
@@ -72,7 +77,7 @@ export function OfferwallScreen() {
                 {loading ? 'Abriendo...' : 'Abrir Offerwall'}
               </button>
 
-              {result?.ok && (
+              {result?.ok && !showOfferwall && (
                 <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-green-400 text-sm animate-scale-in">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   Offerwall abierto. Las monedas se acreditaran automaticamente al completar misiones.
@@ -96,7 +101,26 @@ export function OfferwallScreen() {
           )}
         </div>
       </div>
+
+      {showOfferwall && (
+        <div className="fixed inset-0 z-[200] flex flex-col bg-black/95 animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
+            <h2 className="text-white font-bold text-sm">BitLabs Offerwall</h2>
+            <button
+              onClick={() => setShowOfferwall(false)}
+              className="w-8 h-8 rounded-full bg-background flex items-center justify-center text-white/50 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <iframe
+            src={getBitlabsUrl()}
+            className="flex-1 w-full border-0"
+            title="BitLabs Offerwall"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          />
+        </div>
+      )}
     </div>
   );
 }
-

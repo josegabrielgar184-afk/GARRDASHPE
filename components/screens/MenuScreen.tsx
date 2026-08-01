@@ -5,7 +5,6 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { URL_OFFERWALL_REAL } from '@/lib/config';
 import {
   Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert,
@@ -70,11 +69,7 @@ export function MenuScreen() {
   };
 
   const handleOfferwall = () => {
-    if (URL_OFFERWALL_REAL) {
-      window.open(URL_OFFERWALL_REAL, '_blank', 'noopener,noreferrer');
-    } else {
-      setScreen('offerwall');
-    }
+    setScreen('offerwall');
   };
 
   const handleInfluencer = () => {

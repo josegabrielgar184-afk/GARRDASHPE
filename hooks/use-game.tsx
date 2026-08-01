@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { CHARACTERS, getCharacter, getShip, getZombieCharacter, type CharacterDef, type ShipDef, type ZombieCharDef } from '@/lib/characters';
 import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
-  updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp,
+  updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment,
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import {
@@ -401,14 +401,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.orientationMode !== undefined) setOrientationModeState(s.orientationMode);
   }, []);
 
+  const userDocUnsubRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user: User | null) => {
+      if (userDocUnsubRef.current) {
+        userDocUnsubRef.current();
+        userDocUnsubRef.current = null;
+      }
       if (user) {
         setLoggedInState(true);
         setEmail(user.email ?? '');
-        const name = user.email?.split('@')[0] ?? 'Player';
-        setPlayerName(name);
-        saveData({ loggedIn: true, email: user.email ?? '', playerName: name });
         let role: 'user' | 'operador' | 'admin' = 'user';
         try {
           const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
@@ -416,28 +419,48 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             const data = userDoc.data();
             if (data.rol === 'admin') role = 'admin';
             else if (data.rol === 'operador') role = 'operador';
-            else role = 'user';
             if (data.lastLogin) {
               await updateDoc(doc(db, 'usuarios', user.uid), { lastLogin: serverTimestamp() });
             }
           }
         } catch {}
         setUserRole(role);
-        if (role === 'admin') {
-          setScreenState('admin');
-        } else if (role === 'operador') {
-          setScreenState('operator');
-        } else {
-          setScreenState('menu');
-        }
+        if (role === 'admin') setScreenState('admin');
+        else if (role === 'operador') setScreenState('operator');
+        else setScreenState('menu');
+
+        userDocUnsubRef.current = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (data.coins !== undefined) setCoins(data.coins);
+          if (data.puntos !== undefined) setPoints(data.puntos);
+          if (data.vip !== undefined) setVip(data.vip);
+          if (data.vipExpiry) {
+            const expiryDate = data.vipExpiry instanceof Timestamp ? data.vipExpiry.toDate().toISOString() : String(data.vipExpiry);
+            setVipExpiry(expiryDate);
+          }
+          const name = data.nombre || data.email?.split('@')[0] || 'Player';
+          setPlayerName(name);
+          saveData({
+            coins: data.coins ?? 0, points: data.puntos ?? 0, vip: data.vip ?? false,
+            playerName: name, email: data.email ?? user.email ?? '',
+            vipExpiry: data.vipExpiry instanceof Timestamp ? data.vipExpiry.toDate().toISOString() : null,
+          });
+        }, () => {});
       } else {
         setLoggedInState(false);
         setUserRole('user');
+        setCoins(0);
+        setPoints(0);
+        setPlayerName('');
         saveData({ loggedIn: false });
       }
       setAuthReady(true);
     });
-    return () => unsub();
+    return () => {
+      unsub();
+      if (userDocUnsubRef.current) userDocUnsubRef.current();
+    };
   }, []);
 
   useEffect(() => {
@@ -525,52 +548,57 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const setScreen = useCallback((s: Screen) => setScreenState(s), []);
 
   const addCoins = useCallback((n: number) => {
-    if (!isOnline) {
-      setPendingCoins((prev) => prev + n);
+    const user = auth.currentUser;
+    if (!user || !isOnline) {
+      if (!isOnline) { setPendingCoins((prev) => prev + n); return; }
+      setCoins((prev) => { const next = prev + n; saveData({ coins: next }); return next; });
       return;
     }
-    setCoins((prev) => {
-      const next = prev + n;
-      saveData({ coins: next });
-      return next;
-    });
+    setCoins((prev) => prev + n);
+    try { updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(n) }); } catch {}
   }, [isOnline]);
 
   const spendCoins = useCallback((n: number): boolean => {
-    let ok = false;
-    setCoins((prev) => {
-      if (prev >= n) {
-        ok = true;
-        const next = prev - n;
-        saveData({ coins: next });
-        return next;
-      }
-      return prev;
-    });
-    return ok;
-  }, []);
+    const user = auth.currentUser;
+    if (!user || !isOnline) {
+      let ok = false;
+      setCoins((prev) => {
+        if (prev >= n) { ok = true; const next = prev - n; saveData({ coins: next }); return next; }
+        return prev;
+      });
+      return ok;
+    }
+    if (coins < n) return false;
+    setCoins((prev) => prev - n);
+    try { updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(-n) }); } catch {}
+    return true;
+  }, [isOnline, coins]);
 
   const addPoints = useCallback((n: number) => {
-    setPoints((prev) => {
-      const next = prev + n;
-      saveData({ points: next });
-      return next;
-    });
-  }, []);
+    const user = auth.currentUser;
+    if (!user || !isOnline) {
+      setPoints((prev) => { const next = prev + n; saveData({ points: next }); return next; });
+      return;
+    }
+    setPoints((prev) => prev + n);
+    try { updateDoc(doc(db, 'usuarios', user.uid), { puntos: increment(n) }); } catch {}
+  }, [isOnline]);
 
   const spendPoints = useCallback((n: number): boolean => {
-    let ok = false;
-    setPoints((prev) => {
-      if (prev >= n) {
-        ok = true;
-        const next = prev - n;
-        saveData({ points: next });
-        return next;
-      }
-      return prev;
-    });
-    return ok;
-  }, []);
+    const user = auth.currentUser;
+    if (!user || !isOnline) {
+      let ok = false;
+      setPoints((prev) => {
+        if (prev >= n) { ok = true; const next = prev - n; saveData({ points: next }); return next; }
+        return prev;
+      });
+      return ok;
+    }
+    if (points < n) return false;
+    setPoints((prev) => prev - n);
+    try { updateDoc(doc(db, 'usuarios', user.uid), { puntos: increment(-n) }); } catch {}
+    return true;
+  }, [isOnline, points]);
 
   const setLives = useCallback((n: number) => setLivesState(n), []);
 
@@ -727,23 +755,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const getZombieChar = useCallback(() => getZombieCharacter(selectedZombie), [selectedZombie]);
 
   const buyUpgrade = useCallback((key: keyof UpgradeState, cost: number): boolean => {
-    let ok = false;
-    setCoins((prev) => {
-      if (prev >= cost) {
-        ok = true;
-        const nextCoins = prev - cost;
-        saveData({ coins: nextCoins });
-        setUpgrades((prevUp) => {
-          const nextUp = { ...prevUp, [key]: prevUp[key] + 1 };
-          saveData({ upgrades: nextUp });
-          return nextUp;
-        });
-        return nextCoins;
-      }
-      return prev;
+    if (!spendCoins(cost)) return false;
+    setUpgrades((prevUp) => {
+      const nextUp = { ...prevUp, [key]: prevUp[key] + 1 };
+      saveData({ upgrades: nextUp });
+      return nextUp;
     });
-    return ok;
-  }, []);
+    return true;
+  }, [spendCoins]);
 
   const refreshRanking = useCallback(async () => {
     return Promise.resolve();
