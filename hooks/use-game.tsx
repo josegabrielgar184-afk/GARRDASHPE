@@ -248,6 +248,7 @@ interface GameState {
   currentUserRank: number | null;
   observerMode: boolean;
   toggleObserverMode: () => void;
+  addPlayTime: (ms: number) => void;
 }
 
 export interface SignUpData {
@@ -613,6 +614,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const toggleObserverMode = useCallback(() => {
     setObserverMode((prev) => !prev);
+  }, []);
+
+  const playTimeBufferRef = useRef<number>(0);
+  const playTimeSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const addPlayTime = useCallback((ms: number) => {
+    playTimeBufferRef.current += ms;
+    if (playTimeSyncTimerRef.current) clearTimeout(playTimeSyncTimerRef.current);
+    playTimeSyncTimerRef.current = setTimeout(async () => {
+      const user = auth.currentUser;
+      if (!user || !navigator.onLine) return;
+      const addMs = playTimeBufferRef.current;
+      if (addMs <= 0) return;
+      playTimeBufferRef.current = 0;
+      try {
+        const userDocRef = doc(db, 'usuarios', user.uid);
+        const snap = await getDoc(userDocRef);
+        const current = snap.exists() ? (snap.data().tiempo_jugado_min ?? 0) : 0;
+        const newMin = current + addMs / 60000;
+        await updateDoc(userDocRef, { tiempo_jugado_min: newMin });
+      } catch {}
+    }, 8000);
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -1572,6 +1595,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton,
     transactionLight, currentUserRank,
     observerMode, toggleObserverMode,
+    addPlayTime,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

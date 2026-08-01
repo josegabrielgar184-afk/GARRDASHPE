@@ -14,22 +14,35 @@ import {
   drawIsoGround, drawIsoSoldier, drawIsoZombie,
   drawWeaponPickup2D, drawMedKit2D,
   drawFlashlight,
+  drawSchoolBus, drawAmbulance, drawCrane, drawTaxi,
+  drawCowgirl, drawAllySoldier,
+  drawBossBomber, drawBloodSplatter,
+  drawDebugFooter,
   clamp, dist, rand,
 } from '@/lib/engine2d';
+import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playShotgun, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
 import { MAX_COINS_PER_GAME } from '@/lib/security';
 
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'grenade';
-
 type ZombieType = 'normal' | 'fast' | 'giant';
 
-interface Zombie { x: number; y: number; vx: number; vy: number; angle: number; walkCycle: number; hp: number; maxHp: number; size: number; color: string; type: ZombieType; hitFlash: number; }
-interface MedKit { x: number; y: number; }
-interface WeaponPickup { x: number; y: number; weapon: WeaponType; }
-interface Bullet { x: number; y: number; vx: number; vy: number; life: number; damage: number; color: string; }
+interface Zombie { x: number; y: number; vx: number; vy: number; angle: number; walkCycle: number; hp: number; maxHp: number; size: number; color: string; type: ZombieType; hitFlash: number; active: boolean; reset(): void; }
+interface MedKit { x: number; y: number; active: boolean; reset(): void; }
+interface WeaponPickup { x: number; y: number; weapon: WeaponType; active: boolean; reset(): void; }
+interface Bullet { x: number; y: number; vx: number; vy: number; life: number; damage: number; color: string; active: boolean; reset(): void; }
+interface BloodSplat { x: number; y: number; size: number; alpha: number; active: boolean; reset(): void; }
+
+function makeZombie(): Zombie { return { x: 0, y: 0, vx: 0, vy: 0, angle: 0, walkCycle: 0, hp: 100, maxHp: 100, size: 16, color: '#65a30d', type: 'normal', hitFlash: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.angle = 0; this.walkCycle = 0; this.hp = 100; this.maxHp = 100; this.size = 16; this.color = '#65a30d'; this.type = 'normal'; this.hitFlash = 0; } }; }
+function makeMedKit(): MedKit { return { x: 0, y: 0, active: false, reset() { this.x = 0; this.y = 0; } }; }
+function makeWeaponPickup(): WeaponPickup { return { x: 0, y: 0, weapon: 'rifle', active: false, reset() { this.x = 0; this.y = 0; this.weapon = 'rifle'; } }; }
+function makeBullet(): Bullet { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, damage: 0, color: '', active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; this.damage = 0; this.color = ''; } }; }
+function makeBloodSplat(): BloodSplat { return { x: 0, y: 0, size: 0, alpha: 0.6, active: false, reset() { this.x = 0; this.y = 0; this.size = 0; this.alpha = 0.6; } }; }
+
+interface AllyUnit { x: number; y: number; type: 'cowgirl' | 'soldier'; walkCycle: number; muzzleFlash: number; shootTimer: number; hp: number; maxHp: number; deployed: boolean; }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, reportSuspiciousActivity } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, reportSuspiciousActivity, addPlayTime } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -43,14 +56,21 @@ export function ZombieGameScreen() {
   const [bossActive, setBossActive] = useState(false);
   const [bossHp, setBossHp] = useState(0);
   const [bossMaxHp, setBossMaxHp] = useState(0);
+  const [bossName, setBossName] = useState('');
   const [showInterstitial, setShowInterstitial] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState<'cowgirl' | 'soldier'>('cowgirl');
+  const [cowgirlsDeployed, setCowgirlsDeployed] = useState(0);
+  const [soldiersDeployed, setSoldiersDeployed] = useState(0);
 
   const playerRef = useRef({ x: 0, y: 0, vx: 0, vy: 0, angle: 0, walkCycle: 0, muzzleFlash: 0 });
-  const zombiesRef = useRef<Zombie[]>([]);
-  const medkitsRef = useRef<MedKit[]>([]);
-  const weaponPickupsRef = useRef<WeaponPickup[]>([]);
-  const bulletsRef = useRef<Bullet[]>([]);
+  const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 20));
+  const medkitPoolRef = useRef<ObjectPool<MedKit>>(new ObjectPool(makeMedKit, 5));
+  const weaponPickupPoolRef = useRef<ObjectPool<WeaponPickup>>(new ObjectPool(makeWeaponPickup, 5));
+  const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 40));
+  const bloodPoolRef = useRef<ObjectPool<BloodSplat>>(new ObjectPool(makeBloodSplat, 15));
+  const bossRef = useRef<Zombie | null>(null);
   const particlesRef = useRef<Particle2D[]>([]);
+  const alliesRef = useRef<AllyUnit[]>([]);
   const moveRef = useRef({ dx: 0, dy: 0 });
   const crosshairRef = useRef({ x: 0, y: 0, active: false });
   const scoreRef = useRef(0);
@@ -78,7 +98,6 @@ export function ZombieGameScreen() {
   const miniBossThresholdRef = useRef(500);
   const finalBossThresholdRef = useRef(1500);
   const finalBossDefeatedRef = useRef(false);
-  const tankRef = useRef<Zombie | null>(null);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
   const scrollYRef = useRef(0);
   const bloodEnabledRef = useRef(true);
@@ -86,6 +105,12 @@ export function ZombieGameScreen() {
   const whiteFlashRef = useRef(0);
   const gameCoinsRef = useRef(0);
   const interstitialCheckedRef = useRef(false);
+  const fpsMonitorRef = useRef<FPSMonitor>(new FPSMonitor());
+  const playTimeRef = useRef(0);
+  const lastPlayTimeSyncRef = useRef(0);
+  const selectedUnitRef = useRef<'cowgirl' | 'soldier'>('cowgirl');
+  const cowgirlsDeployedRef = useRef(0);
+  const soldiersDeployedRef = useRef(0);
 
   const char = getZombieCharacter();
 
@@ -104,6 +129,7 @@ export function ZombieGameScreen() {
   }, [char, upgrades]);
 
   useEffect(() => { bloodEnabledRef.current = bloodEnabled; }, [bloodEnabled]);
+  useEffect(() => { selectedUnitRef.current = selectedUnit; }, [selectedUnit]);
 
   const initGame = useCallback(() => {
     const canvas = canvasRef.current;
@@ -113,8 +139,14 @@ export function ZombieGameScreen() {
     canvasSizeRef.current = { w: canvas.width, h: canvas.height };
     const { w, h } = canvasSizeRef.current;
     playerRef.current = { x: w / 2, y: h * 0.65, vx: 0, vy: 0, angle: -Math.PI / 2, walkCycle: 0, muzzleFlash: 0 };
-    zombiesRef.current = []; medkitsRef.current = []; weaponPickupsRef.current = [];
-    bulletsRef.current = []; particlesRef.current = []; tankRef.current = null;
+    zombiePoolRef.current.releaseAll();
+    medkitPoolRef.current.releaseAll();
+    weaponPickupPoolRef.current.releaseAll();
+    bulletPoolRef.current.releaseAll();
+    bloodPoolRef.current.releaseAll();
+    bossRef.current = null;
+    particlesRef.current = [];
+    alliesRef.current = [];
     scoreRef.current = 0; killCountRef.current = 0;
     hpRef.current = char.maxHp; maxHpRef.current = char.maxHp;
     livesRef.current = 3;
@@ -124,6 +156,9 @@ export function ZombieGameScreen() {
     difficultyRef.current = 1; miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; scrollYRef.current = 0;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
+    cowgirlsDeployedRef.current = 0; soldiersDeployedRef.current = 0;
+    setCowgirlsDeployed(0); setSoldiersDeployed(0);
+    playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setHp(char.maxHp); setGameOver(false); setBossActive(false);
   }, [char, upgrades]);
 
@@ -159,13 +194,28 @@ export function ZombieGameScreen() {
   const getDamage = () => (40 + damageLevelRef.current * 15) * damageMultRef.current;
 
   const safeAddCoins = (amount: number) => {
-    if (gameCoinsRef.current + amount > MAX_COINS_PER_GAME) {
-      reportSuspiciousActivity('coin_cap_exceeded', `Attempted to add ${amount} coins, total would be ${gameCoinsRef.current + amount} (max ${MAX_COINS_PER_GAME})`);
+    const multiplied = vip ? Math.floor(amount * 1.5) : amount;
+    if (gameCoinsRef.current + multiplied > MAX_COINS_PER_GAME) {
+      reportSuspiciousActivity('coin_cap_exceeded', `Attempted to add ${multiplied} coins, total would be ${gameCoinsRef.current + multiplied} (max ${MAX_COINS_PER_GAME})`);
       return;
     }
-    addCoins(amount);
-    gameCoinsRef.current += amount;
+    addCoins(multiplied);
+    gameCoinsRef.current += multiplied;
     setCoinsEarned(gameCoinsRef.current);
+  };
+
+  const deployAlly = () => {
+    const { w, h } = canvasSizeRef.current;
+    const type = selectedUnitRef.current;
+    if (type === 'cowgirl' && cowgirlsDeployedRef.current >= 3) return;
+    if (type === 'soldier' && soldiersDeployedRef.current >= 3) return;
+    alliesRef.current.push({
+      x: w * 0.15, y: h * 0.5 + Math.random() * h * 0.2,
+      type, walkCycle: 0, muzzleFlash: 0, shootTimer: 30 + Math.random() * 30,
+      hp: 100, maxHp: 100, deployed: true,
+    });
+    if (type === 'cowgirl') { cowgirlsDeployedRef.current++; setCowgirlsDeployed(cowgirlsDeployedRef.current); }
+    else { soldiersDeployedRef.current++; setSoldiersDeployed(soldiersDeployedRef.current); }
   };
 
   const shoot = useCallback(() => {
@@ -180,19 +230,31 @@ export function ZombieGameScreen() {
     const speed = 10;
 
     if (weaponRef.current === 'pistol') {
-      bulletsRef.current.push({ x: p.x + Math.cos(aimAngle) * 30, y: p.y + Math.sin(aimAngle) * 30, vx: Math.cos(aimAngle) * speed, vy: Math.sin(aimAngle) * speed, life: 50, damage: getDamage(), color: '#fbbf24' });
+      const b = bulletPoolRef.current.acquire();
+      b.x = p.x + Math.cos(aimAngle) * 30; b.y = p.y + Math.sin(aimAngle) * 30;
+      b.vx = Math.cos(aimAngle) * speed; b.vy = Math.sin(aimAngle) * speed;
+      b.life = 50; b.damage = getDamage(); b.color = '#fbbf24';
       shootCooldownRef.current = getFireRate(); playShoot();
     } else if (weaponRef.current === 'rifle') {
-      bulletsRef.current.push({ x: p.x + Math.cos(aimAngle) * 30, y: p.y + Math.sin(aimAngle) * 30, vx: Math.cos(aimAngle) * 14, vy: Math.sin(aimAngle) * 14, life: 50, damage: getDamage() * 0.7, color: '#22d3ee' });
+      const b = bulletPoolRef.current.acquire();
+      b.x = p.x + Math.cos(aimAngle) * 30; b.y = p.y + Math.sin(aimAngle) * 30;
+      b.vx = Math.cos(aimAngle) * 14; b.vy = Math.sin(aimAngle) * 14;
+      b.life = 50; b.damage = getDamage() * 0.7; b.color = '#22d3ee';
       shootCooldownRef.current = Math.max(4, getFireRate() - 8); playShoot();
     } else if (weaponRef.current === 'shotgun') {
       for (let i = -1; i <= 1; i++) {
         const sa = aimAngle + i * 0.2;
-        bulletsRef.current.push({ x: p.x + Math.cos(sa) * 30, y: p.y + Math.sin(sa) * 30, vx: Math.cos(sa) * 9, vy: Math.sin(sa) * 9, life: 45, damage: getDamage() * 0.8 * shotgunDmgMultRef.current, color: '#f87171' });
+        const b = bulletPoolRef.current.acquire();
+        b.x = p.x + Math.cos(sa) * 30; b.y = p.y + Math.sin(sa) * 30;
+        b.vx = Math.cos(sa) * 9; b.vy = Math.sin(sa) * 9;
+        b.life = 45; b.damage = getDamage() * 0.8 * shotgunDmgMultRef.current; b.color = '#f87171';
       }
       shootCooldownRef.current = getFireRate() + 8; playShotgun();
     } else if (weaponRef.current === 'grenade') {
-      bulletsRef.current.push({ x: p.x + Math.cos(aimAngle) * 30, y: p.y + Math.sin(aimAngle) * 30, vx: Math.cos(aimAngle) * 6, vy: Math.sin(aimAngle) * 6, life: 60, damage: getDamage() * 3, color: '#fb923c' });
+      const b = bulletPoolRef.current.acquire();
+      b.x = p.x + Math.cos(aimAngle) * 30; b.y = p.y + Math.sin(aimAngle) * 30;
+      b.vx = Math.cos(aimAngle) * 6; b.vy = Math.sin(aimAngle) * 6;
+      b.life = 60; b.damage = getDamage() * 3; b.color = '#fb923c';
       shootCooldownRef.current = getFireRate() + 20; playExplosion();
     }
   }, []);
@@ -204,58 +266,48 @@ export function ZombieGameScreen() {
     if (difficultyRef.current > 1.5 && r < 0.15) type = 'fast';
     else if (difficultyRef.current > 2 && r < 0.25) type = 'giant';
 
-    let hp: number, size: number, color: string, speed: number;
-    if (type === 'fast') {
-      hp = 50; size = 13; color = '#ef4444'; speed = 3.5;
-    } else if (type === 'giant') {
-      hp = 300; size = 30; color = '#7c3aed'; speed = 1.2;
-    } else {
-      hp = 100; size = 16; color = '#65a30d'; speed = 1.8;
-    }
+    let zHp: number, size: number, color: string;
+    if (type === 'fast') { zHp = 50; size = 13; color = '#ef4444'; }
+    else if (type === 'giant') { zHp = 300; size = 30; color = '#7c3aed'; }
+    else { zHp = 100; size = 16; color = '#65a30d'; }
 
-    const x = rand(40, w - 40);
-    const y = -20 - Math.random() * 40;
-    zombiesRef.current.push({
-      x, y, vx: 0, vy: 0, angle: Math.PI / 2, walkCycle: Math.random() * 10,
-      hp, maxHp: hp, size, color, type, hitFlash: 0,
-    });
+    const z = zombiePoolRef.current.acquire();
+    z.x = rand(40, w - 40); z.y = -20 - Math.random() * 40;
+    z.vx = 0; z.vy = 0; z.angle = Math.PI / 2; z.walkCycle = Math.random() * 10;
+    z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, []);
 
-  const spawnTank = useCallback(() => {
+  const spawnBossBomber = useCallback(() => {
     const { w } = canvasSizeRef.current;
-    const hp = 2000;
-    const tank: Zombie = {
-      x: w / 2, y: -50, vx: 0, vy: 0, angle: Math.PI / 2, walkCycle: 0,
-      hp, maxHp: hp, size: 40, color: '#dc2626', type: 'giant', hitFlash: 0,
-    };
-    tankRef.current = tank;
-    zombiesRef.current.push(tank);
-    setBossActive(true); setBossHp(hp); setBossMaxHp(hp);
+    const zHp = 2000;
+    const boss = zombiePoolRef.current.acquire();
+    boss.x = w / 2; boss.y = -50; boss.vx = 0; boss.vy = 0; boss.angle = Math.PI / 2; boss.walkCycle = 0;
+    boss.hp = zHp; boss.maxHp = zHp; boss.size = 40; boss.color = '#dc2626'; boss.type = 'giant'; boss.hitFlash = 0;
+    bossRef.current = boss;
+    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp); setBossName('BOMBER ZOMBIE');
     playBossAlert();
-    addFloatText('¡TANK!', w / 2, canvasSizeRef.current.h / 3, '#dc2626');
+    addFloatText('¡BOMBER ZOMBIE!', w / 2, canvasSizeRef.current.h / 3, '#dc2626');
   }, []);
 
   const spawnWeaponPickup = useCallback(() => {
     const { w, h } = canvasSizeRef.current;
     const weapons: WeaponType[] = ['rifle', 'shotgun', 'grenade'];
-    weaponPickupsRef.current.push({ x: rand(50, w - 50), y: rand(h * 0.3, h - 80), weapon: weapons[Math.floor(Math.random() * 3)] });
+    const wp = weaponPickupPoolRef.current.acquire();
+    wp.x = rand(50, w - 50); wp.y = rand(h * 0.3, h - 80); wp.weapon = weapons[Math.floor(Math.random() * 3)];
   }, []);
 
   const spawnMedKit = useCallback(() => {
     const { w, h } = canvasSizeRef.current;
-    medkitsRef.current.push({ x: rand(50, w - 50), y: rand(h * 0.3, h - 80) });
+    const m = medkitPoolRef.current.acquire();
+    m.x = rand(50, w - 50); m.y = rand(h * 0.3, h - 80);
   }, []);
 
   useEffect(() => { weaponRef.current = weapon; }, [weapon]);
 
-  // Interstitial ad on game over
   useEffect(() => {
     if (gameOver && !interstitialCheckedRef.current) {
       interstitialCheckedRef.current = true;
-      if (!vip && canShowInterstitial()) {
-        setShowInterstitial(true);
-        recordInterstitial();
-      }
+      if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }
   }, [gameOver, canShowInterstitial, recordInterstitial, vip]);
 
@@ -265,14 +317,37 @@ export function ZombieGameScreen() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let lastTime = performance.now();
+    let lastRenderTime = lastTime;
 
     const render = (now: number) => {
+      const fpsMon = fpsMonitorRef.current;
+      fpsMon.tick(now);
+
+      if (!fpsMon.shouldRenderFrame(now, lastRenderTime)) {
+        rafRef.current = requestAnimationFrame(render);
+        return;
+      }
+      lastRenderTime = now;
+
       const dt = Math.min((now - lastTime) / 16.67, 2);
       lastTime = now;
       const { w, h } = canvasSizeRef.current;
 
       scrollYRef.current += dt * 0.5;
       drawIsoGround(ctx, w, h, scrollYRef.current);
+
+      if (fpsMon.quality !== 'low') {
+        const grad = ctx.createLinearGradient(0, 0, 0, h * 0.5);
+        grad.addColorStop(0, 'rgba(120,60,20,0.15)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h * 0.5);
+      }
+
+      drawSchoolBus(ctx, w * 0.15, h * 0.25, 0.6);
+      drawAmbulance(ctx, w * 0.75, h * 0.2, 0.5);
+      drawCrane(ctx, w * 0.5, h * 0.15, 0.4);
+      drawTaxi(ctx, w * 0.85, h * 0.4, 0.5, 0.3);
 
       if (!gameOverRef.current) {
         const p = playerRef.current;
@@ -286,28 +361,46 @@ export function ZombieGameScreen() {
         }
         if (p.muzzleFlash > 0) p.muzzleFlash = Math.max(0, p.muzzleFlash - dt * 0.15);
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
+        if (isFiringRef.current && shootCooldownRef.current <= 0) shoot();
 
-        // Auto-fire on hold
-        if (isFiringRef.current && shootCooldownRef.current <= 0) {
-          shoot();
+        for (const ally of alliesRef.current) {
+          ally.walkCycle += dt * 0.2;
+          ally.shootTimer -= dt;
+          if (ally.shootTimer <= 0) {
+            ally.shootTimer = 40 + Math.random() * 20;
+            ally.muzzleFlash = 1;
+            const target = zombiePoolRef.current.getActive().reduce((closest, z) => {
+              const d = dist(ally.x, ally.y, z.x, z.y);
+              return d < closest.d ? { z, d } : closest;
+            }, { z: null as Zombie | null, d: Infinity });
+            if (target.z) {
+              const angle = Math.atan2(target.z.y - ally.y, target.z.x - ally.x);
+              const b = bulletPoolRef.current.acquire();
+              b.x = ally.x + Math.cos(angle) * 20; b.y = ally.y + Math.sin(angle) * 20;
+              b.vx = Math.cos(angle) * 10; b.vy = Math.sin(angle) * 10;
+              b.life = 50; b.damage = ally.type === 'cowgirl' ? 60 : 40; b.color = ally.type === 'cowgirl' ? '#fbbf24' : '#22d3ee';
+            }
+            playShoot();
+          }
+          if (ally.muzzleFlash > 0) ally.muzzleFlash = Math.max(0, ally.muzzleFlash - dt * 0.15);
         }
 
         difficultyRef.current = 1 + scoreRef.current / 500;
 
-        if (!tankRef.current) {
+        if (!bossRef.current) {
           spawnTimerRef.current += dt;
           const interval = Math.max(15, 35 - difficultyRef.current * 3);
           if (spawnTimerRef.current > interval) { spawnZombie(); spawnTimerRef.current = 0; }
           if (scoreRef.current >= miniBossThresholdRef.current) {
             for (let i = 0; i < 2; i++) {
               spawnZombie();
-              const last = zombiesRef.current[zombiesRef.current.length - 1];
-              last.type = 'giant'; last.hp = 200; last.maxHp = 200; last.size = 26; last.color = '#a855f7';
+              const last = zombiePoolRef.current.getActive()[zombiePoolRef.current.getActive().length - 1];
+              if (last) { last.type = 'giant'; last.hp = 200; last.maxHp = 200; last.size = 26; last.color = '#a855f7'; }
             }
             miniBossThresholdRef.current += 500;
             addFloatText('¡Mutantes!', w / 2, h / 3, '#a855f7');
           }
-          if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current) spawnTank();
+          if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current) spawnBossBomber();
         }
 
         weaponPickupTimerRef.current += dt;
@@ -315,15 +408,13 @@ export function ZombieGameScreen() {
         medkitTimerRef.current += dt;
         if (medkitTimerRef.current > 250) { spawnMedKit(); medkitTimerRef.current = 0; }
 
-        // Update zombies
-        for (let i = zombiesRef.current.length - 1; i >= 0; i--) {
-          const z = zombiesRef.current[i];
+        for (const z of zombiePoolRef.current.getActive()) {
           const dx = p.x - z.x;
           const dy = p.y - z.y;
           const d = Math.max(Math.hypot(dx, dy), 1);
           let speed: number;
           if (z.type === 'fast') speed = 3.5;
-          else if (z.type === 'giant') speed = z === tankRef.current ? 2.5 : 1.2;
+          else if (z.type === 'giant') speed = z === bossRef.current ? 2.5 : 1.2;
           else speed = 1.8 + Math.random() * 0.3;
           z.x += (dx / d) * speed * dt;
           z.y += (dy / d) * speed * dt;
@@ -332,7 +423,7 @@ export function ZombieGameScreen() {
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
 
           if (d < z.size + 16) {
-            if (z === tankRef.current) {
+            if (z === bossRef.current) {
               if (shieldRef.current) { shieldRef.current = false; }
               else {
                 hpRef.current -= 30; setHp(hpRef.current); playHit();
@@ -344,7 +435,7 @@ export function ZombieGameScreen() {
                 }
               }
             } else {
-              zombiesRef.current.splice(i, 1);
+              zombiePoolRef.current.release(z);
               if (shieldRef.current) { shieldRef.current = false; addFloatText('¡Escudo!', w / 2, h / 2, '#34d399'); continue; }
               const dmg = z.type === 'giant' ? 25 : 15;
               hpRef.current -= dmg; setHp(hpRef.current); playHit();
@@ -358,49 +449,46 @@ export function ZombieGameScreen() {
           }
         }
 
-        // Update medkits
-        for (let i = medkitsRef.current.length - 1; i >= 0; i--) {
-          const m = medkitsRef.current[i];
+        for (const m of medkitPoolRef.current.getActive()) {
           const d = dist(m.x, m.y, p.x, p.y);
           const range = magnetRef.current ? 80 : 40;
           if (d < range) {
-            medkitsRef.current.splice(i, 1);
+            medkitPoolRef.current.release(m);
             hpRef.current = Math.min(maxHpRef.current, hpRef.current + 30); setHp(hpRef.current);
             playPickup(); addFloatText('+30 HP', w / 2, h / 2, '#34d399');
           }
           if (magnetRef.current && d < 120) { m.x += (p.x - m.x) * 0.05 * dt; m.y += (p.y - m.y) * 0.05 * dt; }
         }
 
-        // Update weapon pickups
-        for (let i = weaponPickupsRef.current.length - 1; i >= 0; i--) {
-          const wp = weaponPickupsRef.current[i];
+        for (const wp of weaponPickupPoolRef.current.getActive()) {
           if (dist(wp.x, wp.y, p.x, p.y) < 28) {
-            weaponPickupsRef.current.splice(i, 1);
+            weaponPickupPoolRef.current.release(wp);
             setWeapon(wp.weapon); weaponRef.current = wp.weapon;
             playPickup(); addFloatText(wp.weapon.toUpperCase(), w / 2, h / 2, '#22d3ee');
           }
         }
 
-        // Update bullets
-        for (let i = bulletsRef.current.length - 1; i >= 0; i--) {
-          const b = bulletsRef.current[i];
+        for (const b of bulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-          if (b.life <= 0 || b.x < 0 || b.x > w || b.y < 0 || b.y > h) { bulletsRef.current.splice(i, 1); continue; }
-          for (let j = zombiesRef.current.length - 1; j >= 0; j--) {
-            const z = zombiesRef.current[j];
+          if (b.life <= 0 || b.x < 0 || b.x > w || b.y < 0 || b.y > h) { bulletPoolRef.current.release(b); continue; }
+          for (const z of zombiePoolRef.current.getActive()) {
             if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
-              z.hp -= b.damage; z.hitFlash = 1; bulletsRef.current.splice(i, 1);
-              spawnParticles2D(particlesRef.current, b.x, b.y, 5, b.color, 3);
+              z.hp -= b.damage; z.hitFlash = 1; bulletPoolRef.current.release(b);
+              spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(5), b.color, 3);
               whiteFlashRef.current = Math.max(whiteFlashRef.current, 0.3);
+              if (bloodEnabledRef.current) {
+                const bs = bloodPoolRef.current.acquire();
+                bs.x = z.x; bs.y = z.y; bs.size = z.size * 0.8; bs.alpha = 0.5;
+              }
               if (z.hp <= 0) {
-                zombiesRef.current.splice(j, 1);
+                zombiePoolRef.current.release(z);
                 const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
-                if (z === tankRef.current) {
-                  tankRef.current = null; setBossActive(false); finalBossDefeatedRef.current = true;
+                if (z === bossRef.current) {
+                  bossRef.current = null; setBossActive(false); finalBossDefeatedRef.current = true;
                   safeAddCoins(30);
                   scoreRef.current += 5000 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
-                  spawnParticles2D(particlesRef.current, z.x, z.y, 50, bloodColor, 8);
+                  spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(50), bloodColor, 8);
                   addFloatText('¡+30 monedas!', w / 2, h / 3, '#fbbf24');
                   finalBossThresholdRef.current += 3000;
                 } else if (z.type === 'giant') {
@@ -408,21 +496,21 @@ export function ZombieGameScreen() {
                   scoreRef.current += 500 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   safeAddCoins(10);
                   playExplosion(); playCoin();
-                  spawnParticles2D(particlesRef.current, z.x, z.y, 25, bloodColor, 6);
-                  addFloatText('+10 pts', z.x, z.y - 20, '#a855f7');
+                  spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(25), bloodColor, 6);
+                  addFloatText('+10 🪙', z.x, z.y - 20, '#fbbf24');
                 } else if (z.type === 'fast') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 150 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   safeAddCoins(2);
                   playExplosion();
-                  spawnParticles2D(particlesRef.current, z.x, z.y, 12, bloodColor, 5);
-                  addFloatText('+10 pts', z.x, z.y - 15, '#ef4444');
+                  spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(12), bloodColor, 5);
+                  addFloatText('+10 🪙', z.x, z.y - 15, '#ef4444');
                 } else {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 100 * scoreMultRef.current; setScore(Math.floor(scoreRef.current));
                   if (killCountRef.current % 3 === 0) { safeAddCoins(1); playCoin(); }
-                  spawnParticles2D(particlesRef.current, z.x, z.y, 10, bloodColor, 4);
-                  addFloatText('+10 pts', z.x, z.y - 15, '#65a30d');
+                  spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(10), bloodColor, 4);
+                  addFloatText('+10 🪙', z.x, z.y - 15, '#65a30d');
                 }
               }
               break;
@@ -430,13 +518,28 @@ export function ZombieGameScreen() {
           }
         }
 
-        for (const m of medkitsRef.current) drawMedKit2D(ctx, m.x, m.y, now);
-        for (const wp of weaponPickupsRef.current) drawWeaponPickup2D(ctx, wp.x, wp.y, wp.weapon, now);
+        playTimeRef.current += dt * 16.67;
+        if (playTimeRef.current - lastPlayTimeSyncRef.current >= 5000) {
+          if (isOnline) addPlayTime(playTimeRef.current - lastPlayTimeSyncRef.current);
+          lastPlayTimeSyncRef.current = playTimeRef.current;
+        }
 
-        const sortedZ = [...zombiesRef.current].sort((a, b) => a.y - b.y);
+        for (const m of medkitPoolRef.current.getActive()) drawMedKit2D(ctx, m.x, m.y, now);
+        for (const wp of weaponPickupPoolRef.current.getActive()) drawWeaponPickup2D(ctx, wp.x, wp.y, wp.weapon, now);
+
+        for (const bs of bloodPoolRef.current.getActive()) {
+          drawBloodSplatter(ctx, bs.x, bs.y, bs.size, bs.alpha);
+          bs.alpha -= dt * 0.01;
+          if (bs.alpha <= 0) bloodPoolRef.current.release(bs);
+        }
+
+        const sortedZ = zombiePoolRef.current.getActive().sort((a, b) => a.y - b.y);
         for (const z of sortedZ) {
-          drawIsoZombie(ctx, z.x, z.y, z.angle, z.walkCycle, z.size, z.color, z.type === 'giant', z === tankRef.current);
-          // White flash overlay on hit
+          if (z === bossRef.current) {
+            drawBossBomber(ctx, z.x, z.y, z.walkCycle, z.size, z.walkCycle * 3, now);
+          } else {
+            drawIsoZombie(ctx, z.x, z.y, z.angle, z.walkCycle, z.size, z.color, z.type === 'giant', false);
+          }
           if (z.hitFlash > 0) {
             ctx.save();
             ctx.globalAlpha = z.hitFlash * 0.6;
@@ -449,7 +552,12 @@ export function ZombieGameScreen() {
           }
         }
 
-        for (const b of bulletsRef.current) {
+        for (const ally of alliesRef.current) {
+          if (ally.type === 'cowgirl') drawCowgirl(ctx, ally.x, ally.y, ally.walkCycle, ally.muzzleFlash, now);
+          else drawAllySoldier(ctx, ally.x, ally.y, ally.walkCycle, ally.muzzleFlash, now);
+        }
+
+        for (const b of bulletPoolRef.current.getActive()) {
           ctx.save();
           ctx.strokeStyle = b.color;
           ctx.lineWidth = 3;
@@ -467,15 +575,12 @@ export function ZombieGameScreen() {
         }
 
         drawIsoSoldier(ctx, p.x, p.y, p.angle, p.walkCycle, shieldRef.current ? '#34d399' : char.color, shieldRef.current, weapon, p.muzzleFlash);
-
-        // Flashlight effect
         drawFlashlight(ctx, p.x, p.y, w, h, char.color);
       }
 
       updateParticles2D(particlesRef.current, dt);
       drawParticles2D(ctx, particlesRef.current);
 
-      // White flash overlay
       if (whiteFlashRef.current > 0) {
         ctx.save();
         ctx.globalAlpha = whiteFlashRef.current;
@@ -489,14 +594,15 @@ export function ZombieGameScreen() {
         drawCrosshair2D(ctx, crosshairRef.current.x, crosshairRef.current.y, char.color, 24);
       }
 
+      drawDebugFooter(ctx, w, h, fpsMon.current);
+
       rafRef.current = requestAnimationFrame(render);
     };
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins, setLives, char, submitZombieScore, weapon, shoot, spawnZombie, spawnTank, spawnWeaponPickup, spawnMedKit]);
+  }, [addCoins, setLives, char, submitZombieScore, weapon, shoot, spawnZombie, spawnBossBomber, spawnWeaponPickup, spawnMedKit, isOnline, addPlayTime, vip, reportSuspiciousActivity]);
 
-  // Crosshair input — right side aims, hold to auto-fire
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -565,7 +671,7 @@ export function ZombieGameScreen() {
       </div>
       {bossActive && bossMaxHp > 0 && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 w-72">
-          <p className="text-center text-red-400 text-xs font-bold mb-1 animate-pulse">TANK</p>
+          <p className="text-center text-red-400 text-xs font-bold mb-1 animate-pulse">{bossName}</p>
           <div className="h-4 rounded-full bg-black/60 border-2 border-red-500/50 overflow-hidden shadow-lg shadow-red-500/30">
             <div className="h-full transition-all duration-200" style={{ width: `${(bossHp / bossMaxHp) * 100}%`, background: 'linear-gradient(90deg, #dc2626, #ef4444)' }} />
           </div>
@@ -586,6 +692,30 @@ export function ZombieGameScreen() {
           </div>
         </>
       )}
+      {!gameOver && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 flex gap-2 pb-1">
+          <button
+            onClick={() => setSelectedUnit('cowgirl')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all ${selectedUnit === 'cowgirl' ? 'bg-amber-500/30 border border-amber-400/50 text-amber-400' : 'bg-black/50 border border-white/10 text-white/50'}`}
+          >
+            <span className="text-base">🤠</span>
+            <span>Vaquera ({cowgirlsDeployed}/3)</span>
+          </button>
+          <button
+            onClick={deployAlly}
+            className="px-3 py-2 rounded-xl bg-green-500/20 border border-green-500/40 text-green-400 text-xs font-bold hover:bg-green-500/30"
+          >
+            Desplegar
+          </button>
+          <button
+            onClick={() => setSelectedUnit('soldier')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold flex flex-col items-center gap-0.5 transition-all ${selectedUnit === 'soldier' ? 'bg-green-500/30 border border-green-400/50 text-green-400' : 'bg-black/50 border border-white/10 text-white/50'}`}
+          >
+            <span className="text-base">🪖</span>
+            <span>Soldado ({soldiersDeployed}/3)</span>
+          </button>
+        </div>
+      )}
       {gameOver && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-xs mx-4 rounded-2xl bg-card/90 border border-red-500/30 p-6 text-center animate-scale-in shadow-2xl shadow-red-500/20">
@@ -601,7 +731,6 @@ export function ZombieGameScreen() {
           </div>
         </div>
       )}
-      {/* Interstitial ad modal */}
       {showInterstitial && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 animate-fade-in">
           <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
