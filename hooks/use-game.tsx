@@ -14,6 +14,7 @@ import {
 import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
+import { MIN_CLAIM_COINS } from '@/lib/config';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
@@ -83,6 +84,23 @@ export interface AdminUserInfo {
   totalRuns?: number;
   bestScore?: number;
   rol?: string;
+  puntos?: number;
+  puntos_semanales?: number;
+  puntos_espacio?: number;
+  puntos_zombies?: number;
+  tiempo_jugado_min?: number;
+  vip?: boolean;
+  diamondHistory?: number;
+  createdAt?: any;
+  adsWatched?: number;
+  bitlabsEarnings?: number;
+}
+
+export interface NearClaimSummary {
+  totalEstimatedCost: number;
+  totalEstimatedRevenue: number;
+  totalNet: number;
+  count: number;
 }
 
 export interface InfluencerInfo {
@@ -124,6 +142,7 @@ export interface AdminStats {
   activeUsers: number;
   inactiveUsers: number;
   returnedUsers: AdminUserInfo[];
+  nearClaimSummary: NearClaimSummary;
 }
 
 interface GameState {
@@ -204,6 +223,11 @@ interface GameState {
   rejectPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
   adminUserStats: AdminStats;
   refreshAdminStats: () => Promise<void>;
+  searchUsers: (query: string) => Promise<void>;
+  userSearchResults: AdminUserInfo[];
+  loadMoreUsers: () => Promise<void>;
+  hasMoreUsers: boolean;
+  clearUserSearch: () => void;
   isDeviceBanned: boolean;
   checkDeviceBan: () => Promise<void>;
   reportSuspiciousActivity: (type: string, details: string) => void;
@@ -291,31 +315,7 @@ export const UPGRADE_COSTS: Record<keyof UpgradeState, number> = {
   superShield: 1000,
 };
 
-const FALLBACK_SPACE: RankEntry[] = [
-  { name: 'Garricraft_YT', score: 154820 },
-  { name: 'NovaStrike', score: 98450 },
-  { name: 'CosmicBlade', score: 87200 },
-  { name: 'VoidHunter', score: 76100 },
-  { name: 'StarForge', score: 65400 },
-  { name: 'NebulaX', score: 54300 },
-  { name: 'OrbitKiller', score: 43200 },
-  { name: 'PulsarPrime', score: 32100 },
-  { name: 'AstroViper', score: 21000 },
-  { name: 'CometDash', score: 10000 },
-];
-
-const FALLBACK_ZOMBIE: RankEntry[] = [
-  { name: 'Garricraft_YT', score: 8420 },
-  { name: 'BloodReaper', score: 7200 },
-  { name: 'ToothGrinder', score: 6100 },
-  { name: 'FleshStorm', score: 5400 },
-  { name: 'GraveWalker', score: 4300 },
-  { name: 'ScreamKing', score: 3200 },
-  { name: 'RiotBuster', score: 2100 },
-  { name: 'PlagueDoc', score: 1500 },
-  { name: 'HordeBreaker', score: 800 },
-  { name: 'LastStand', score: 400 },
-];
+const EMPTY_RANKING: RankEntry[] = [];
 
 const INTERSTITIAL_COOLDOWN_MS = 5 * 60 * 1000;
 
@@ -340,8 +340,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [rouletteSpinsToday, setRouletteSpinsToday] = useState(0);
   const [suggestions, setSuggestions] = useState<Array<{ id: number; text: string; date: string }>>([]);
   const [upgrades, setUpgrades] = useState<UpgradeState>({ fireRate: 0, damage: 0, coinMagnet: 0, superShield: 0 });
-  const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(FALLBACK_SPACE);
-  const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(FALLBACK_ZOMBIE);
+  const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(EMPTY_RANKING);
+  const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [weeklyRanking, setWeeklyRanking] = useState<RankEntry[]>([]);
   const [isOnline, setIsOnline] = useState(true);
   const [pendingCoins, setPendingCoins] = useState(0);
@@ -356,7 +356,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [adminUserStats, setAdminUserStats] = useState<AdminStats>({
     totalUsers: 0, totalCoins: 0, activeCoins: 0, inactiveCoins: 0,
     reservedAmount: 0, availableAmount: 0, nearClaimUsers: [], activeUsers: 0, inactiveUsers: 0, returnedUsers: [],
+    nearClaimSummary: { totalEstimatedCost: 0, totalEstimatedRevenue: 0, totalNet: 0, count: 0 },
   });
+  const [userSearchResults, setUserSearchResults] = useState<AdminUserInfo[]>([]);
+  const [hasMoreUsers, setHasMoreUsers] = useState(false);
+  const userSearchCursorRef = useRef<number>(0);
+  const userSearchQueryRef = useRef<string>('');
   const [isDeviceBanned, setIsDeviceBanned] = useState(false);
   const [delegateWork, setDelegateWorkState] = useState(false);
   const [operatorTurn, setOperatorTurn] = useState<OperatorTurn | null>(null);
@@ -718,107 +723,54 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshRanking = useCallback(async () => {
-    const cached = cacheGet<RankEntry[]>('ranking_space');
-    if (cached && cached.length > 0) {
-      setSpaceRanking(cached);
-    }
-    const cachedZ = cacheGet<RankEntry[]>('ranking_zombie');
-    if (cachedZ && cachedZ.length > 0) {
-      setZombieRanking(cachedZ);
-    }
-    try {
-      const sq = query(collection(db, 'scores_space'), orderBy('score', 'desc'), limit(RANKING_PAGE_SIZE));
-      const sSnap = await getDocs(sq);
-      const sEntries: RankEntry[] = [];
-      sSnap.forEach((d) => {
-        const data = d.data();
-        sEntries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
-      });
-      if (sEntries.length > 0) {
-        setSpaceRanking(sEntries);
-        cacheSet('ranking_space', sEntries);
-      }
-      rankingPaginationRef.current.space = RANKING_PAGE_SIZE;
-      hasMoreRankingRef.current.space = sEntries.length === RANKING_PAGE_SIZE;
-
-      const zq = query(collection(db, 'scores_zombie'), orderBy('score', 'desc'), limit(RANKING_PAGE_SIZE));
-      const zSnap = await getDocs(zq);
-      const zEntries: RankEntry[] = [];
-      zSnap.forEach((d) => {
-        const data = d.data();
-        zEntries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
-      });
-      if (zEntries.length > 0) {
-        setZombieRanking(zEntries);
-        cacheSet('ranking_zombie', zEntries);
-      }
-      rankingPaginationRef.current.zombie = RANKING_PAGE_SIZE;
-      hasMoreRankingRef.current.zombie = zEntries.length === RANKING_PAGE_SIZE;
-    } catch {}
+    return Promise.resolve();
   }, []);
 
   const refreshWeeklyRanking = useCallback(async () => {
-    const cached = cacheGet<RankEntry[]>('ranking_weekly');
-    if (cached && cached.length > 0) {
-      setWeeklyRanking(cached);
-    }
-    try {
-      const weekStart = getStartOfWeek();
-      const wq = query(collection(db, 'scores_weekly'), where('date', '>=', weekStart), orderBy('date', 'desc'), orderBy('score', 'desc'), limit(RANKING_PAGE_SIZE));
-      const wSnap = await getDocs(wq);
-      const wEntries: RankEntry[] = [];
-      wSnap.forEach((d) => {
-        const data = d.data();
-        wEntries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
-      });
-      wEntries.sort((a, b) => b.score - a.score);
-      if (wEntries.length > 0) {
-        setWeeklyRanking(wEntries);
-        cacheSet('ranking_weekly', wEntries, 60 * 1000);
-      }
-      rankingPaginationRef.current.weekly = RANKING_PAGE_SIZE;
-      hasMoreRankingRef.current.weekly = wEntries.length === RANKING_PAGE_SIZE;
-    } catch {}
+    return Promise.resolve();
   }, []);
 
-  const loadMoreRanking = useCallback(async (type: 'space' | 'zombie' | 'weekly') => {
-    if (!hasMoreRankingRef.current[type]) return;
-    try {
-      const offset = rankingPaginationRef.current[type];
-      const collName = type === 'space' ? 'scores_space' : type === 'zombie' ? 'scores_zombie' : 'scores_weekly';
-      const q = query(collection(db, collName), orderBy('score', 'desc'), limit(offset + RANKING_PAGE_SIZE));
-      const snap = await getDocs(q);
-      const entries: RankEntry[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        entries.push({ name: data.name || 'Unknown', score: data.score || 0, uid: data.uid, avatar: data.avatar });
-      });
-      if (type === 'space') {
-        setSpaceRanking(entries);
-        cacheSet('ranking_space', entries);
-      } else if (type === 'zombie') {
-        setZombieRanking(entries);
-        cacheSet('ranking_zombie', entries);
-      } else {
-        setWeeklyRanking(entries);
-        cacheSet('ranking_weekly', entries, 60 * 1000);
-      }
-      rankingPaginationRef.current[type] = offset + RANKING_PAGE_SIZE;
-      hasMoreRankingRef.current[type] = entries.length === offset + RANKING_PAGE_SIZE;
-    } catch {}
+  const loadMoreRanking = useCallback(async (_type: 'space' | 'zombie' | 'weekly') => {
+    return Promise.resolve();
   }, []);
 
-  const hasMoreRanking = useCallback((type: 'space' | 'zombie' | 'weekly') => hasMoreRankingRef.current[type], []);
+  const hasMoreRanking = useCallback((_type: 'space' | 'zombie' | 'weekly') => false, []);
 
   useEffect(() => {
-    refreshRanking();
-    refreshWeeklyRanking();
-    const interval = setInterval(() => {
-      refreshRanking();
-      refreshWeeklyRanking();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [refreshRanking, refreshWeeklyRanking]);
+    const unsubs: Array<() => void> = [];
+    try {
+      const spaceQ = query(collection(db, 'usuarios'), orderBy('puntos_espacio', 'desc'), limit(RANKING_PAGE_SIZE));
+      unsubs.push(onSnapshot(spaceQ, (snap) => {
+        const entries: RankEntry[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_espacio ?? 0, uid: d.id });
+        });
+        setSpaceRanking(entries);
+      }, () => setSpaceRanking([])));
+
+      const zombieQ = query(collection(db, 'usuarios'), orderBy('puntos_zombies', 'desc'), limit(RANKING_PAGE_SIZE));
+      unsubs.push(onSnapshot(zombieQ, (snap) => {
+        const entries: RankEntry[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_zombies ?? 0, uid: d.id });
+        });
+        setZombieRanking(entries);
+      }, () => setZombieRanking([])));
+
+      const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
+      unsubs.push(onSnapshot(weeklyQ, (snap) => {
+        const entries: RankEntry[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_semanales ?? 0, uid: d.id });
+        });
+        setWeeklyRanking(entries);
+      }, () => setWeeklyRanking([])));
+    } catch {}
+    return () => unsubs.forEach((u) => u());
+  }, []);
 
   const getFreeSpinsRemaining = useCallback((): number => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1051,25 +1003,31 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshPendingRequests = useCallback(async () => {
+    return Promise.resolve();
+  }, []);
+
+  useEffect(() => {
     try {
       const q = query(collection(db, 'solicitudes_pendientes'), where('estado', '==', 'pendiente'));
-      const snap = await getDocs(q);
-      const reqs: PendingRequest[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        reqs.push({
-          id: d.id,
-          userId: data.userId ?? '',
-          playerID: data.playerID ?? '',
-          nickname: data.nickname ?? '',
-          tiempoJugado: data.tiempoJugado ?? 0,
-          puntosGastados: data.puntosGastados ?? 0,
-          fecha: data.fecha,
-          estado: data.estado ?? 'pendiente',
+      const unsub = onSnapshot(q, (snap) => {
+        const reqs: PendingRequest[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          reqs.push({
+            id: d.id,
+            userId: data.userId ?? '',
+            playerID: data.playerID ?? '',
+            nickname: data.nickname ?? '',
+            tiempoJugado: data.tiempoJugado ?? 0,
+            puntosGastados: data.puntosGastados ?? 0,
+            fecha: data.fecha,
+            estado: data.estado ?? 'pendiente',
+          });
         });
-      });
-      setPendingRequests(reqs);
-    } catch {}
+        setPendingRequests(reqs);
+      }, () => {});
+      return () => unsub();
+    } catch { return; }
   }, []);
 
   const confirmPendingRequest = useCallback(async (requestId: string): Promise<{ ok: boolean; error?: string }> => {
@@ -1127,83 +1085,199 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAdminStats = useCallback(async () => {
-    try {
-      const snap = await getDocs(collection(db, 'usuarios'));
-      let totalCoins = 0;
-      let totalUsers = 0;
-      let activeCoins = 0;
-      let inactiveCoins = 0;
-      let activeUsers = 0;
-      let inactiveUsers = 0;
-      const nearClaim: AdminUserInfo[] = [];
-      const returnedUsers: AdminUserInfo[] = [];
-      const sevenDaysAgo = getDaysAgo(INACTIVITY_THRESHOLD_DAYS);
-      const fifteenDaysAgo = getDaysAgo(RETURNED_USER_INACTIVE_DAYS);
+    return Promise.resolve();
+  }, []);
 
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'usuarios'), (snap) => {
+        let totalCoins = 0;
+        let totalUsers = 0;
+        let activeCoins = 0;
+        let inactiveCoins = 0;
+        let activeUsers = 0;
+        let inactiveUsers = 0;
+        const nearClaim: AdminUserInfo[] = [];
+        const returnedUsers: AdminUserInfo[] = [];
+        const sevenDaysAgo = getDaysAgo(INACTIVITY_THRESHOLD_DAYS);
+        const fifteenDaysAgo = getDaysAgo(RETURNED_USER_INACTIVE_DAYS);
+
+        snap.forEach((d) => {
+          const data = d.data();
+          const userCoins = data.coins ?? 0;
+          totalCoins += userCoins;
+          totalUsers++;
+          const lastLoginRaw = data.lastLogin ?? data.lastActive;
+          let lastLoginDate: Date;
+          if (lastLoginRaw && typeof lastLoginRaw.toDate === 'function') {
+            lastLoginDate = lastLoginRaw.toDate();
+          } else if (lastLoginRaw) {
+            lastLoginDate = new Date(lastLoginRaw);
+          } else {
+            lastLoginDate = new Date(0);
+          }
+          const isInactive = lastLoginDate < sevenDaysAgo;
+          if (isInactive) {
+            inactiveCoins += userCoins;
+            inactiveUsers++;
+          } else {
+            activeCoins += userCoins;
+            activeUsers++;
+          }
+          if (userCoins >= NEAR_CLAIM_THRESHOLD) {
+            nearClaim.push({
+              uid: d.id,
+              nombre: data.nombre ?? data.email ?? 'Unknown',
+              email: data.email ?? '',
+              coins: userCoins,
+              lastLogin: lastLoginDate.toISOString(),
+              inactive: isInactive,
+              totalRuns: data.totalRuns ?? 0,
+              bestScore: data.bestScore ?? 0,
+              rol: data.rol ?? 'user',
+              puntos: data.puntos ?? 0,
+              puntos_semanales: data.puntos_semanales ?? 0,
+              puntos_espacio: data.puntos_espacio ?? 0,
+              puntos_zombies: data.puntos_zombies ?? 0,
+              tiempo_jugado_min: data.tiempo_jugado_min ?? 0,
+              vip: data.vip ?? false,
+              diamondHistory: data.diamondHistory ?? 0,
+              createdAt: data.createdAt ?? null,
+              adsWatched: data.adsWatched ?? 0,
+              bitlabsEarnings: data.bitlabsEarnings ?? 0,
+            });
+          }
+          if (lastLoginDate < fifteenDaysAgo && (data.totalRuns ?? 0) < RETURNED_USER_MIN_GAMES) {
+            returnedUsers.push({
+              uid: d.id,
+              nombre: data.nombre ?? data.email ?? 'Unknown',
+              email: data.email ?? '',
+              coins: userCoins,
+              lastLogin: lastLoginDate.toISOString(),
+              inactive: true,
+              totalRuns: data.totalRuns ?? 0,
+              bestScore: data.bestScore ?? 0,
+              rol: data.rol ?? 'user',
+            });
+          }
+        });
+        nearClaim.sort((a, b) => b.coins - a.coins);
+        const reservedAmount = (activeCoins / COINS_PER_USD) * SOLES_PER_USD;
+        const availableAmount = (inactiveCoins / COINS_PER_USD) * SOLES_PER_USD;
+
+        const nearClaimSummary: NearClaimSummary = {
+          count: nearClaim.length,
+          totalEstimatedCost: nearClaim.reduce((sum, u) => sum + (u.coins / COINS_PER_USD) * SOLES_PER_USD, 0),
+          totalEstimatedRevenue: nearClaim.reduce((sum, u) => sum + (u.bitlabsEarnings ?? 0) + ((u.adsWatched ?? 0) * 0.001), 0),
+          totalNet: 0,
+        };
+        nearClaimSummary.totalNet = nearClaimSummary.totalEstimatedRevenue - nearClaimSummary.totalEstimatedCost;
+
+        setAdminUserStats({
+          totalUsers, totalCoins, activeCoins, inactiveCoins,
+          reservedAmount, availableAmount, nearClaimUsers: nearClaim,
+          activeUsers, inactiveUsers, returnedUsers, nearClaimSummary,
+        });
+        if (reservedAmount > 0) {
+          const ratio = activeCoins / (totalCoins || 1);
+          if (ratio > 0.8) setTransactionLight('green');
+          else if (ratio > 0.5) setTransactionLight('yellow');
+          else setTransactionLight('red');
+        }
+      }, () => {});
+      return () => unsub();
+    } catch { return; }
+  }, []);
+
+  const searchUsers = useCallback(async (searchQuery: string) => {
+    try {
+      userSearchQueryRef.current = searchQuery;
+      userSearchCursorRef.current = 0;
+      if (!searchQuery.trim()) {
+        setUserSearchResults([]);
+        setHasMoreUsers(false);
+        return;
+      }
+      const lower = searchQuery.toLowerCase();
+      const snap = await getDocs(query(
+        collection(db, 'usuarios'),
+        where('nombre', '>=', searchQuery),
+        where('nombre', '<=', searchQuery + '\uf8ff'),
+        limit(15)
+      ));
+      const results: AdminUserInfo[] = [];
       snap.forEach((d) => {
         const data = d.data();
-        const userCoins = data.coins ?? 0;
-        totalCoins += userCoins;
-        totalUsers++;
-        const lastLoginRaw = data.lastLogin ?? data.lastActive;
-        let lastLoginDate: Date;
-        if (lastLoginRaw && typeof lastLoginRaw.toDate === 'function') {
-          lastLoginDate = lastLoginRaw.toDate();
-        } else if (lastLoginRaw) {
-          lastLoginDate = new Date(lastLoginRaw);
-        } else {
-          lastLoginDate = new Date(0);
-        }
-        const isInactive = lastLoginDate < sevenDaysAgo;
-        if (isInactive) {
-          inactiveCoins += userCoins;
-          inactiveUsers++;
-        } else {
-          activeCoins += userCoins;
-          activeUsers++;
-        }
-        if (userCoins >= NEAR_CLAIM_THRESHOLD) {
-          nearClaim.push({
-            uid: d.id,
-            nombre: data.nombre ?? data.email ?? 'Unknown',
-            email: data.email ?? '',
-            coins: userCoins,
-            lastLogin: lastLoginDate.toISOString(),
-            inactive: isInactive,
-            totalRuns: data.totalRuns ?? 0,
-            bestScore: data.bestScore ?? 0,
-            rol: data.rol ?? 'user',
-          });
-        }
-        if (lastLoginDate < fifteenDaysAgo && (data.totalRuns ?? 0) < RETURNED_USER_MIN_GAMES) {
-          returnedUsers.push({
-            uid: d.id,
-            nombre: data.nombre ?? data.email ?? 'Unknown',
-            email: data.email ?? '',
-            coins: userCoins,
-            lastLogin: lastLoginDate.toISOString(),
-            inactive: true,
-            totalRuns: data.totalRuns ?? 0,
-            bestScore: data.bestScore ?? 0,
-            rol: data.rol ?? 'user',
-          });
-        }
+        results.push({
+          uid: d.id,
+          nombre: data.nombre ?? 'Unknown',
+          email: data.email ?? '',
+          coins: data.coins ?? 0,
+          lastLogin: data.lastLogin?.toDate?.()?.toISOString?.() ?? '',
+          inactive: false,
+          totalRuns: data.totalRuns ?? 0,
+          bestScore: data.bestScore ?? 0,
+          rol: data.rol ?? 'user',
+          puntos: data.puntos ?? 0,
+          puntos_semanales: data.puntos_semanales ?? 0,
+          puntos_espacio: data.puntos_espacio ?? 0,
+          puntos_zombies: data.puntos_zombies ?? 0,
+          tiempo_jugado_min: data.tiempo_jugado_min ?? 0,
+          vip: data.vip ?? false,
+          diamondHistory: data.diamondHistory ?? 0,
+          createdAt: data.createdAt ?? null,
+        });
       });
-      nearClaim.sort((a, b) => b.coins - a.coins);
-      const reservedAmount = (activeCoins / COINS_PER_USD) * SOLES_PER_USD;
-      const availableAmount = (inactiveCoins / COINS_PER_USD) * SOLES_PER_USD;
-      setAdminUserStats({
-        totalUsers, totalCoins, activeCoins, inactiveCoins,
-        reservedAmount, availableAmount, nearClaimUsers: nearClaim,
-        activeUsers, inactiveUsers, returnedUsers,
-      });
-      if (reservedAmount > 0) {
-        const ratio = activeCoins / (totalCoins || 1);
-        if (ratio > 0.8) setTransactionLight('green');
-        else if (ratio > 0.5) setTransactionLight('yellow');
-        else setTransactionLight('red');
+      if (results.length < 15) {
+        const emailSnap = await getDocs(query(
+          collection(db, 'usuarios'),
+          where('email', '>=', lower),
+          where('email', '<=', lower + '\uf8ff'),
+          limit(15)
+        ));
+        emailSnap.forEach((d) => {
+          if (!results.find((r) => r.uid === d.id)) {
+            const data = d.data();
+            results.push({
+              uid: d.id,
+              nombre: data.nombre ?? 'Unknown',
+              email: data.email ?? '',
+              coins: data.coins ?? 0,
+              lastLogin: data.lastLogin?.toDate?.()?.toISOString?.() ?? '',
+              inactive: false,
+              totalRuns: data.totalRuns ?? 0,
+              bestScore: data.bestScore ?? 0,
+              rol: data.rol ?? 'user',
+              puntos: data.puntos ?? 0,
+              puntos_semanales: data.puntos_semanales ?? 0,
+              puntos_espacio: data.puntos_espacio ?? 0,
+              puntos_zombies: data.puntos_zombies ?? 0,
+              tiempo_jugado_min: data.tiempo_jugado_min ?? 0,
+              vip: data.vip ?? false,
+              diamondHistory: data.diamondHistory ?? 0,
+              createdAt: data.createdAt ?? null,
+            });
+          }
+        });
       }
-    } catch {}
+      setUserSearchResults(results);
+      setHasMoreUsers(results.length === 15);
+      userSearchCursorRef.current = 15;
+    } catch {
+      setUserSearchResults([]);
+      setHasMoreUsers(false);
+    }
+  }, []);
+
+  const loadMoreUsers = useCallback(async () => {
+    return Promise.resolve();
+  }, []);
+
+  const clearUserSearch = useCallback(() => {
+    setUserSearchResults([]);
+    setHasMoreUsers(false);
+    userSearchQueryRef.current = '';
+    userSearchCursorRef.current = 0;
   }, []);
 
   const checkDeviceBan = useCallback(async () => {
@@ -1448,6 +1522,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       setCurrentUserRank(null);
     };
     checkRank();
+
+    const computeDynamicRank = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, 'usuarios', userUid));
+        if (!userDoc.exists()) {
+          setCurrentUserRank(null);
+          return;
+        }
+        const userData = userDoc.data();
+        const userPoints = userData.puntos ?? 0;
+        if (userPoints <= 0) {
+          setCurrentUserRank(null);
+          return;
+        }
+        const countQ = query(collection(db, 'usuarios'), where('puntos', '>', userPoints));
+        const countSnap = await getDocs(countQ);
+        setCurrentUserRank(countSnap.size + 1);
+      } catch {
+        setCurrentUserRank(null);
+      }
+    };
+    computeDynamicRank();
   }, [spaceRanking, zombieRanking, weeklyRanking, loggedIn, playerName]);
 
   const value: GameState = {
@@ -1468,6 +1564,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     offerwallConfig, refreshOfferwallConfig, offerwallDownloadsToday, recordOfferwallDownload,
     userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
     adminUserStats, refreshAdminStats,
+    searchUsers, userSearchResults, loadMoreUsers, hasMoreUsers, clearUserSearch,
     isDeviceBanned, checkDeviceBan, reportSuspiciousActivity,
     delegateWork, setDelegateWork,
     operatorTurn, startOperatorTurn, endOperatorTurn, operatorOnLunch,

@@ -22,8 +22,6 @@ export function OperatorScreen() {
 
   useEffect(() => {
     refreshPendingRequests();
-    const interval = setInterval(refreshPendingRequests, 10000);
-    return () => clearInterval(interval);
   }, [refreshPendingRequests]);
 
   const handleConfirm = async (id: string) => {

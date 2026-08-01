@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">GarrdashpeYT</string>
-    <string name="title_activity_main">GarrdashpeYT</string>
+    <string name="app_name">GarrDash</string>
+    <string name="title_activity_main">GarrDash</string>
     <string name="package_name">com.garrdashpe.app</string>
     <string name="custom_url_scheme">com.garrdashpe.app</string>
 </resources>

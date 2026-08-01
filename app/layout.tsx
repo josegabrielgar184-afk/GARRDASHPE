@@ -5,18 +5,18 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'GarrdashpeYT',
-  description: 'GARRDASHPE - Juego espacial y apocalipsis zombie. Gana monedas, sube al top global y compite en el ranking mundial.',
-  applicationName: 'GarrdashpeYT',
+  title: 'GarrDash',
+  description: 'GarrDash - Juego espacial y apocalipsis zombie. Gana monedas, sube al top global y compite en el ranking mundial.',
+  applicationName: 'GarrDash',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'GarrdashpeYT',
+    title: 'GarrDash',
   },
   formatDetection: { telephone: false },
   openGraph: {
-    title: 'GarrdashpeYT',
+    title: 'GarrDash',
     description: 'Juego espacial y apocalipsis zombie con economia y torneo global.',
     type: 'website',
   },

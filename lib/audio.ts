@@ -19,6 +19,18 @@ export function initAudio() {
   getCtx();
 }
 
+export function pauseAudio() {
+  if (audioCtx && audioCtx.state === 'running') {
+    audioCtx.suspend().catch(() => {});
+  }
+}
+
+export function resumeAudio() {
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+}
+
 export function playShoot() {
   const ctx = getCtx();
   if (!ctx) return;

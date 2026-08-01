@@ -14,22 +14,13 @@ export function RankingScreen() {
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [mainTab, setMainTab] = useState<'weekly' | 'global'>('weekly');
   const [gameTab, setGameTab] = useState<'space' | 'zombie'>('space');
-  const [loading, setLoading] = useState(true);
-  const [countdown, setCountdown] = useState(15);
+  const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showArrow, setShowArrow] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([refreshRanking(), refreshWeeklyRanking()]).finally(() => setLoading(false));
-  }, [refreshRanking, refreshWeeklyRanking]);
-
-  useEffect(() => {
-    const tick = setInterval(() => {
-      setCountdown((c) => (c <= 1 ? 15 : c - 1));
-    }, 1000);
-    return () => clearInterval(tick);
-  }, []);
+    setLoading(false);
+  }, [mainTab, gameTab]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -72,9 +63,7 @@ export function RankingScreen() {
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/30">
               <Radio className="w-3.5 h-3.5 text-green-400 animate-pulse" />
-              <span className="text-green-400 text-xs font-bold">EN VIVO</span>
-              <span className="text-white/30 text-xs">·</span>
-              <span className="text-white/50 text-xs font-mono">{countdown}s</span>
+              <span className="text-green-400 text-xs font-bold">TIEMPO REAL</span>
             </div>
           </div>
 
@@ -119,7 +108,8 @@ export function RankingScreen() {
           ) : ranking.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Trophy className="w-10 h-10 text-white/20 mb-3" />
-              <p className="text-white/40 text-sm">No hay datos aun esta semana</p>
+              <p className="text-white/40 text-sm font-bold mb-1">Aun no hay puntajes</p>
+              <p className="text-white/30 text-xs">Sé el primero en calificar{mainTab === 'weekly' ? ' esta semana' : ''}</p>
             </div>
           ) : (
             <div ref={scrollRef} className="h-full overflow-y-auto no-scrollbar space-y-2 pb-4">
@@ -168,13 +158,11 @@ export function RankingScreen() {
               {currentUserRank ? (
                 <p className="text-cyan-400 font-bold text-lg">#{currentUserRank}</p>
               ) : (
-                <p className="text-white/30 text-sm">Sin ranking</p>
+                <p className="text-white/30 text-sm">Juega para entrar al ranking</p>
               )}
             </div>
           </div>
-          <button onClick={() => { setLoading(true); Promise.all([refreshRanking(), refreshWeeklyRanking()]).finally(() => setLoading(false)); setCountdown(15); }} className="w-full mt-2 py-2.5 rounded-xl bg-card border border-border text-white/60 text-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary">
-            <RefreshCw className="w-4 h-4" />Actualizar ahora
-          </button>
+          <p className="text-white/30 text-[10px] text-center mt-2">Los puntajes se actualizan automaticamente</p>
         </div>
       </div>
 

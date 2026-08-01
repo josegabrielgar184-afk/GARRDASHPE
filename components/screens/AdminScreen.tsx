@@ -17,6 +17,7 @@ export function AdminScreen() {
     adminUserStats, refreshAdminStats, isOnline, delegateWork, setDelegateWork,
     adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton, transactionLight,
     observerMode, toggleObserverMode,
+    searchUsers, userSearchResults, clearUserSearch,
   } = useGame();
   const [tab, setTab] = useState<Tab>('finance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -26,16 +27,26 @@ export function AdminScreen() {
   const [showSimulator, setShowSimulator] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [simResult, setSimResult] = useState<string | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     refreshPendingRequests();
     refreshAdminStats();
-    const interval = setInterval(() => {
-      refreshPendingRequests();
-      refreshAdminStats();
-    }, 15000);
-    return () => clearInterval(interval);
   }, [refreshPendingRequests, refreshAdminStats]);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userSearchQuery.trim()) return;
+    setSearching(true);
+    await searchUsers(userSearchQuery.trim());
+    setSearching(false);
+  };
+
+  const handleClearSearch = () => {
+    setUserSearchQuery('');
+    clearUserSearch();
+  };
 
   const handleConfirm = async (id: string) => {
     setProcessing(id);
@@ -283,33 +294,75 @@ export function AdminScreen() {
           {tab === 'near' && (
             <div className="space-y-3">
               <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/30 p-3 mb-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-1">
                   <AlertTriangle className="w-4 h-4 text-cyan-400" />
                   <p className="text-cyan-400 text-xs font-bold">Usuarios con 12,000+ monedas (80% del canje)</p>
                 </div>
               </div>
+
+              <div className="rounded-2xl bg-gradient-to-br from-amber-900/30 to-card border border-amber-500/30 p-4 mb-4 shadow-lg">
+                <p className="text-amber-400 font-bold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4" />Resumen de Reserva (Casi Listos)</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-white/50">Usuarios casi listos:</span><span className="text-white font-bold">{adminUserStats.nearClaimSummary.count}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Costo estimado total:</span><span className="text-red-400 font-bold">S/. {adminUserStats.nearClaimSummary.totalEstimatedCost.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Ingresos generados (ads+BitLabs):</span><span className="text-green-400 font-bold">S/. {adminUserStats.nearClaimSummary.totalEstimatedRevenue.toFixed(2)}</span></div>
+                  <div className="flex justify-between border-t border-border pt-2"><span className="text-amber-400 font-bold">Balance neto:</span><span className={`font-bold text-lg ${adminUserStats.nearClaimSummary.totalNet >= 0 ? 'text-green-400' : 'text-red-400'}`}>S/. {adminUserStats.nearClaimSummary.totalNet.toFixed(2)}</span></div>
+                </div>
+                <p className="text-white/30 text-[10px] mt-2">Capital de reserva recomendado antes de solicitudes oficiales</p>
+              </div>
+
               {adminUserStats.nearClaimUsers.length === 0 ? (
                 <div className="text-center py-12">
                   <Users className="w-10 h-10 text-white/20 mx-auto mb-3" />
                   <p className="text-white/40 text-sm">No hay usuarios cercanos al canje</p>
                 </div>
               ) : (
-                adminUserStats.nearClaimUsers.map((u) => (
-                  <div key={u.uid} className="rounded-2xl bg-card border border-border p-3 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                      <span className="text-amber-400 font-bold text-sm">{u.nombre[0]?.toUpperCase()}</span>
+                adminUserStats.nearClaimUsers.map((u) => {
+                  const progress = Math.min((u.coins / 15000) * 100, 100);
+                  const estimatedCost = (u.coins / 15000) * 3.80;
+                  const revenue = (u.bitlabsEarnings ?? 0) + ((u.adsWatched ?? 0) * 0.001);
+                  const net = revenue - estimatedCost;
+                  return (
+                    <div key={u.uid} className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                          <span className="text-amber-400 font-bold text-sm">{u.nombre[0]?.toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-bold text-sm truncate">{u.nombre}</p>
+                          <p className="text-white/30 text-[10px] truncate font-mono">{u.uid.substring(0, 16)}...</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-amber-400 font-bold text-sm">{u.coins.toLocaleString()}</p>
+                          <p className={`text-[10px] ${u.inactive ? 'text-white/30' : 'text-green-400'}`}>{u.inactive ? 'Inactivo' : 'Activo'}</p>
+                        </div>
+                      </div>
+                      <div className="mb-2">
+                        <div className="flex justify-between text-[10px] mb-1">
+                          <span className="text-white/40">Progreso al canje</span>
+                          <span className="text-cyan-400 font-bold">{progress.toFixed(0)}%</span>
+                        </div>
+                        <div className="h-2.5 rounded-full bg-background overflow-hidden">
+                          <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, background: progress >= 100 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #22d3ee, #34d399)' }} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-[10px] mt-2">
+                        <div className="rounded-lg bg-background/50 p-2 text-center">
+                          <p className="text-white/40">Costo canje</p>
+                          <p className="text-red-400 font-bold">S/. {estimatedCost.toFixed(2)}</p>
+                        </div>
+                        <div className="rounded-lg bg-background/50 p-2 text-center">
+                          <p className="text-white/40">Ingresos gen.</p>
+                          <p className="text-green-400 font-bold">S/. {revenue.toFixed(2)}</p>
+                        </div>
+                        <div className="rounded-lg bg-background/50 p-2 text-center">
+                          <p className="text-white/40">Balance neto</p>
+                          <p className={`font-bold ${net >= 0 ? 'text-green-400' : 'text-red-400'}`}>S/. {net.toFixed(2)}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm truncate">{u.nombre}</p>
-                      <p className="text-white/30 text-xs truncate">{u.email}</p>
-                      <p className="text-white/30 text-[10px]">Runs: {u.totalRuns ?? 0} · Best: {(u.bestScore ?? 0).toLocaleString()}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-amber-400 font-bold text-sm">{u.coins.toLocaleString()}</p>
-                      <p className={`text-[10px] ${u.inactive ? 'text-white/30' : 'text-green-400'}`}>{u.inactive ? 'Inactivo' : 'Activo'}</p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}
@@ -330,21 +383,57 @@ export function AdminScreen() {
                 </div>
               </div>
 
-              <div className="rounded-xl bg-card border border-border p-3 mb-4">
-                <p className="text-white font-bold text-xs mb-2 flex items-center gap-2"><Filter className="w-4 h-4 text-cyan-400" />Usuario Retornado (5 partidas tras 15 dias inactivo)</p>
-                {adminUserStats.returnedUsers.length === 0 ? (
-                  <p className="text-white/30 text-xs">No hay usuarios retornados pendientes de verificacion</p>
-                ) : (
-                  <div className="space-y-2">
-                    {adminUserStats.returnedUsers.slice(0, 10).map((u) => (
-                      <div key={u.uid} className="flex items-center justify-between text-xs">
-                        <span className="text-white/60 truncate">{u.nombre}</span>
-                        <span className="text-red-400 shrink-0 ml-2">Pendiente: {Math.max(0, 5 - (u.totalRuns ?? 0))} partidas</span>
+              <form onSubmit={handleSearch} className="rounded-xl bg-card border border-border p-3 mb-4">
+                <p className="text-white font-bold text-xs mb-2 flex items-center gap-2"><Filter className="w-4 h-4 text-cyan-400" />Buscar Usuario</p>
+                <div className="flex gap-2">
+                  <input type="text" value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} placeholder="Nombre, Email o UID" className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                  <button type="submit" disabled={searching} className="px-4 py-2 rounded-xl bg-cyan-500 text-white font-bold text-sm hover:bg-cyan-400 disabled:opacity-50">Buscar</button>
+                  {userSearchResults.length > 0 && <button type="button" onClick={handleClearSearch} className="px-3 py-2 rounded-xl bg-card border border-border text-white/50 text-sm hover:text-white">X</button>}
+                </div>
+              </form>
+
+              {userSearchResults.length > 0 ? (
+                <div className="space-y-2">
+                  {userSearchResults.map((u) => (
+                    <div key={u.uid} className="rounded-xl bg-card border border-border p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center"><span className="text-cyan-400 font-bold text-xs">{u.nombre[0]?.toUpperCase()}</span></div>
+                          <div>
+                            <p className="text-white font-bold text-sm">{u.nombre}</p>
+                            <p className="text-white/30 text-[10px] font-mono">{u.uid.substring(0, 20)}...</p>
+                          </div>
+                        </div>
+                        {u.vip && <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold">VIP</span>}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <div className="flex justify-between"><span className="text-white/40">Email:</span><span className="text-white/60 truncate ml-1">{u.email}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Puntos:</span><span className="text-cyan-400 font-bold">{(u.puntos ?? 0).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Monedas:</span><span className="text-amber-400 font-bold">{u.coins.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Tiempo jugado:</span><span className="text-white/60">{(u.tiempo_jugado_min ?? 0).toLocaleString()} min</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Diamantes:</span><span className="text-white/60">{u.diamondHistory ?? 0}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Registro:</span><span className="text-white/60">{u.createdAt?.toDate ? new Date(u.createdAt.toDate()).toLocaleDateString() : '--'}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl bg-card border border-border p-3 mb-4">
+                  <p className="text-white font-bold text-xs mb-2 flex items-center gap-2"><Filter className="w-4 h-4 text-cyan-400" />Usuarios Retornados (5 partidas tras 15 dias inactivo)</p>
+                  {adminUserStats.returnedUsers.length === 0 ? (
+                    <p className="text-white/30 text-xs">No hay usuarios retornados pendientes de verificacion</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {adminUserStats.returnedUsers.slice(0, 10).map((u) => (
+                        <div key={u.uid} className="flex items-center justify-between text-xs">
+                          <span className="text-white/60 truncate">{u.nombre}</span>
+                          <span className="text-red-400 shrink-0 ml-2">Pendiente: {Math.max(0, 5 - (u.totalRuns ?? 0))} partidas</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="rounded-xl bg-card border border-border p-3">
                 <p className="text-white font-bold text-xs mb-2 flex items-center gap-2"><Users className="w-4 h-4 text-cyan-400" />Usuarios Cercanos al Canje</p>

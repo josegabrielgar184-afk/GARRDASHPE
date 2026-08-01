@@ -1,7 +1,12 @@
-export const MODO_PRUEBA = true;
+export const MODO_PRUEBA = false;
 
 export const VIP_DISPONIBLE_PLAYSTORE = false;
 export const VIP_DURATION_DAYS = 60;
+export const VIP_PRODUCT_ID = 'pase_vip_60dias';
+export const VIP_PRICE_USD = 3;
+export const VIP_PRICE_PEN = 11.50;
+export const VIP_COIN_MULTIPLIER = 1.5;
+export const VIP_FREE_ROULETTE_SPINS = 3;
 
 export const ADMOB_CONFIG = {
   appId: MODO_PRUEBA
@@ -22,6 +27,13 @@ export const ADMOB_CONFIG = {
 };
 
 export const URL_OFFERWALL_REAL = '';
+
+export const BITLABS_CONFIG = {
+  integrationToken: '6d280d69-7c5e-4c8a-aab0-d84c1abe9526',
+  secret: 'jXWzcobXqHkQvj3rDMCfUBlXlg4fAvfS',
+};
+
+export const MIN_CLAIM_COINS = 15000;
 
 export const INTERSTITIAL_COOLDOWN_SECONDS = 300;
 

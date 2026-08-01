@@ -18,6 +18,7 @@ import { AdminScreen } from '@/components/screens/AdminScreen';
 import { OperatorScreen } from '@/components/screens/OperatorScreen';
 import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
 import { AdBanner } from '@/components/game/AdBanner';
+import { pauseAudio, resumeAudio } from '@/lib/audio';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
@@ -141,6 +142,28 @@ function OrientationManager() {
 function AppShell() {
   const { screen, isDeviceBanned } = useGame();
   const isGameplay = GAMEPLAY_SCREENS.includes(screen);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        pauseAudio();
+      } else {
+        resumeAudio();
+      }
+    };
+    const handleBlur = () => pauseAudio();
+    const handleFocus = () => resumeAudio();
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   if (isDeviceBanned) {
     return (
