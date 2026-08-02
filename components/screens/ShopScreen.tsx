@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
+import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { ArrowLeft, Coins, Star, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X, Lock } from 'lucide-react';
@@ -10,10 +11,10 @@ import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
 export function ShopScreen() {
   const {
     coins, points, spendCoins, addPoints, vip, vipExpiry, buyVIP, setScreen,
-    upgrades, buyUpgrade, claimDiamonds,
+    upgrades, buyUpgrade, claimDiamonds, selectedZombie, selectZombie,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [tab, setTab] = useState<'upgrades' | 'diamonds'>('upgrades');
+  const [tab, setTab] = useState<'upgrades' | 'diamonds' | 'heroes'>('upgrades');
   const [playerId, setPlayerId] = useState('');
   const [nick, setNick] = useState('');
   const [error, setError] = useState('');
@@ -112,6 +113,7 @@ export function ShopScreen() {
           <div className="flex gap-2 mb-4">
             <button onClick={() => setTab('upgrades')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'upgrades' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Upgrades</button>
             <button onClick={() => setTab('diamonds')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'diamonds' ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/20' : 'bg-card border border-border text-white/60'}`}>Diamantes</button>
+            <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-card border border-border text-white/60'}`}>Héroes</button>
           </div>
 
           {tab === 'upgrades' && (
@@ -144,6 +146,50 @@ export function ShopScreen() {
                     >
                       <Coins className="w-3 h-3" />{cost.toLocaleString()}
                     </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {tab === 'heroes' && (
+            <div className="grid grid-cols-2 gap-3">
+              {ZOMBIE_CHARACTERS.map((hero) => {
+                const isOwned = hero.price === 0 || (typeof window !== 'undefined' && localStorage.getItem(`hero_${hero.id}`) === '1');
+                const isEquipped = selectedZombie === hero.id;
+                const canAfford = coins >= hero.price;
+                return (
+                  <div key={hero.id} className="rounded-2xl bg-card border p-3 shadow-lg flex flex-col" style={{ borderColor: isEquipped ? hero.color : `${hero.color}33` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${hero.color}20`, boxShadow: `0 0 10px ${hero.glow}` }}>
+                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: hero.color, boxShadow: `0 0 8px ${hero.glow}` }} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-white font-bold text-xs truncate" style={{ color: isEquipped ? hero.color : undefined }}>{hero.name}</h3>
+                        <p className="text-white/40 text-[9px] truncate">{hero.skill}</p>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-white/50 mb-2 leading-tight">{hero.skillDesc}</div>
+                    {isEquipped ? (
+                      <div className="w-full py-2 rounded-lg text-white font-bold text-xs text-center" style={{ backgroundColor: hero.color, boxShadow: `0 0 12px ${hero.glow}` }}>EQUIPADO</div>
+                    ) : isOwned ? (
+                      <button onClick={() => selectZombie(hero.id)} className="w-full py-2 rounded-lg text-white font-bold text-xs transition-colors" style={{ backgroundColor: `${hero.color}88` }}>Equipar</button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (canAfford && spendCoins(hero.price)) {
+                            if (typeof window !== 'undefined') localStorage.setItem(`hero_${hero.id}`, '1');
+                            selectZombie(hero.id);
+                            setSuccess(`¡${hero.name} equipado!`);
+                          } else { setError('No tienes suficientes monedas.'); }
+                        }}
+                        disabled={!canAfford}
+                        className="w-full py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
+                        style={{ backgroundColor: hero.color, boxShadow: `0 0 12px ${hero.glow}` }}
+                      >
+                        <Coins className="w-3 h-3" />{hero.price.toLocaleString()}
+                      </button>
+                    )}
                   </div>
                 );
               })}

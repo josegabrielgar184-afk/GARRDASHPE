@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Heart, Coins, Zap, Bomb, Video, Radiation, Shield, Baby, Sparkles, Magnet } from 'lucide-react';
+import { ArrowLeft, Heart, Coins, Video, Radiation, Shield, Baby, Sparkles, Magnet, Zap } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   type Particle2D, type MuzzleFlash,
@@ -15,29 +15,47 @@ import {
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
-import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
+import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, initAudio } from '@/lib/audio';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
-type PowerUpType = 'shield' | 'doubleShot' | 'coinMagnet' | 'weapon' | 'coins' | 'points';
+type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'minigun' | 'laser';
+type PowerUpType = 'shield' | 'doubleShot' | 'coinMagnet';
 
 interface Zombie { x: number; y: number; vy: number; vx: number; walkCycle: number; hp: number; maxHp: number; size: number; color: string; type: ZombieType; hitFlash: number; active: boolean; reset(): void; }
 interface Bullet { x: number; y: number; vx: number; vy: number; life: number; damage: number; color: string; active: boolean; reset(): void; }
-interface Barrel { x: number; y: number; vy: number; hp: number; id: number; active: boolean; reset(): void; }
+interface Barrel { x: number; y: number; vy: number; hp: number; maxHp: number; weapon: WeaponType; active: boolean; reset(): void; }
 interface FloatingCoin { x: number; y: number; vx: number; vy: number; life: number; active: boolean; reset(): void; }
 interface PowerUpDrop { x: number; y: number; vy: number; type: PowerUpType; active: boolean; reset(): void; }
 interface BloodSplat { x: number; y: number; size: number; alpha: number; }
 
 function makeZombie(): Zombie { return { x: 0, y: 0, vy: 0, vx: 0, walkCycle: 0, hp: 100, maxHp: 100, size: 22, color: '#65a30d', type: 'normal', hitFlash: 0, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.vx = 0; this.walkCycle = 0; this.hp = 100; this.maxHp = 100; this.size = 22; this.color = '#65a30d'; this.type = 'normal'; this.hitFlash = 0; } }; }
 function makeBullet(): Bullet { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, damage: 0, color: '', active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; this.damage = 0; this.color = ''; } }; }
-let barrelIdCounter = 0;
-function makeBarrel(): Barrel { return { x: 0, y: 0, vy: 0, hp: 50, id: 0, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.hp = 50; this.id = 0; } }; }
+const WEAPONS: WeaponType[] = ['rifle', 'shotgun', 'minigun', 'laser'];
+function makeBarrel(): Barrel { return { x: 0, y: 0, vy: 0, hp: 44, maxHp: 44, weapon: 'rifle', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.hp = 44; this.maxHp = 44; this.weapon = 'rifle'; } }; }
 function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; } }; }
-function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'coins', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.type = 'coins'; } }; }
+function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'shield', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.type = 'shield'; } }; }
 
 const LANE_COUNT = 5;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.35;
+
+const WEAPON_COLORS: Record<WeaponType, string> = {
+  pistol: '#fbbf24', rifle: '#22d3ee', shotgun: '#f87171', minigun: '#f97316', laser: '#a855f7',
+};
+const WEAPON_FIRE_RATES: Record<WeaponType, number> = {
+  pistol: 14, rifle: 8, shotgun: 20, minigun: 4, laser: 6,
+};
+const WEAPON_DAMAGES: Record<WeaponType, number> = {
+  pistol: 30, rifle: 25, shotgun: 50, minigun: 15, laser: 40,
+};
+
+const COLOR_THEMES = [
+  { name: 'Verde Ácido', road: '#2a2a22', fog: 'rgba(100,200,50,0.12)', border: '#84cc16', dash: 'rgba(255,255,255,0.6)' },
+  { name: 'Rosa Cyberpunk', road: '#2a1a2a', fog: 'rgba(255,100,200,0.12)', border: '#ec4899', dash: 'rgba(255,200,255,0.6)' },
+  { name: 'Azul Neón', road: '#1a1a2a', fog: 'rgba(50,150,255,0.12)', border: '#3b82f6', dash: 'rgba(200,230,255,0.6)' },
+  { name: 'Morado Oscuro', road: '#1a0a1a', fog: 'rgba(150,50,255,0.12)', border: '#7c3aed', dash: 'rgba(220,200,255,0.6)' },
+];
 
 const MILESTONES: Record<number, { title: string; coins?: number; shield?: boolean; scoreBoost?: boolean; color: string }> = {
   4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 400, color: '#ec4899' },
@@ -74,9 +92,12 @@ export function ZombieGameScreen() {
   const [coinMagnetActive, setCoinMagnetActive] = useState(false);
   const [scoreColor, setScoreColor] = useState('#ffffff');
   const [killStreak, setKillStreak] = useState(0);
+  const [currentWeapon, setCurrentWeapon] = useState<WeaponType>('pistol');
+  const [weaponTimer, setWeaponTimer] = useState(0);
+  const [themeName, setThemeName] = useState(COLOR_THEMES[0].name);
 
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 30));
-  const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 60));
+  const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 80));
   const barrelPoolRef = useRef<ObjectPool<Barrel>>(new ObjectPool(makeBarrel, 8));
   const coinPoolRef = useRef<ObjectPool<FloatingCoin>>(new ObjectPool(makeFloatingCoin, 30));
   const powerUpPoolRef = useRef<ObjectPool<PowerUpDrop>>(new ObjectPool(makePowerUpDrop, 8));
@@ -85,7 +106,7 @@ export function ZombieGameScreen() {
   const particlesRef = useRef<Particle2D[]>([]);
   const muzzleFlashesRef = useRef<MuzzleFlash[]>([]);
   const screenShakeRef = useRef(new ScreenShake());
-  const touchTargetRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
+  const touchTargetRef = useRef<{ x: number; active: boolean }>({ x: 0, active: false });
   const turretXRef = useRef(0);
   const scoreRef = useRef(0);
   const killCountRef = useRef(0);
@@ -125,7 +146,6 @@ export function ZombieGameScreen() {
   const shieldTimerRef = useRef(0);
   const scoreBoostRef = useRef(false);
   const scoreBoostTimerRef = useRef(0);
-  const alertFlashRef = useRef(0);
   const overdriveRef = useRef(false);
   const overdriveTimerRef = useRef(0);
   const killStreakRef = useRef(0);
@@ -133,8 +153,10 @@ export function ZombieGameScreen() {
   const doubleShotTimerRef = useRef(0);
   const coinMagnetRef = useRef(false);
   const coinMagnetTimerRef = useRef(0);
-  const coinHudXRef = useRef(0);
-  const coinHudYRef = useRef(0);
+  const weaponRef = useRef<WeaponType>('pistol');
+  const weaponTimerRef = useRef(0);
+  const themeIndexRef = useRef(0);
+  const themeTimerRef = useRef(0);
 
   const char = getZombieCharacter();
 
@@ -158,11 +180,15 @@ export function ZombieGameScreen() {
   }, [addCoins]);
 
   const getFireRate = () => {
-    let rate = Math.max(5, 16 - fireRateLevelRef.current * 2);
+    const base = WEAPON_FIRE_RATES[weaponRef.current] ?? 14;
+    let rate = Math.max(3, base - fireRateLevelRef.current);
     if (overdriveRef.current) rate *= 0.5;
     return rate;
   };
-  const getDamage = () => (30 + damageLevelRef.current * 12) * damageMultRef.current * (nuclearActiveRef.current ? 2.5 : 1);
+  const getDamage = () => {
+    const base = (WEAPON_DAMAGES[weaponRef.current] ?? 30) + damageLevelRef.current * 12;
+    return base * damageMultRef.current * (nuclearActiveRef.current ? 2.5 : 1);
+  };
   const getScoreMult = () => scoreMultRef.current * (scoreBoostRef.current ? 2 : 1) * (overdriveRef.current ? 1.5 : 1);
 
   const addFloatText = (text: string, x: number, y: number, color = '#fbbf24', size = 14) => {
@@ -244,11 +270,12 @@ export function ZombieGameScreen() {
     hasRevivedRef.current = false; setHasRevived(false);
     comboRef.current = 0; comboTimerRef.current = 0; setComboDisplay(0);
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
-    alertFlashRef.current = 0;
     overdriveRef.current = false; setOverdriveActive(false); overdriveTimerRef.current = 0;
     killStreakRef.current = 0; setKillStreak(0);
     doubleShotRef.current = false; setDoubleShotActive(false); doubleShotTimerRef.current = 0;
     coinMagnetRef.current = false; setCoinMagnetActive(false); coinMagnetTimerRef.current = 0;
+    weaponRef.current = 'pistol'; setCurrentWeapon('pistol'); weaponTimerRef.current = 0; setWeaponTimer(0);
+    themeIndexRef.current = 0; themeTimerRef.current = 0; setThemeName(COLOR_THEMES[0].name);
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(100); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
@@ -280,18 +307,6 @@ export function ZombieGameScreen() {
     return (w / LANE_COUNT) * (lane + 0.5);
   };
 
-  const findNearestZombieX = (): number => {
-    const { w, h } = canvasSizeRef.current;
-    const barricadeY = h * BARRICADE_Y_RATIO;
-    let nearestX = w / 2;
-    let nearestY = -Infinity;
-    for (const z of zombiePoolRef.current.getActive()) {
-      if (z.y > nearestY && z.y < barricadeY) { nearestY = z.y; nearestX = z.x; }
-    }
-    if (bossRef.current && bossRef.current.y > nearestY) nearestX = bossRef.current.x;
-    return nearestX;
-  };
-
   const shoot = useCallback(() => {
     if (gameOverRef.current || shootCooldownRef.current > 0) return;
     initAudio();
@@ -300,7 +315,7 @@ export function ZombieGameScreen() {
     const tx = turretXRef.current;
     const speed = 12;
     const dmg = getDamage();
-    const color = '#fbbf24';
+    const color = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
 
     const fire = (ox: number, vxMod: number) => {
       const b = bulletPoolRef.current.acquire();
@@ -309,8 +324,15 @@ export function ZombieGameScreen() {
       b.life = 80; b.damage = dmg; b.color = color;
     };
 
-    if (doubleShotRef.current) {
-      fire(-12, -1); fire(12, 1);
+    const weapon = weaponRef.current;
+    if (weapon === 'shotgun' || doubleShotRef.current) {
+      fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
+      shootCooldownRef.current = getFireRate();
+    } else if (weapon === 'minigun') {
+      fire(rand(-4, 4), rand(-1, 1));
+      shootCooldownRef.current = getFireRate();
+    } else if (weapon === 'laser') {
+      fire(0, 0);
       shootCooldownRef.current = getFireRate();
     } else {
       fire(0, 0);
@@ -329,9 +351,9 @@ export function ZombieGameScreen() {
     else if (difficultyRef.current > 2 && r < 0.22) type = 'tank';
 
     let zHp: number, size: number, color: string, vy: number;
-    if (type === 'fast') { zHp = 50; size = 18 * SPRITE_SCALE; color = '#ef4444'; vy = 1.8 + difficultyRef.current * 0.2; }
-    else if (type === 'tank') { zHp = 300; size = 28 * SPRITE_SCALE; color = '#7c3aed'; vy = 0.8 + difficultyRef.current * 0.1; }
-    else { zHp = 100; size = 16 * SPRITE_SCALE; color = '#65a30d'; vy = 1.2 + difficultyRef.current * 0.15; }
+    if (type === 'fast') { zHp = 50; size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = 1.8 + difficultyRef.current * 0.2; }
+    else if (type === 'tank') { zHp = 300; size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = 0.8 + difficultyRef.current * 0.1; }
+    else { zHp = 100; size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = 1.2 + difficultyRef.current * 0.15; }
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
@@ -345,11 +367,11 @@ export function ZombieGameScreen() {
     const zHp = 2000;
     const boss = zombiePoolRef.current.acquire();
     boss.x = w / 2; boss.y = -60; boss.vy = 0.6; boss.vx = 0; boss.walkCycle = 0;
-    boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#dc2626'; boss.type = 'boss'; boss.hitFlash = 0;
+    boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#65a30d'; boss.type = 'boss'; boss.hitFlash = 0;
     bossRef.current = boss;
-    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp); setBossName('JEFE DE OLEADA');
+    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp); setBossName('JEFE DE FÚTBOL GIGANTE');
     playBossAlert();
-    addFloatText('¡JEFE DE OLEADA!', w / 2, canvasSizeRef.current.h / 3, '#dc2626', 18);
+    addFloatText('¡JEFE DE FÚTBOL GIGANTE!', w / 2, canvasSizeRef.current.h / 3, '#dc2626', 18);
     screenShakeRef.current.trigger(6, 20);
     hapticFeedback(50);
   }, []);
@@ -358,7 +380,9 @@ export function ZombieGameScreen() {
     const lane = Math.floor(Math.random() * LANE_COUNT);
     const b = barrelPoolRef.current.acquire();
     b.x = getLaneX(lane); b.y = -20; b.vy = 0.8 + Math.random() * 0.4;
-    b.hp = 50; b.id = ++barrelIdCounter;
+    const hpVal = Math.floor(rand(40, 70));
+    b.hp = hpVal; b.maxHp = hpVal;
+    b.weapon = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
   }, []);
 
   const spawnPowerUpDrop = (x: number, y: number) => {
@@ -366,6 +390,15 @@ export function ZombieGameScreen() {
     const type = types[Math.floor(Math.random() * types.length)];
     const pu = powerUpPoolRef.current.acquire();
     pu.x = x; pu.y = y; pu.vy = 1.5; pu.type = type;
+  };
+
+  const equipWeapon = (weapon: WeaponType) => {
+    weaponRef.current = weapon;
+    setCurrentWeapon(weapon);
+    weaponTimerRef.current = 600;
+    setWeaponTimer(10);
+    playWeaponEquip();
+    hapticFeedback(50);
   };
 
   const activateNuclear = () => {
@@ -399,6 +432,282 @@ export function ZombieGameScreen() {
     }
   }, [gameOver, canShowInterstitial, recordInterstitial, vip, endGameBatch, submitZombieScore]);
 
+  // Cartoon zombie drawing
+  const drawCartoonZombie = (ctx: CanvasRenderingContext2D, z: Zombie, now: number) => {
+    ctx.save();
+    ctx.translate(z.x, z.y);
+    const wobble = Math.sin(z.walkCycle) * 4;
+    const armSwing = Math.sin(z.walkCycle + Math.PI / 2) * 6;
+    const s = z.size;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, s * 0.8, s * 0.7, s * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Body (torn clothes)
+    ctx.fillStyle = z.type === 'tank' ? '#3b5a1a' : z.type === 'fast' ? '#65a30d' : '#4d7c0f';
+    ctx.beginPath();
+    ctx.roundRect(-s * 0.5, wobble - s * 0.1, s, s * 0.7, 4);
+    ctx.fill();
+    // Torn shirt details
+    ctx.fillStyle = '#3a5a1a';
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.5, wobble + s * 0.1);
+    ctx.lineTo(-s * 0.3, wobble + s * 0.2);
+    ctx.lineTo(-s * 0.4, wobble + s * 0.3);
+    ctx.lineTo(-s * 0.5, wobble + s * 0.25);
+    ctx.fill();
+
+    // Head (green cartoon)
+    ctx.fillStyle = z.color;
+    ctx.beginPath(); ctx.arc(0, wobble - s * 0.35, s * 0.4, 0, Math.PI * 2); ctx.fill();
+    // Cheek shading
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath(); ctx.arc(-s * 0.15, wobble - s * 0.3, s * 0.12, 0, Math.PI * 2); ctx.fill();
+
+    // Eyes (white sclera, red pupils)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-s * 0.15, wobble - s * 0.4, s * 0.1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 0.15, wobble - s * 0.4, s * 0.1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(-s * 0.13, wobble - s * 0.38, s * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 0.17, wobble - s * 0.38, s * 0.05, 0, Math.PI * 2); ctx.fill();
+
+    // Mouth (zigzag teeth)
+    ctx.strokeStyle = '#1a2a0a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.2, wobble - s * 0.2);
+    for (let i = 0; i < 5; i++) {
+      ctx.lineTo(-s * 0.2 + (i + 0.5) * s * 0.1, wobble - s * 0.2 + (i % 2 === 0 ? -3 : 0));
+    }
+    ctx.stroke();
+
+    // Arms (swinging)
+    ctx.strokeStyle = z.color;
+    ctx.lineWidth = Math.max(2, s * 0.12);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.4, wobble + s * 0.1);
+    ctx.lineTo(-s * 0.6, wobble + s * 0.3 + armSwing);
+    ctx.moveTo(s * 0.4, wobble + s * 0.1);
+    ctx.lineTo(s * 0.6, wobble + s * 0.3 - armSwing);
+    ctx.stroke();
+
+    // Legs
+    ctx.strokeStyle = '#3b5a1a';
+    ctx.lineWidth = Math.max(2, s * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.25, wobble + s * 0.55);
+    ctx.lineTo(-s * 0.25 + Math.sin(z.walkCycle) * 4, wobble + s * 0.85);
+    ctx.moveTo(s * 0.25, wobble + s * 0.55);
+    ctx.lineTo(s * 0.25 - Math.sin(z.walkCycle) * 4, wobble + s * 0.85);
+    ctx.stroke();
+
+    if (z.type === 'tank') {
+      // Tank: bigger, armor plates
+      ctx.fillStyle = '#5a4a1a';
+      ctx.fillRect(-s * 0.55, wobble - s * 0.05, s * 1.1, s * 0.15);
+      ctx.strokeStyle = '#7a6a2a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-s * 0.55, wobble - s * 0.05, s * 1.1, s * 0.15);
+    }
+
+    if (z.type === 'boss') {
+      // Football helmet (red)
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.arc(0, wobble - s * 0.35, s * 0.48, Math.PI, 0);
+      ctx.fill();
+      ctx.fillRect(-s * 0.48, wobble - s * 0.35, s * 0.96, s * 0.15);
+      // Helmet stripe
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-s * 0.06, wobble - s * 0.7, s * 0.12, s * 0.4);
+      // Facemask
+      ctx.strokeStyle = '#7f1d1d';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.3, wobble - s * 0.25);
+      ctx.lineTo(s * 0.3, wobble - s * 0.25);
+      ctx.moveTo(-s * 0.25, wobble - s * 0.25);
+      ctx.lineTo(-s * 0.25, wobble - s * 0.1);
+      ctx.moveTo(0, wobble - s * 0.25);
+      ctx.lineTo(0, wobble - s * 0.1);
+      ctx.moveTo(s * 0.25, wobble - s * 0.25);
+      ctx.lineTo(s * 0.25, wobble - s * 0.1);
+      ctx.stroke();
+      // Shoulder pads (red)
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.65, wobble - s * 0.05, s * 0.3, s * 0.2, 3);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect(s * 0.35, wobble - s * 0.05, s * 0.3, s * 0.2, 3);
+      ctx.fill();
+      // Football
+      ctx.fillStyle = '#7B4a1a';
+      ctx.beginPath();
+      ctx.ellipse(s * 0.7, wobble + s * 0.3 + armSwing, s * 0.15, s * 0.1, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s * 0.65, wobble + s * 0.28 + armSwing);
+      ctx.lineTo(s * 0.75, wobble + s * 0.32 + armSwing);
+      ctx.stroke();
+    }
+
+    // Hit flash
+    if (z.hitFlash > 0) {
+      ctx.globalAlpha = z.hitFlash * 0.6;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, wobble, s + 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // HP bar
+    if (z.hp < z.maxHp) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(z.x - s, z.y - s - 10, s * 2, 4);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(z.x - s, z.y - s - 10, s * 2 * (z.hp / z.maxHp), 4);
+    }
+  };
+
+  // Cartoon barrel drawing with counter
+  const drawBarrel = (ctx: CanvasRenderingContext2D, br: Barrel, now: number) => {
+    ctx.save();
+    ctx.translate(br.x, br.y);
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, 22, 20, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // Wood barrel body
+    ctx.fillStyle = '#8b4513';
+    ctx.beginPath();
+    ctx.roundRect(-18, -20, 36, 40, 4);
+    ctx.fill();
+    // Metal bands
+    ctx.fillStyle = '#a0522d';
+    ctx.fillRect(-18, -20, 36, 5);
+    ctx.fillRect(-18, 15, 36, 5);
+    // Wood planks
+    ctx.strokeStyle = '#654321';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-10, -15); ctx.lineTo(-10, 14);
+    ctx.moveTo(0, -15); ctx.lineTo(0, 14);
+    ctx.moveTo(10, -15); ctx.lineTo(10, 14);
+    ctx.stroke();
+    // Yellow badge with counter number
+    const pulse = 1 + Math.sin(now * 0.008) * 0.08;
+    ctx.save();
+    ctx.scale(pulse, pulse);
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#92400e';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${Math.ceil(br.hp)}`, 0, 1);
+    ctx.restore();
+    // Weapon icon floating above
+    ctx.save();
+    ctx.translate(0, -30);
+    ctx.shadowColor = WEAPON_COLORS[br.weapon];
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = WEAPON_COLORS[br.weapon];
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labels: Record<WeaponType, string> = { pistol: 'P', rifle: 'R', shotgun: 'S', minigun: 'M', laser: 'L' };
+    ctx.fillText(labels[br.weapon], 0, 0);
+    ctx.restore();
+    ctx.restore();
+  };
+
+  // Cartoon survivor/turret drawing
+  const drawSurvivor = (ctx: CanvasRenderingContext2D, x: number, y: number, now: number) => {
+    ctx.save();
+    ctx.translate(x, y);
+    const s = 22 * SPRITE_SCALE;
+    const breath = Math.sin(now * 0.003) * 1.5;
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, s * 0.7, s * 0.6, s * 0.15, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Barricade base
+    ctx.fillStyle = '#3a2a1a';
+    ctx.beginPath(); ctx.roundRect(-s * 1.4, -2, s * 2.8, s * 0.8, 3); ctx.fill();
+    ctx.fillStyle = '#2a1a0a';
+    for (let i = -s * 1.3; i < s * 1.4; i += 8) { ctx.fillRect(i, -2, 4, s * 0.8); }
+    ctx.strokeStyle = '#5a4a2a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.4, -6);
+    for (let i = -s * 1.3; i < s * 1.4; i += 10) { ctx.lineTo(i, -6 + (i % 20 === 0 ? -4 : 0)); }
+    ctx.stroke();
+
+    // Body
+    ctx.fillStyle = char.color;
+    ctx.beginPath();
+    ctx.roundRect(-s * 0.4, breath - s * 0.1, s * 0.8, s * 0.6, 4);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#d4a574';
+    ctx.beginPath(); ctx.arc(0, breath - s * 0.35, s * 0.3, 0, Math.PI * 2); ctx.fill();
+    // Helmet
+    ctx.fillStyle = char.color;
+    ctx.beginPath();
+    ctx.arc(0, breath - s * 0.38, s * 0.32, Math.PI, 0);
+    ctx.fill();
+    ctx.fillRect(-s * 0.32, breath - s * 0.38, s * 0.64, s * 0.08);
+
+    // Eyes (determined look)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-s * 0.1, breath - s * 0.3, s * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 0.1, breath - s * 0.3, s * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(-s * 0.1, breath - s * 0.3, s * 0.03, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(s * 0.1, breath - s * 0.3, s * 0.03, 0, Math.PI * 2); ctx.fill();
+
+    // Arms holding gun up
+    ctx.strokeStyle = '#d4a574';
+    ctx.lineWidth = Math.max(2, s * 0.1);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.2, breath);
+    ctx.lineTo(-s * 0.1, breath - s * 0.3);
+    ctx.moveTo(s * 0.2, breath);
+    ctx.lineTo(s * 0.1, breath - s * 0.3);
+    ctx.stroke();
+
+    // Gun barrel pointing up
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(-s * 0.08, breath - s * 0.5, s * 0.16, s * 0.3);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(-s * 0.06, breath - s * 0.55, s * 0.12, s * 0.1);
+    // Muzzle glow when ready
+    if (shootCooldownRef.current < 2) {
+      ctx.shadowColor = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
+      ctx.fillRect(-s * 0.04, breath - s * 0.6, s * 0.08, s * 0.08);
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.restore();
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -418,12 +727,22 @@ export function ZombieGameScreen() {
       const barricadeY = h * BARRICADE_Y_RATIO;
       const turretY = h * TURRET_Y_RATIO;
       const coinsCapped = gameCoinsRef.current >= coinCapRef.current;
+      const theme = COLOR_THEMES[themeIndexRef.current];
 
       screenShakeRef.current.update(dt);
       const shake = screenShakeRef.current.getOffset();
 
       scrollYRef.current += dt * (coinsCapped ? 3 : 1.5);
-      if (alertFlashRef.current > 0) alertFlashRef.current = Math.max(0, alertFlashRef.current - dt * 0.05);
+
+      // Theme cycling every 30s
+      if (!gameOverRef.current) {
+        themeTimerRef.current += dt;
+        if (themeTimerRef.current >= 1800) {
+          themeTimerRef.current = 0;
+          themeIndexRef.current = (themeIndexRef.current + 1) % COLOR_THEMES.length;
+          setThemeName(COLOR_THEMES[themeIndexRef.current].name);
+        }
+      }
 
       ctx.save();
       ctx.translate(shake.x, shake.y);
@@ -439,64 +758,99 @@ export function ZombieGameScreen() {
         ctx.strokeRect(8, 8, w - 16, h - 16);
       }
 
+      // Urban road background
       const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, '#1a1505');
-      grad.addColorStop(0.4, '#2a2010');
-      grad.addColorStop(0.7, '#1a1510');
-      grad.addColorStop(1, '#0a0805');
+      grad.addColorStop(0, '#1a1a1a');
+      grad.addColorStop(0.3, theme.road);
+      grad.addColorStop(0.7, theme.road);
+      grad.addColorStop(1, '#0a0a0a');
       ctx.fillStyle = grad;
       ctx.fillRect(-20, -20, w + 40, h + 40);
 
-      if (coinsCapped) {
-        ctx.fillStyle = `rgba(255,50,50,${0.04 + Math.sin(now * 0.01) * 0.02})`;
-        ctx.fillRect(-20, -20, w + 40, h + 40);
-      }
-
-      if (alertFlashRef.current > 0) {
-        ctx.fillStyle = `rgba(255,50,50,${alertFlashRef.current * 0.08})`;
-        ctx.fillRect(-20, -20, w + 40, h + 40);
-      }
-
-      ctx.strokeStyle = 'rgba(80,60,30,0.3)';
+      // Road perspective (converging lanes)
+      ctx.strokeStyle = `${theme.border}22`;
       ctx.lineWidth = 1;
-      for (let i = 0; i < LANE_COUNT; i++) {
+      for (let i = 0; i <= LANE_COUNT; i++) {
         const lx = (w / LANE_COUNT) * i;
         ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, barricadeY); ctx.stroke();
       }
 
-      ctx.fillStyle = 'rgba(100,80,50,0.15)';
-      for (let i = 0; i < w; i += 3) {
-        const dashY = ((i * 2 + scrollYRef.current) % 50);
-        if (dashY < barricadeY) { ctx.fillRect(w / 2 - 2 + Math.sin(i * 0.1) * 1, dashY, 4, 24); }
+      // Road edges (curbs)
+      ctx.fillStyle = `${theme.border}44`;
+      ctx.fillRect(0, 0, 3, barricadeY);
+      ctx.fillRect(w - 3, 0, 3, barricadeY);
+
+      // Dashed white center line
+      ctx.fillStyle = theme.dash;
+      for (let i = 0; i < h; i += 40) {
+        const dashY = ((i + scrollYRef.current) % (h + 40)) - 20;
+        if (dashY > 0 && dashY < barricadeY) {
+          ctx.fillRect(w / 2 - 3, dashY, 6, 20);
+        }
       }
 
-      ctx.fillStyle = 'rgba(30,25,20,0.4)';
-      for (let i = 0; i < w; i += 40) {
-        const cy = ((i * 0.5 + scrollYRef.current * 0.3) % 60);
-        ctx.fillRect(i, cy, 3, 3);
-        ctx.fillRect(i + 15, cy + 20, 2, 2);
+      // Sewer grates
+      for (let i = 0; i < 3; i++) {
+        const grateY = ((i * 200 + scrollYRef.current * 0.8) % (h + 100)) - 50;
+        if (grateY > 20 && grateY < barricadeY - 20) {
+          ctx.fillStyle = '#1a1a1a';
+          ctx.beginPath(); ctx.roundRect(w * 0.15, grateY, 30, 8, 2); ctx.fill();
+          ctx.strokeStyle = '#3a3a3a';
+          ctx.lineWidth = 1;
+          for (let j = 0; j < 4; j++) {
+            ctx.beginPath(); ctx.moveTo(w * 0.15 + 3 + j * 7, grateY + 1); ctx.lineTo(w * 0.15 + 3 + j * 7, grateY + 7); ctx.stroke();
+          }
+          ctx.beginPath(); ctx.roundRect(w * 0.8, grateY + 80, 30, 8, 2); ctx.fill();
+          for (let j = 0; j < 4; j++) {
+            ctx.beginPath(); ctx.moveTo(w * 0.8 + 3 + j * 7, grateY + 81); ctx.lineTo(w * 0.8 + 3 + j * 7, grateY + 87); ctx.stroke();
+          }
+        }
       }
 
+      // Overhead cables
+      ctx.strokeStyle = 'rgba(60,60,60,0.4)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, 20 + i * 15);
+        ctx.quadraticCurveTo(w / 2, 25 + i * 15 + Math.sin(scrollYRef.current * 0.02 + i) * 3, w, 20 + i * 15);
+        ctx.stroke();
+      }
+
+      // Fog overlay
       if (fpsMon.quality !== 'low') {
         const fogGrad = ctx.createLinearGradient(0, 0, 0, h * 0.4);
-        fogGrad.addColorStop(0, 'rgba(100,50,20,0.15)');
+        fogGrad.addColorStop(0, theme.fog);
         fogGrad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = fogGrad;
         ctx.fillRect(0, 0, w, h * 0.4);
       }
 
+      // Coins capped red flash
+      if (coinsCapped) {
+        ctx.fillStyle = `rgba(255,50,50,${0.04 + Math.sin(now * 0.01) * 0.02})`;
+        ctx.fillRect(-20, -20, w + 40, h + 40);
+      }
+
       if (!gameOverRef.current) {
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
 
+        // Touch-only horizontal movement (no auto-aim)
         if (touchTargetRef.current.active) {
           turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.25 * dt);
-        } else {
-          const targetX = findNearestZombieX();
-          turretXRef.current = lerp(turretXRef.current, targetX, 0.08 * dt);
         }
         turretXRef.current = clamp(turretXRef.current, 30, w - 30);
 
         shoot();
+
+        // Weapon timer countdown
+        if (weaponRef.current !== 'pistol') {
+          weaponTimerRef.current -= dt;
+          setWeaponTimer(Math.ceil(weaponTimerRef.current / 60));
+          if (weaponTimerRef.current <= 0) {
+            weaponRef.current = 'pistol'; setCurrentWeapon('pistol');
+          }
+        }
 
         difficultyRef.current = 1 + scoreRef.current / 500;
         if (coinsCapped) difficultyRef.current *= 1.5;
@@ -510,7 +864,7 @@ export function ZombieGameScreen() {
               spawnZombie();
               const active = zombiePoolRef.current.getActive();
               const last = active[active.length - 1];
-              if (last) { last.type = 'tank'; last.hp = 200; last.maxHp = 200; last.size = 26 * SPRITE_SCALE; last.color = '#a855f7'; last.vy *= 0.6; }
+              if (last) { last.type = 'tank'; last.hp = 200; last.maxHp = 200; last.size = 26 * SPRITE_SCALE; last.color = '#4d7c0f'; last.vy *= 0.6; }
             }
             miniBossThresholdRef.current += 500;
             addFloatText('¡Mutantes!', w / 2, h / 3, '#a855f7', 16);
@@ -527,30 +881,16 @@ export function ZombieGameScreen() {
           if (comboTimerRef.current <= 0) { comboRef.current = 0; setComboDisplay(0); }
         }
 
-        if (shieldRef.current) {
-          shieldTimerRef.current -= dt;
-          if (shieldTimerRef.current <= 0) { shieldRef.current = false; setShieldActive(false); }
-        }
-        if (scoreBoostRef.current) {
-          scoreBoostTimerRef.current -= dt;
-          if (scoreBoostTimerRef.current <= 0) { scoreBoostRef.current = false; setScoreBoostActive(false); }
-        }
-        if (doubleShotRef.current) {
-          doubleShotTimerRef.current -= dt;
-          if (doubleShotTimerRef.current <= 0) { doubleShotRef.current = false; setDoubleShotActive(false); }
-        }
-        if (coinMagnetRef.current) {
-          coinMagnetTimerRef.current -= dt;
-          if (coinMagnetTimerRef.current <= 0) { coinMagnetRef.current = false; setCoinMagnetActive(false); }
-        }
-        if (overdriveRef.current) {
-          overdriveTimerRef.current -= dt;
-          if (overdriveTimerRef.current <= 0) { overdriveRef.current = false; setOverdriveActive(false); }
-        }
+        if (shieldRef.current) { shieldTimerRef.current -= dt; if (shieldTimerRef.current <= 0) { shieldRef.current = false; setShieldActive(false); } }
+        if (scoreBoostRef.current) { scoreBoostTimerRef.current -= dt; if (scoreBoostTimerRef.current <= 0) { scoreBoostRef.current = false; setScoreBoostActive(false); } }
+        if (doubleShotRef.current) { doubleShotTimerRef.current -= dt; if (doubleShotTimerRef.current <= 0) { doubleShotRef.current = false; setDoubleShotActive(false); } }
+        if (coinMagnetRef.current) { coinMagnetTimerRef.current -= dt; if (coinMagnetTimerRef.current <= 0) { coinMagnetRef.current = false; setCoinMagnetActive(false); } }
+        if (overdriveRef.current) { overdriveTimerRef.current -= dt; if (overdriveTimerRef.current <= 0) { overdriveRef.current = false; setOverdriveActive(false); } }
 
         for (const z of zombiePoolRef.current.getActive()) {
           z.y += z.vy * dt;
           if (z.type === 'fast') z.x += z.vx * dt;
+          if (z.x < 20 || z.x > w - 20) z.vx *= -1;
           z.walkCycle += dt * 0.3;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
 
@@ -586,7 +926,7 @@ export function ZombieGameScreen() {
         }
 
         for (const pu of powerUpPoolRef.current.getActive()) {
-          if (coinMagnetRef.current) {
+          if (coinMagnetRef.current || char.magnetMeds) {
             const dx = turretXRef.current - pu.x;
             const dy = turretY - pu.y;
             const d = Math.hypot(dx, dy);
@@ -596,18 +936,10 @@ export function ZombieGameScreen() {
           if (pu.y > barricadeY - 10) { powerUpPoolRef.current.release(pu); continue; }
           if (dist(pu.x, pu.y, turretXRef.current, turretY) < 35) {
             powerUpPoolRef.current.release(pu);
-            if (pu.type === 'shield') {
-              shieldRef.current = true; setShieldActive(true); shieldTimerRef.current = 360;
-              addFloatText('¡ESCUDO NEÓN!', w / 2, h / 2, '#22d3ee', 16);
-            } else if (pu.type === 'doubleShot') {
-              doubleShotRef.current = true; setDoubleShotActive(true); doubleShotTimerRef.current = 480;
-              addFloatText('¡DOBLE RÁFAGA!', w / 2, h / 2, '#fbbf24', 16);
-            } else if (pu.type === 'coinMagnet') {
-              coinMagnetRef.current = true; setCoinMagnetActive(true); coinMagnetTimerRef.current = 480;
-              addFloatText('¡IMÁN DE MONEDAS!', w / 2, h / 2, '#fbbf24', 16);
-            }
-            playPickup();
-            hapticFeedback(40);
+            if (pu.type === 'shield') { shieldRef.current = true; setShieldActive(true); shieldTimerRef.current = 360; addFloatText('¡ESCUDO NEÓN!', w / 2, h / 2, '#22d3ee', 16); }
+            else if (pu.type === 'doubleShot') { doubleShotRef.current = true; setDoubleShotActive(true); doubleShotTimerRef.current = 480; addFloatText('¡DOBLE RÁFAGA!', w / 2, h / 2, '#fbbf24', 16); }
+            else if (pu.type === 'coinMagnet') { coinMagnetRef.current = true; setCoinMagnetActive(true); coinMagnetTimerRef.current = 480; addFloatText('¡IMÁN DE MONEDAS!', w / 2, h / 2, '#fbbf24', 16); }
+            playPickup(); hapticFeedback(40);
           }
         }
 
@@ -627,7 +959,6 @@ export function ZombieGameScreen() {
                 comboRef.current++; comboTimerRef.current = 120;
                 if (comboRef.current >= 3) setComboDisplay(comboRef.current);
                 const comboBonus = comboRef.current >= 5 ? 1.5 : comboRef.current >= 3 ? 1.2 : 1;
-
                 killStreakRef.current++; setKillStreak(killStreakRef.current);
                 checkKillStreakMilestone(killStreakRef.current);
 
@@ -640,8 +971,7 @@ export function ZombieGameScreen() {
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(50), bloodColor, 8);
                   addFloatText(`+${bossCoins} MONEDAS`, w / 2, h / 3, '#fbbf24', 18);
                   addFloatText('¡JEFE ELIMINADO!', z.x, z.y - 40, '#dc2626', 16);
-                  screenShakeRef.current.trigger(10, 25);
-                  hapticPattern([50, 30, 100]);
+                  screenShakeRef.current.trigger(10, 25); hapticPattern([50, 30, 100]);
                   finalBossThresholdRef.current += 3000;
                 } else if (z.type === 'tank') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
@@ -651,8 +981,7 @@ export function ZombieGameScreen() {
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(25), bloodColor, 6);
                   addFloatText('¡TANQUE!', z.x, z.y - 30, '#7c3aed', 14);
-                  screenShakeRef.current.trigger(5, 15);
-                  hapticFeedback(30);
+                  screenShakeRef.current.trigger(5, 15); hapticFeedback(30);
                 } else if (z.type === 'fast') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 150 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
@@ -668,16 +997,12 @@ export function ZombieGameScreen() {
                 if (killStreakRef.current === 15 && !overdriveRef.current) {
                   overdriveRef.current = true; setOverdriveActive(true); overdriveTimerRef.current = 600;
                   addFloatText('¡FRENESÍ!', w / 2, h * 0.35, '#fbbf24', 22);
-                  screenShakeRef.current.trigger(6, 20);
-                  hapticPattern([50, 30, 50, 30, 100]);
+                  screenShakeRef.current.trigger(6, 20); hapticPattern([50, 30, 50, 30, 100]);
                 }
-
                 if (comboRef.current >= 3 && comboRef.current % 3 === 0) {
                   addFloatText(`COMBO x${comboRef.current}!`, z.x, z.y - 30, '#22d3ee', 16);
                 }
-                if (bloodEnabledRef.current) {
-                  bloodSplatsRef.current.push({ x: z.x, y: z.y, size: z.size * 0.8, alpha: 0.5 });
-                }
+                if (bloodEnabledRef.current) bloodSplatsRef.current.push({ x: z.x, y: z.y, size: z.size * 0.8, alpha: 0.5 });
               }
               break;
             }
@@ -685,22 +1010,19 @@ export function ZombieGameScreen() {
           if (!hit) for (const br of barrelPoolRef.current.getActive()) {
             if (dist(b.x, b.y, br.x, br.y) < 22) {
               br.hp -= b.damage; hit = true;
+              playBarrelHit();
               spawnParticles2D(particlesRef.current, b.x, b.y, 5, '#fbbf24', 3);
+              screenShakeRef.current.trigger(1, 5);
               if (br.hp <= 0) {
                 barrelPoolRef.current.release(br);
-                const r = Math.random();
-                if (r < 0.5) {
-                  spawnPowerUpDrop(br.x, br.y);
-                  addFloatText('¡POWER-UP!', br.x, br.y - 20, '#22d3ee', 16);
-                } else {
-                  const barrelCoins = Math.floor(rand(2, 4));
-                  spawnFloatingCoins(br.x, br.y, barrelCoins);
-                  addFloatText(`+${barrelCoins} MONEDAS`, br.x, br.y - 20, '#fbbf24', 16);
-                }
+                equipWeapon(br.weapon);
+                const barrelCoins = Math.floor(rand(2, 4));
+                spawnFloatingCoins(br.x, br.y, barrelCoins);
+                addFloatText(`¡${br.weapon.toUpperCase()}!`, br.x, br.y - 30, WEAPON_COLORS[br.weapon], 18);
+                addFloatText(`+${barrelCoins} MONEDAS`, br.x, br.y - 10, '#fbbf24', 14);
                 playPickup();
-                spawnParticles2D(particlesRef.current, br.x, br.y, 15, '#fbbf24', 5);
-                screenShakeRef.current.trigger(4, 12);
-                hapticFeedback(40);
+                spawnParticles2D(particlesRef.current, br.x, br.y, 20, '#fbbf24', 6);
+                screenShakeRef.current.trigger(5, 15); hapticFeedback(50);
               }
               break;
             }
@@ -709,31 +1031,23 @@ export function ZombieGameScreen() {
         }
 
         for (const c of coinPoolRef.current.getActive()) {
-          if (coinMagnetRef.current) {
-            const tx = turretXRef.current;
-            const ty = turretY;
-            const dx = tx - c.x;
-            const dy = ty - c.y;
+          if (coinMagnetRef.current || char.magnetMeds) {
+            const dx = turretXRef.current - c.x;
+            const dy = turretY - c.y;
             const d = Math.hypot(dx, dy);
             if (d > 5) { c.vx += (dx / d) * 0.5 * dt; c.vy += (dy / d) * 0.5 * dt; }
-          } else {
-            c.vy += 0.15 * dt;
-          }
+          } else { c.vy += 0.15 * dt; }
           c.x += c.vx * dt; c.y += c.vy * dt; c.life -= dt;
           if (c.life <= 0 || c.y > h + 20) { coinPoolRef.current.release(c); continue; }
           if (dist(c.x, c.y, turretXRef.current, turretY) < 30) {
             coinPoolRef.current.release(c);
-            safeAddCoins(1); playCoin();
-            hapticFeedback(15);
+            safeAddCoins(1); playCoin(); hapticFeedback(15);
           }
         }
 
         nuclearChargeRef.current += dt * 0.25;
         if (nuclearChargeRef.current >= 100 && !nuclearReady) setNuclearReady(true);
-        if (nuclearActiveRef.current) {
-          nuclearTimerRef.current -= dt;
-          if (nuclearTimerRef.current <= 0) nuclearActiveRef.current = false;
-        }
+        if (nuclearActiveRef.current) { nuclearTimerRef.current -= dt; if (nuclearTimerRef.current <= 0) nuclearActiveRef.current = false; }
 
         playTimeRef.current += dt * 16.67;
         if (playTimeRef.current - lastPlayTimeSyncRef.current >= 5000) {
@@ -742,6 +1056,7 @@ export function ZombieGameScreen() {
         }
       }
 
+      // Blood splats
       const splats = bloodSplatsRef.current;
       for (let i = splats.length - 1; i >= 0; i--) {
         const bs = splats[i];
@@ -754,92 +1069,31 @@ export function ZombieGameScreen() {
         if (bs.alpha <= 0) splats.splice(i, 1);
       }
 
-      for (const z of zombiePoolRef.current.getActive()) {
-        ctx.save();
-        ctx.translate(z.x, z.y);
-        const bobY = Math.sin(z.walkCycle) * 3;
-        ctx.shadowColor = z.color;
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = z.color;
-        ctx.beginPath(); ctx.arc(0, bobY, z.size, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#1a2a0a';
-        ctx.fillRect(-z.size * 0.35, bobY - z.size * 0.25, z.size * 0.2, z.size * 0.15);
-        ctx.fillRect(z.size * 0.15, bobY - z.size * 0.25, z.size * 0.2, z.size * 0.15);
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath(); ctx.arc(-z.size * 0.25, bobY - z.size * 0.15, z.size * 0.06, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(z.size * 0.25, bobY - z.size * 0.15, z.size * 0.06, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#3a5a1a';
-        ctx.lineWidth = Math.max(1.5, z.size * 0.1);
-        ctx.beginPath();
-        ctx.moveTo(-z.size * 0.5, bobY + z.size * 0.3);
-        ctx.lineTo(-z.size * 0.3, bobY + z.size * 0.7);
-        ctx.moveTo(z.size * 0.5, bobY + z.size * 0.3);
-        ctx.lineTo(z.size * 0.3, bobY + z.size * 0.7);
-        ctx.stroke();
-        if (z.type === 'tank' || z.type === 'boss') {
-          ctx.fillStyle = '#4a3a1a';
-          ctx.fillRect(-z.size * 0.6, bobY - z.size * 0.8, z.size * 1.2, z.size * 0.3);
-          ctx.strokeStyle = '#6a5a2a';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(-z.size * 0.6, bobY - z.size * 0.8, z.size * 1.2, z.size * 0.3);
-        }
-        if (z.hitFlash > 0) {
-          ctx.globalAlpha = z.hitFlash * 0.6;
-          ctx.fillStyle = '#fff';
-          ctx.beginPath(); ctx.arc(0, bobY, z.size + 4, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.restore();
+      // Draw zombies
+      for (const z of zombiePoolRef.current.getActive()) drawCartoonZombie(ctx, z, now);
 
-        if (z.hp < z.maxHp) {
-          ctx.fillStyle = 'rgba(0,0,0,0.6)';
-          ctx.fillRect(z.x - z.size, z.y - z.size - 10, z.size * 2, 4);
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(z.x - z.size, z.y - z.size - 10, z.size * 2 * (z.hp / z.maxHp), 4);
-        }
-      }
+      // Draw barrels
+      for (const br of barrelPoolRef.current.getActive()) drawBarrel(ctx, br, now);
 
-      for (const br of barrelPoolRef.current.getActive()) {
-        ctx.save();
-        ctx.translate(br.x, br.y);
-        ctx.shadowColor = '#fbbf24';
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = '#8b4513';
-        ctx.fillRect(-18, -20, 36, 40);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#a0522d';
-        ctx.fillRect(-18, -20, 36, 5);
-        ctx.fillRect(-18, 15, 36, 5);
-        ctx.fillStyle = '#654321';
-        ctx.fillRect(-16, -10, 32, 2);
-        ctx.fillRect(-16, 5, 32, 2);
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${br.id}`, 0, 2);
-        ctx.restore();
-      }
-
+      // Draw power-ups
       for (const pu of powerUpPoolRef.current.getActive()) {
         ctx.save();
         ctx.translate(pu.x, pu.y);
         const pulse = 1 + Math.sin(now * 0.01) * 0.15;
         ctx.scale(pulse, pulse);
-        const colors: Record<PowerUpType, string> = { shield: '#22d3ee', doubleShot: '#fbbf24', coinMagnet: '#f97316', weapon: '#a855f7', coins: '#fbbf24', points: '#34d399' };
+        const colors: Record<PowerUpType, string> = { shield: '#22d3ee', doubleShot: '#fbbf24', coinMagnet: '#f97316' };
         const c = colors[pu.type];
-        ctx.shadowColor = c;
-        ctx.shadowBlur = 15;
+        ctx.shadowColor = c; ctx.shadowBlur = 15;
         ctx.fillStyle = c;
         ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const labels: Record<PowerUpType, string> = { shield: 'S', doubleShot: 'D', coinMagnet: 'M', weapon: 'W', coins: '$', points: 'P' };
+        ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const labels: Record<PowerUpType, string> = { shield: 'S', doubleShot: 'D', coinMagnet: 'M' };
         ctx.fillText(labels[pu.type], 0, 0);
         ctx.restore();
       }
 
+      // Barricade
       ctx.fillStyle = '#3a2a1a';
       ctx.fillRect(0, barricadeY, w, 10);
       ctx.fillStyle = '#2a1a0a';
@@ -853,41 +1107,16 @@ export function ZombieGameScreen() {
         ctx.stroke();
       }
 
+      // Survivor
       const tx = turretXRef.current;
-      ctx.save();
-      ctx.translate(tx, turretY);
-      ctx.shadowColor = overdriveRef.current ? '#ff6b00' : '#fbbf24';
-      ctx.shadowBlur = overdriveRef.current ? 20 : 10;
-      ctx.fillStyle = '#2a2a2a';
-      ctx.fillRect(-34, -14, 68, 27);
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(-28, -10, 56, 20);
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#4a4a4a';
-      ctx.fillRect(-11, -34, 22, 27);
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillRect(-8, -38, 16, 8);
-      if (shootCooldownRef.current < 2) {
-        ctx.fillStyle = '#fbbf24';
-        ctx.shadowColor = '#fbbf24';
-        ctx.shadowBlur = 15;
-        ctx.fillRect(-3, -42, 6, 10);
-        ctx.shadowBlur = 0;
-      }
-      ctx.fillStyle = '#fbbf24';
-      ctx.font = 'bold 8px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('GARRDASH', 0, 6);
-      ctx.restore();
+      drawSurvivor(ctx, tx, turretY, now);
 
-      if (shieldRef.current) {
-        drawNeonCircle(ctx, tx, turretY - 15, 40, '#22d3ee', 20);
-      }
+      if (shieldRef.current) drawNeonCircle(ctx, tx, turretY - 15, 40, '#22d3ee', 20);
 
+      // Floating coins
       for (const c of coinPoolRef.current.getActive()) {
         ctx.save();
-        ctx.shadowColor = '#fbbf24';
-        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10;
         ctx.fillStyle = '#fbbf24';
         ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#fde68a';
@@ -895,16 +1124,12 @@ export function ZombieGameScreen() {
         ctx.restore();
       }
 
+      // Bullets
       for (const b of bulletPoolRef.current.getActive()) {
         ctx.save();
-        ctx.strokeStyle = b.color;
-        ctx.lineWidth = 4;
-        ctx.shadowColor = b.color;
-        ctx.shadowBlur = 15;
-        ctx.beginPath();
-        ctx.moveTo(b.x, b.y);
-        ctx.lineTo(b.x, b.y + 16);
-        ctx.stroke();
+        ctx.strokeStyle = b.color; ctx.lineWidth = 4;
+        ctx.shadowColor = b.color; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x, b.y + 16); ctx.stroke();
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
@@ -912,7 +1137,6 @@ export function ZombieGameScreen() {
 
       updateMuzzleFlashes(muzzleFlashesRef.current, dt);
       drawMuzzleFlashes(ctx, muzzleFlashesRef.current);
-
       updateParticles2D(particlesRef.current, dt);
       drawParticles2D(ctx, particlesRef.current);
 
@@ -934,22 +1158,21 @@ export function ZombieGameScreen() {
       }
 
       ctx.restore();
-
       rafRef.current = requestAnimationFrame(render);
     };
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone]);
+  }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone, char, equipWeapon]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const onTouchStart = (e: TouchEvent) => { initAudio(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top, active: true }; } };
-    const onTouchMove = (e: TouchEvent) => { if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top, active: true }; } };
+    const onTouchStart = (e: TouchEvent) => { initAudio(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
+    const onTouchMove = (e: TouchEvent) => { if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
     const onTouchEnd = () => { touchTargetRef.current.active = false; };
-    const onMouseDown = (e: MouseEvent) => { initAudio(); const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top, active: true }; };
-    const onMouseMove = (e: MouseEvent) => { if (touchTargetRef.current.active) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top, active: true }; } };
+    const onMouseDown = (e: MouseEvent) => { initAudio(); const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, active: true }; };
+    const onMouseMove = (e: MouseEvent) => { if (touchTargetRef.current.active) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, active: true }; } };
     const onMouseUp = () => { touchTargetRef.current.active = false; };
     canvas.addEventListener('touchstart', onTouchStart, { passive: true });
     canvas.addEventListener('touchmove', onTouchMove, { passive: true });
@@ -998,6 +1221,7 @@ export function ZombieGameScreen() {
         </div>
       )}
       <div className="absolute top-24 right-4 z-10 flex flex-col gap-2">
+        {currentWeapon !== 'pistol' && <div className="px-3 py-1.5 rounded-xl bg-black/50 backdrop-blur border border-amber-400/50 text-amber-400 text-xs font-bold animate-pulse flex items-center gap-1"><Zap className="w-3 h-3" />{currentWeapon.toUpperCase()} {weaponTimer}s</div>}
         {shieldActive && <div className="w-12 h-12 rounded-xl bg-cyan-500/20 backdrop-blur border border-cyan-400/50 flex items-center justify-center text-cyan-400 animate-pulse"><Shield className="w-5 h-5" /></div>}
         {doubleShotActive && <div className="w-12 h-12 rounded-xl bg-amber-500/20 backdrop-blur border border-amber-400/50 flex items-center justify-center text-amber-400 animate-pulse"><Zap className="w-5 h-5" /></div>}
         {coinMagnetActive && <div className="w-12 h-12 rounded-xl bg-orange-500/20 backdrop-blur border border-orange-400/50 flex items-center justify-center text-orange-400 animate-pulse"><Magnet className="w-5 h-5" /></div>}
@@ -1009,8 +1233,11 @@ export function ZombieGameScreen() {
           <span className="text-white/60 font-bold text-xs">RACHA: {killStreak}</span>
         </div>
       )}
+      <div className="absolute top-32 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-black/40 text-white/40 border border-white/5">{themeName}</span>
+      </div>
       {comboDisplay >= 3 && !gameOver && (
-        <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div className="absolute top-36 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <span className="text-cyan-400 font-black text-lg animate-pulse" style={{ textShadow: '0 0 15px rgba(34,211,238,0.8)' }}>COMBO x{comboDisplay}</span>
         </div>
       )}
@@ -1025,17 +1252,13 @@ export function ZombieGameScreen() {
         </div>
       )}
       {!gameOver && (
-        <button
-          onClick={activateNuclear}
-          disabled={!nuclearReady}
-          className={`absolute bottom-24 right-6 z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}
-        >
+        <button onClick={activateNuclear} disabled={!nuclearReady} className={`absolute bottom-24 right-6 z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}>
           <Radiation className={`w-7 h-7 ${nuclearReady ? 'text-amber-400' : 'text-white/30'}`} />
         </button>
       )}
       {!gameOver && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10">DESPLAZA PARA APUNTAR · AUTO-DISPARO</span>
+          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10">DESPLAZA PARA MOVER · AUTO-DISPARO</span>
         </div>
       )}
       {gameOver && (

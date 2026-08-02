@@ -153,3 +153,36 @@ export function playHit() {
   osc.start();
   osc.stop(ctx.currentTime + 0.12);
 }
+
+export function playBarrelHit() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(180, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.08);
+  gain.gain.setValueAtTime(0.18, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.1);
+}
+
+export function playWeaponEquip() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  for (let i = 0; i < 3; i++) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(440 + i * 220, ctx.currentTime + i * 0.06);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.06 + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + i * 0.06);
+    osc.stop(ctx.currentTime + i * 0.06 + 0.1);
+  }
+}
