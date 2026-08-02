@@ -1171,6 +1171,122 @@ export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
+// ─── Screen Shake ───────────────────────────────────────────────────────────
+
+export class ScreenShake {
+  private intensity = 0;
+  private duration = 0;
+  private maxDuration = 0;
+
+  trigger(intensity: number, duration: number) {
+    this.intensity = Math.max(this.intensity, intensity);
+    this.duration = Math.max(this.duration, duration);
+    this.maxDuration = this.duration;
+  }
+
+  update(dt: number) {
+    if (this.duration > 0) {
+      this.duration -= dt;
+      if (this.duration <= 0) { this.intensity = 0; this.duration = 0; }
+    }
+  }
+
+  getOffset(): { x: number; y: number } {
+    if (this.duration <= 0) return { x: 0, y: 0 };
+    const decay = this.duration / this.maxDuration;
+    const mag = this.intensity * decay;
+    return {
+      x: (Math.random() - 0.5) * mag * 2,
+      y: (Math.random() - 0.5) * mag * 2,
+    };
+  }
+
+  get active() { return this.duration > 0; }
+}
+
+// ─── Muzzle Flash ─────────────────────────────────────────────────────────────
+
+export interface MuzzleFlash {
+  x: number; y: number; angle: number; color: string; life: number; maxLife: number; size: number;
+}
+
+export function spawnMuzzleFlash(list: MuzzleFlash[], x: number, y: number, angle: number, color: string, size = 20) {
+  list.push({ x, y, angle, color, life: 8, maxLife: 8, size });
+}
+
+export function updateMuzzleFlashes(list: MuzzleFlash[], dt: number) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    list[i].life -= dt;
+    if (list[i].life <= 0) list.splice(i, 1);
+  }
+}
+
+export function drawMuzzleFlashes(ctx: CanvasRenderingContext2D, list: MuzzleFlash[]) {
+  for (const f of list) {
+    const alpha = f.life / f.maxLife;
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.angle);
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = f.color;
+    ctx.shadowBlur = 20 * alpha;
+    ctx.fillStyle = f.color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(f.size * alpha, -f.size * 0.3 * alpha);
+    ctx.lineTo(f.size * 1.2 * alpha, 0);
+    ctx.lineTo(f.size * alpha, f.size * 0.3 * alpha);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(0, 0, f.size * 0.3 * alpha, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── Neon Glow Helpers ──────────────────────────────────────────────────────
+
+export function drawNeonCircle(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, glow = 15) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = glow;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+export function drawNeonRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string, glow = 12) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = glow;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// ─── Haptic Feedback ────────────────────────────────────────────────────────
+
+export function hapticFeedback(duration = 30) {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate(duration); } catch {}
+  }
+}
+
+export function hapticPattern(pattern: number | number[]) {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try { navigator.vibrate(pattern); } catch {}
+  }
+}
+
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }

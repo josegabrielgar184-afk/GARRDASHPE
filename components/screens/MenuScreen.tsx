@@ -140,7 +140,7 @@ export function MenuScreen() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-4">
             <h1 className="neon-title text-5xl font-black tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
-              GARRDASHPE
+              GARRDASH
             </h1>
           </div>
 
