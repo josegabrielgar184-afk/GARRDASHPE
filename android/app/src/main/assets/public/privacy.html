@@ -37,7 +37,7 @@
 <body>
   <div class="header">
     <h1>GARRDASHPE</h1>
-    <p class="updated">Politica de Privacidad &mdash; Actualizada: 15 de julio de 2026</p>
+    <p class="updated">Politica de Privacidad &mdash; Actualizada: 16 de julio de 2026</p>
   </div>
 
   <div class="card">
@@ -47,48 +47,61 @@
 
   <div class="card">
     <h2>2. Datos que recopilamos</h2>
-    <p>GARRDASHPE <strong>NO recopila informacion personal sensible</strong> del usuario. No solicitamos, almacenamos ni procesamos datos como:</p>
+    <p>GARRDASHPE recopila los siguientes datos para proporcionar sus funcionalidades de juego, ranking y canje de premios:</p>
     <ul>
-      <li>Nombre completo, domicilio, numero de telefono ni documentos de identidad.</li>
+      <li><strong>Correo electronico y contrasena:</strong> utilizados unicamente para la autenticacion del usuario mediante Firebase Authentication. La contrasena se almacena cifrada y no es accesible por el equipo de GARRDASHPE.</li>
+      <li><strong>Nombre completo, edad y pais:</strong> datos opcionales del perfil de usuario almacenados en Firebase Firestore. Se utilizan para verificar la identidad en el proceso de canje de diamantes.</li>
+      <li><strong>Nickname (Apodo del jugador):</strong> nombre publico elegido libremente por el usuario para identificarse en el Ranking Global.</li>
+      <li><strong>Puntuaciones / Records:</strong> resultados obtenidos en las partidas (puntos, zombies eliminados, etc.) que se muestran publicamente en la tabla de clasificacion.</li>
+      <li><strong>Monedas virtuales y tiempo jugado:</strong> cantidad de monedas obtenidas en el juego y tiempo total jugado, almacenados en Firestore para el calculo de reservas financieras.</li>
+      <li><strong>Solicitudes de canje de diamantes:</strong> cuando el usuario solicita canjear diamantes, se almacenan su Player ID, nickname, tiempo jugado y puntos gastados en las colecciones <code>solicitudes_pendientes</code> y <code>solicitudes_confirmadas</code>.</li>
+      <li><strong>Sugerencias:</strong> mensajes enviados por los usuarios a traves del formulario de sugerencias, almacenados en la coleccion <code>sugerencias</code> con el correo del usuario.</li>
+      <li><strong>ID de dispositivo:</strong> identificador unico generado localmente utilizado unicamente para medidas de seguridad (prevencion de fraude, baneo de dispositivos). Almacenado en Firestore solo cuando un dispositivo es baneado por actividad maliciosa.</li>
+    </ul>
+    <p>GARRDASHPE <strong>NO recopila</strong> los siguientes datos:</p>
+    <ul>
       <li>Datos financieros, tarjetas de credito ni informacion bancaria.</li>
       <li>Geolocalizacion ni datos de movimiento del dispositivo.</li>
       <li>Contactos, mensajes, fotos ni archivos del dispositivo.</li>
       <li>Identificadores publicitarios (ADID/IDFA) ni datos de navegacion.</li>
     </ul>
-    <p>Los unicos datos procesados a traves de Firebase Firestore (servicio de Google) son:</p>
-    <ul>
-      <li><strong>Nickname (Apodo del jugador):</strong> nombre publico elegido libremente por el usuario para identificarse en el Ranking Global. No se asocia a ninguna cuenta de correo real ni a datos personales.</li>
-      <li><strong>Puntuaciones / Records:</strong> resultados obtenidos en las partidas (puntos, zombies eliminados, etc.) que se muestran publicamente en la tabla de clasificacion.</li>
-    </ul>
   </div>
 
   <div class="card">
     <h2>3. Como utilizamos los datos</h2>
-    <p>Los datos mencionados (Nickname y Puntuaciones) se utilizan unica y exclusivamente para:</p>
+    <p>Los datos recopilados se utilizan unica y exclusivamente para:</p>
     <ul>
       <li>Mostrar el Ranking Global de jugadores en tiempo real dentro de la aplicacion.</li>
       <li>Identificar al jugador que alcanza la posicion #1 (TOP 1) en el menu principal.</li>
       <li>Permitir que el usuario vea su progreso comparado con otros jugadores.</li>
+      <li>Procesar y verificar las solicitudes de canje de diamantes.</li>
+      <li>Recibir y atender las sugerencias de los usuarios para mejorar el juego.</li>
+      <li>Calcular las reservas financieras necesarias para el pago de premios.</li>
+      <li>Prevenir el fraude, el hackeo y el uso de herramientas maliciosas (emuladores, VPN, manipulacion de memoria).</li>
+      <li>Identificar y bloquear dispositivos que violan los terminos de servicio.</li>
     </ul>
     <p>Estos datos <strong>no se utilizan para publicidad, no se venden a terceros, ni se comparten con fines comerciales</strong>.</p>
   </div>
 
   <div class="card">
     <h2>4. Almacenamiento y seguridad</h2>
-    <p>Los datos (Nickname y Puntuaciones) se almacenan de forma segura en Firebase Firestore, un servicio de Google Cloud que cumple con el RGPD (Reglamento General de Proteccion de Datos) y esta certificado bajo ISO 27001, ISO 27017 e ISO 27018. La informacion se transmite mediante conexiones cifradas (HTTPS/TLS).</p>
+    <p>Los datos se almacenan de forma segura en Firebase Firestore, un servicio de Google Cloud que cumple con el RGPD (Reglamento General de Proteccion de Datos) y esta certificado bajo ISO 27001, ISO 27017 e ISO 27018. La informacion se transmite mediante conexiones cifradas (HTTPS/TLS) y se cifra en reposo por defecto.</p>
+    <p>Las contrasenas se almacenan cifradas mediante Firebase Authentication y no son accesibles por el equipo de GARRDASHPE.</p>
+    <p>El ID de dispositivo se genera y almacena localmente mediante localStorage. Solo se envia a Firestore cuando un dispositivo es baneado por actividad maliciosa.</p>
     <p>El resto de los datos del juego (monedas, mejoras compradas, configuracion de sonido, personaje seleccionado) se almacenan <strong>localmente en el dispositivo</strong> mediante localStorage del navegador. No se envian a ningun servidor.</p>
   </div>
 
   <div class="card">
     <h2>5. Datos de menores</h2>
-    <p>GARRDASHPE esta disenado para ser apto para todas las edades. No recopilamos conscientemente datos personales de menores de 13 anos. Dado que unicamente procesamos un Nickname publico y puntuaciones de juego, no existe riesgo de exposicion de datos sensibles de menores. El juego incluye una opcion para desactivar los efectos de sangre neón, permitiendo una experiencia mas amigable para todas las edades.</p>
+    <p>GARRDASHPE esta disenado para todas las edades, con clasificacion de contenido PEGI 10 o similar. No recopilamos conscientemente datos personales de menores de 13 anos. Los datos procesados (nickname, puntuaciones, correo electronico) no constituyen datos personales sensibles. El juego incluye una opcion para desactivar los efectos de sangre neón, permitiendo una experiencia mas amigable para todas las edades.</p>
   </div>
 
   <div class="card">
     <h2>6. Servicios de terceros</h2>
     <p>La aplicacion utiliza los siguientes servicios de terceros:</p>
     <ul>
-      <li><strong>Firebase Firestore (Google):</strong> almacenamiento de Nickname y Puntuaciones para el Ranking Global. Consulte la politica de privacidad de Google/Firebase en <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a>.</li>
+      <li><strong>Firebase Authentication (Google):</strong> autenticacion de usuarios mediante correo electronico y contrasena. Consulte la politica de privacidad de Google/Firebase en <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a>.</li>
+      <li><strong>Firebase Firestore (Google):</strong> almacenamiento de Nickname, Puntuaciones, solicitudes de canje, sugerencias, datos de seguridad y configuracion del juego. Consulte la politica de privacidad de Google/Firebase en <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a>.</li>
       <li><strong>Pixabay (audio):</strong> musica de fondo libre de derechos. No se envian datos del usuario. Consulte <a href="https://pixabay.com/service/terms/" target="_blank" rel="noopener">pixabay.com/service/terms</a>.</li>
     </ul>
     <p>No utilizamos SDKs de analitica de terceros (como Google Analytics, Facebook SDK, etc.) ni SDKs publicitarios que recopilen datos del usuario.</p>
@@ -98,9 +111,9 @@
     <h2>7. Derechos del usuario (RGPD/LOPDGDD)</h2>
     <p>El usuario tiene derecho a:</p>
     <ul>
-      <li><strong>Acceso:</strong> solicitar una copia de los datos almacenados (su Nickname y puntuaciones).</li>
+      <li><strong>Acceso:</strong> solicitar una copia de los datos almacenados (su Nickname, puntuaciones, solicitudes de canje y sugerencias enviadas).</li>
       <li><strong>Rectificacion:</strong> corregir datos inexactos (cambiar su Nickname desde la app).</li>
-      <li><strong>Supresion:</strong> solicitar la eliminacion de sus puntuaciones del Ranking Global.</li>
+      <li><strong>Supresion:</strong> solicitar la eliminacion de sus puntuaciones del Ranking Global, solicitudes de canje, sugerencias y datos de seguridad asociados a su cuenta.</li>
       <li><strong>Portabilidad:</strong> recibir sus datos en formato estructurado.</li>
       <li><strong>Oposicion:</strong> oponerse al procesamiento de sus datos.</li>
     </ul>

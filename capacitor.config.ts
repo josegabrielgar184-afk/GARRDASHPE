@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.garrdashpe.app',
+  appId: 'com.garricraft.garrdash',
   appName: 'GarrDash',
   webDir: 'out',
   server: {

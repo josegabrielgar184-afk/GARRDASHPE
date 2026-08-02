@@ -562,19 +562,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const endGameBatch = useCallback(() => {
     gameBatchModeRef.current = false;
     const user = auth.currentUser;
+    let coinsToSync = pendingGameCoinsRef.current;
+    if (vip && coinsToSync > 0) coinsToSync = Math.floor(coinsToSync * 1.5);
     if (user && isOnline) {
       const updates: Record<string, ReturnType<typeof increment>> = {};
-      if (pendingGameCoinsRef.current !== 0) updates.coins = increment(pendingGameCoinsRef.current);
+      if (coinsToSync !== 0) updates.coins = increment(coinsToSync);
       if (pendingGamePointsRef.current !== 0) updates.puntos = increment(pendingGamePointsRef.current);
       if (Object.keys(updates).length > 0) {
         try { updateDoc(doc(db, 'usuarios', user.uid), updates); } catch {}
       }
     } else if (!isOnline) {
-      if (pendingGameCoinsRef.current > 0) setPendingCoins((prev) => prev + pendingGameCoinsRef.current);
+      if (coinsToSync > 0) setPendingCoins((prev) => prev + coinsToSync);
     }
     pendingGameCoinsRef.current = 0;
     pendingGamePointsRef.current = 0;
-  }, [isOnline]);
+  }, [isOnline, vip]);
 
   const addCoins = useCallback((n: number) => {
     const user = auth.currentUser;
