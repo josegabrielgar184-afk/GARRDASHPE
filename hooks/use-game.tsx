@@ -818,10 +818,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const hasMoreRanking = useCallback((_type: 'space' | 'zombie' | 'weekly') => false, []);
 
   const BOT_NAMES = ['NeonHunter', 'CyberWolf', 'PixelKing', 'StarLord', 'GhostRider', 'DarkPhoenix', 'IronFist', 'ShadowBlade', 'StormBringer', 'VoidWalker', 'FrostByte', 'TurboNinja', 'RogueAce', 'BlazeX', 'NovaStrike'];
+  const BOT_SCORES = [8420, 5190, 3300, 2750, 2100, 1850, 1500, 1200, 980, 750, 600, 450, 320, 200, 100];
 
   const fillWithBots = useCallback((entries: RankEntry[], field: 'space' | 'zombie' | 'weekly'): RankEntry[] => {
     if (entries.length >= 15) return entries.slice(0, 15);
-    const realUids = new Set(entries.map((e) => e.uid));
     const realScores = entries.map((e) => e.score);
     const maxReal = realScores.length > 0 ? Math.max(...realScores) : 0;
     const bots: RankEntry[] = [];
@@ -830,8 +830,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       let name = BOT_NAMES[i % BOT_NAMES.length];
       if (usedNames.has(name)) name = `${name}${i}`;
       usedNames.add(name);
-      const botScore = Math.max(50, Math.floor(maxReal * (1 - i * 0.07) - Math.random() * 200));
-      bots.push({ name, score: Math.max(10, botScore), uid: `bot_${field}_${i}` });
+      const baseScore = BOT_SCORES[i] ?? 50;
+      const botScore = maxReal > baseScore ? Math.max(50, Math.floor(baseScore - Math.random() * 100)) : Math.max(50, Math.floor(baseScore * (1 - i * 0.05) - Math.random() * 50));
+      bots.push({ name, score: botScore, uid: `bot_${field}_${i}` });
     }
     return [...entries, ...bots].slice(0, 15);
   }, []);

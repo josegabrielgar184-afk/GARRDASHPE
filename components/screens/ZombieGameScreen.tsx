@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Heart, Coins, Zap, Bomb, Video, Radiation, Shield, Baby } from 'lucide-react';
+import { ArrowLeft, Heart, Coins, Zap, Bomb, Video, Radiation, Shield, Baby, Sparkles, Magnet } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   type Particle2D, type MuzzleFlash,
@@ -17,29 +17,35 @@ import {
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
 
-type WeaponType = 'pistol' | 'rifle' | 'shotgun';
-type ZombieType = 'normal' | 'fast' | 'giant';
+type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
+type PowerUpType = 'shield' | 'doubleShot' | 'coinMagnet' | 'weapon' | 'coins' | 'points';
 
-interface Zombie { x: number; y: number; vy: number; walkCycle: number; hp: number; maxHp: number; size: number; color: string; type: ZombieType; hitFlash: number; active: boolean; reset(): void; }
+interface Zombie { x: number; y: number; vy: number; vx: number; walkCycle: number; hp: number; maxHp: number; size: number; color: string; type: ZombieType; hitFlash: number; active: boolean; reset(): void; }
 interface Bullet { x: number; y: number; vx: number; vy: number; life: number; damage: number; color: string; active: boolean; reset(): void; }
 interface Barrel { x: number; y: number; vy: number; hp: number; id: number; active: boolean; reset(): void; }
+interface FloatingCoin { x: number; y: number; vx: number; vy: number; life: number; active: boolean; reset(): void; }
+interface PowerUpDrop { x: number; y: number; vy: number; type: PowerUpType; active: boolean; reset(): void; }
 interface BloodSplat { x: number; y: number; size: number; alpha: number; }
 
-function makeZombie(): Zombie { return { x: 0, y: 0, vy: 0, walkCycle: 0, hp: 100, maxHp: 100, size: 22, color: '#65a30d', type: 'normal', hitFlash: 0, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.walkCycle = 0; this.hp = 100; this.maxHp = 100; this.size = 22; this.color = '#65a30d'; this.type = 'normal'; this.hitFlash = 0; } }; }
+function makeZombie(): Zombie { return { x: 0, y: 0, vy: 0, vx: 0, walkCycle: 0, hp: 100, maxHp: 100, size: 22, color: '#65a30d', type: 'normal', hitFlash: 0, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.vx = 0; this.walkCycle = 0; this.hp = 100; this.maxHp = 100; this.size = 22; this.color = '#65a30d'; this.type = 'normal'; this.hitFlash = 0; } }; }
 function makeBullet(): Bullet { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, damage: 0, color: '', active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; this.damage = 0; this.color = ''; } }; }
 let barrelIdCounter = 0;
 function makeBarrel(): Barrel { return { x: 0, y: 0, vy: 0, hp: 50, id: 0, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.hp = 50; this.id = 0; } }; }
+function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; } }; }
+function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'coins', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.type = 'coins'; } }; }
 
 const LANE_COUNT = 5;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.35;
 
-const MILESTONES: Record<number, { title: string; coins?: number; shield?: boolean; scoreBoost?: boolean }> = {
-  4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 400 },
-  10: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true },
-  30: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true },
+const MILESTONES: Record<number, { title: string; coins?: number; shield?: boolean; scoreBoost?: boolean; color: string }> = {
+  4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 400, color: '#ec4899' },
+  10: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true, color: '#60a5fa' },
+  30: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true, color: '#60a5fa' },
 };
+
+function randomCoinCap(): number { return Math.floor(rand(70, 91)); }
 
 export function ZombieGameScreen() {
   const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch } = useGame();
@@ -48,7 +54,6 @@ export function ZombieGameScreen() {
   const [score, setScore] = useState(0);
   const [zombiesKilled, setZombiesKilled] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [weapon, setWeapon] = useState<WeaponType>('pistol');
   const [barricadeHp, setBarricadeHp] = useState(100);
   const [gameOver, setGameOver] = useState(false);
   const [showReviveReward, setShowReviveReward] = useState(false);
@@ -64,10 +69,17 @@ export function ZombieGameScreen() {
   const [comboDisplay, setComboDisplay] = useState(0);
   const [shieldActive, setShieldActive] = useState(false);
   const [scoreBoostActive, setScoreBoostActive] = useState(false);
+  const [overdriveActive, setOverdriveActive] = useState(false);
+  const [doubleShotActive, setDoubleShotActive] = useState(false);
+  const [coinMagnetActive, setCoinMagnetActive] = useState(false);
+  const [scoreColor, setScoreColor] = useState('#ffffff');
+  const [killStreak, setKillStreak] = useState(0);
 
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 30));
-  const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 50));
+  const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 60));
   const barrelPoolRef = useRef<ObjectPool<Barrel>>(new ObjectPool(makeBarrel, 8));
+  const coinPoolRef = useRef<ObjectPool<FloatingCoin>>(new ObjectPool(makeFloatingCoin, 30));
+  const powerUpPoolRef = useRef<ObjectPool<PowerUpDrop>>(new ObjectPool(makePowerUpDrop, 8));
   const bloodSplatsRef = useRef<BloodSplat[]>([]);
   const bossRef = useRef<Zombie | null>(null);
   const particlesRef = useRef<Particle2D[]>([]);
@@ -81,7 +93,6 @@ export function ZombieGameScreen() {
   const barricadeHpRef = useRef(100);
   const barricadeMaxHpRef = useRef(100);
   const gameOverRef = useRef(false);
-  const weaponRef = useRef<WeaponType>('pistol');
   const shootCooldownRef = useRef(0);
   const fireRateLevelRef = useRef(0);
   const damageLevelRef = useRef(0);
@@ -96,6 +107,7 @@ export function ZombieGameScreen() {
   const bloodEnabledRef = useRef(true);
   const whiteFlashRef = useRef(0);
   const gameCoinsRef = useRef(0);
+  const coinCapRef = useRef(80);
   const interstitialCheckedRef = useRef(false);
   const fpsMonitorRef = useRef<FPSMonitor>(new FPSMonitor());
   const playTimeRef = useRef(0);
@@ -114,6 +126,15 @@ export function ZombieGameScreen() {
   const scoreBoostRef = useRef(false);
   const scoreBoostTimerRef = useRef(0);
   const alertFlashRef = useRef(0);
+  const overdriveRef = useRef(false);
+  const overdriveTimerRef = useRef(0);
+  const killStreakRef = useRef(0);
+  const doubleShotRef = useRef(false);
+  const doubleShotTimerRef = useRef(0);
+  const coinMagnetRef = useRef(false);
+  const coinMagnetTimerRef = useRef(0);
+  const coinHudXRef = useRef(0);
+  const coinHudYRef = useRef(0);
 
   const char = getZombieCharacter();
 
@@ -127,25 +148,37 @@ export function ZombieGameScreen() {
 
   useEffect(() => { bloodEnabledRef.current = bloodEnabled; }, [bloodEnabled]);
 
-  const MAX_GAME_COINS = vip ? 15 : 10;
-
   const safeAddCoins = useCallback((amount: number) => {
-    if (gameCoinsRef.current >= MAX_GAME_COINS) return;
-    const toAdd = Math.min(amount, MAX_GAME_COINS - gameCoinsRef.current);
+    if (gameCoinsRef.current >= coinCapRef.current) return;
+    const toAdd = Math.min(amount, coinCapRef.current - gameCoinsRef.current);
     if (toAdd <= 0) return;
     addCoins(toAdd);
     gameCoinsRef.current += toAdd;
     setCoinsEarned(gameCoinsRef.current);
-  }, [addCoins, MAX_GAME_COINS]);
+  }, [addCoins]);
 
-  const getFireRate = () => Math.max(5, 16 - fireRateLevelRef.current * 2);
-  const getDamage = () => (30 + damageLevelRef.current * 12) * damageMultRef.current;
-  const getScoreMult = () => scoreMultRef.current * (scoreBoostRef.current ? 2 : 1);
+  const getFireRate = () => {
+    let rate = Math.max(5, 16 - fireRateLevelRef.current * 2);
+    if (overdriveRef.current) rate *= 0.5;
+    return rate;
+  };
+  const getDamage = () => (30 + damageLevelRef.current * 12) * damageMultRef.current * (nuclearActiveRef.current ? 2.5 : 1);
+  const getScoreMult = () => scoreMultRef.current * (scoreBoostRef.current ? 2 : 1) * (overdriveRef.current ? 1.5 : 1);
 
   const addFloatText = (text: string, x: number, y: number, color = '#fbbf24', size = 14) => {
     const id = Date.now() + Math.random();
     setFloatTexts((prev) => [...prev, { id, text, x, y, color, size }]);
     setTimeout(() => setFloatTexts((prev) => prev.filter((f) => f.id !== id)), 1000);
+  };
+
+  const spawnFloatingCoins = (x: number, y: number, count: number) => {
+    for (let i = 0; i < count; i++) {
+      if (gameCoinsRef.current >= coinCapRef.current) break;
+      const c = coinPoolRef.current.acquire();
+      c.x = x + rand(-15, 15); c.y = y + rand(-15, 15);
+      c.vx = rand(-2, 2); c.vy = rand(-3, -1);
+      c.life = 60;
+    }
   };
 
   const checkMilestone = useCallback(() => {
@@ -157,7 +190,8 @@ export function ZombieGameScreen() {
       const ms = MILESTONES[next];
       if (ms) {
         setMilestoneBanner(ms.title);
-        setTimeout(() => setMilestoneBanner(null), 4000);
+        setScoreColor(ms.color);
+        setTimeout(() => { setMilestoneBanner(null); setScoreColor('#ffffff'); }, 4000);
         if (ms.coins) {
           safeAddCoins(ms.coins);
           addFloatText(`+${ms.coins} MONEDAS`, canvasSizeRef.current.w / 2, canvasSizeRef.current.h / 2, '#fbbf24', 20);
@@ -176,6 +210,11 @@ export function ZombieGameScreen() {
     } catch {}
   }, [safeAddCoins]);
 
+  const checkKillStreakMilestone = useCallback((streak: number) => {
+    if (streak === 4) { setScoreColor('#ec4899'); setTimeout(() => setScoreColor('#ffffff'), 3000); }
+    else if (streak === 10 || streak === 30) { setScoreColor('#60a5fa'); setTimeout(() => setScoreColor('#ffffff'), 3000); }
+  }, []);
+
   const initGame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -186,6 +225,8 @@ export function ZombieGameScreen() {
     zombiePoolRef.current.releaseAll();
     bulletPoolRef.current.releaseAll();
     barrelPoolRef.current.releaseAll();
+    coinPoolRef.current.releaseAll();
+    powerUpPoolRef.current.releaseAll();
     bloodSplatsRef.current = [];
     bossRef.current = null;
     particlesRef.current = [];
@@ -193,18 +234,23 @@ export function ZombieGameScreen() {
     scoreRef.current = 0; killCountRef.current = 0;
     livesRef.current = 3;
     barricadeHpRef.current = 100; barricadeMaxHpRef.current = 100;
-    gameOverRef.current = false; weaponRef.current = 'pistol'; setWeapon('pistol');
+    gameOverRef.current = false;
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
     difficultyRef.current = 1; miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; scrollYRef.current = 0;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
+    coinCapRef.current = randomCoinCap();
     nuclearChargeRef.current = 0; nuclearActiveRef.current = false; nuclearTimerRef.current = 0;
     hasRevivedRef.current = false; setHasRevived(false);
     comboRef.current = 0; comboTimerRef.current = 0; setComboDisplay(0);
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
     alertFlashRef.current = 0;
+    overdriveRef.current = false; setOverdriveActive(false); overdriveTimerRef.current = 0;
+    killStreakRef.current = 0; setKillStreak(0);
+    doubleShotRef.current = false; setDoubleShotActive(false); doubleShotTimerRef.current = 0;
+    coinMagnetRef.current = false; setCoinMagnetActive(false); coinMagnetTimerRef.current = 0;
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(100); setGameOver(false); setBossActive(false);
-    setNuclearReady(false);
+    setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
     checkMilestone();
   }, [upgrades, startGameBatch, checkMilestone]);
@@ -253,8 +299,8 @@ export function ZombieGameScreen() {
     const turretY = h * TURRET_Y_RATIO;
     const tx = turretXRef.current;
     const speed = 12;
-    const dmg = getDamage() * (nuclearActiveRef.current ? 2.5 : 1);
-    const color = weaponRef.current === 'shotgun' ? '#f87171' : weaponRef.current === 'rifle' ? '#22d3ee' : '#fbbf24';
+    const dmg = getDamage();
+    const color = '#fbbf24';
 
     const fire = (ox: number, vxMod: number) => {
       const b = bulletPoolRef.current.acquire();
@@ -263,9 +309,13 @@ export function ZombieGameScreen() {
       b.life = 80; b.damage = dmg; b.color = color;
     };
 
-    if (weaponRef.current === 'pistol') { fire(0, 0); shootCooldownRef.current = getFireRate(); }
-    else if (weaponRef.current === 'rifle') { fire(0, 0); shootCooldownRef.current = Math.max(4, getFireRate() - 6); }
-    else if (weaponRef.current === 'shotgun') { fire(-10, -1.5); fire(0, 0); fire(10, 1.5); shootCooldownRef.current = getFireRate() + 6; }
+    if (doubleShotRef.current) {
+      fire(-12, -1); fire(12, 1);
+      shootCooldownRef.current = getFireRate();
+    } else {
+      fire(0, 0);
+      shootCooldownRef.current = getFireRate();
+    }
 
     spawnMuzzleFlash(muzzleFlashesRef.current, tx, turretY - 30, -Math.PI / 2, color, 22 * SPRITE_SCALE);
     playShoot();
@@ -276,15 +326,16 @@ export function ZombieGameScreen() {
     const r = Math.random();
     let type: ZombieType = 'normal';
     if (difficultyRef.current > 1.5 && r < 0.15) type = 'fast';
-    else if (difficultyRef.current > 2 && r < 0.22) type = 'giant';
+    else if (difficultyRef.current > 2 && r < 0.22) type = 'tank';
 
     let zHp: number, size: number, color: string, vy: number;
     if (type === 'fast') { zHp = 50; size = 18 * SPRITE_SCALE; color = '#ef4444'; vy = 1.8 + difficultyRef.current * 0.2; }
-    else if (type === 'giant') { zHp = 300; size = 28 * SPRITE_SCALE; color = '#7c3aed'; vy = 0.8 + difficultyRef.current * 0.1; }
+    else if (type === 'tank') { zHp = 300; size = 28 * SPRITE_SCALE; color = '#7c3aed'; vy = 0.8 + difficultyRef.current * 0.1; }
     else { zHp = 100; size = 16 * SPRITE_SCALE; color = '#65a30d'; vy = 1.2 + difficultyRef.current * 0.15; }
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
+    z.vx = type === 'fast' ? rand(-1.5, 1.5) : 0;
     z.vy = vy * speedMultRef.current; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, []);
@@ -293,12 +344,12 @@ export function ZombieGameScreen() {
     const { w } = canvasSizeRef.current;
     const zHp = 2000;
     const boss = zombiePoolRef.current.acquire();
-    boss.x = w / 2; boss.y = -60; boss.vy = 0.6; boss.walkCycle = 0;
-    boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#dc2626'; boss.type = 'giant'; boss.hitFlash = 0;
+    boss.x = w / 2; boss.y = -60; boss.vy = 0.6; boss.vx = 0; boss.walkCycle = 0;
+    boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#dc2626'; boss.type = 'boss'; boss.hitFlash = 0;
     bossRef.current = boss;
-    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp); setBossName('GIANT FOOTBALL ZOMBIE');
+    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp); setBossName('JEFE DE OLEADA');
     playBossAlert();
-    addFloatText('¡GIANT FOOTBALL ZOMBIE!', w / 2, canvasSizeRef.current.h / 3, '#dc2626', 18);
+    addFloatText('¡JEFE DE OLEADA!', w / 2, canvasSizeRef.current.h / 3, '#dc2626', 18);
     screenShakeRef.current.trigger(6, 20);
     hapticFeedback(50);
   }, []);
@@ -309,6 +360,13 @@ export function ZombieGameScreen() {
     b.x = getLaneX(lane); b.y = -20; b.vy = 0.8 + Math.random() * 0.4;
     b.hp = 50; b.id = ++barrelIdCounter;
   }, []);
+
+  const spawnPowerUpDrop = (x: number, y: number) => {
+    const types: PowerUpType[] = ['shield', 'doubleShot', 'coinMagnet'];
+    const type = types[Math.floor(Math.random() * types.length)];
+    const pu = powerUpPoolRef.current.acquire();
+    pu.x = x; pu.y = y; pu.vy = 1.5; pu.type = type;
+  };
 
   const activateNuclear = () => {
     if (!nuclearReady || gameOverRef.current) return;
@@ -330,8 +388,6 @@ export function ZombieGameScreen() {
     }
     setScore(Math.floor(scoreRef.current)); setZombiesKilled(killCountRef.current);
   };
-
-  useEffect(() => { weaponRef.current = weapon; }, [weapon]);
 
   useEffect(() => {
     if (gameOver && !interstitialCheckedRef.current) {
@@ -361,15 +417,27 @@ export function ZombieGameScreen() {
       const { w, h } = canvasSizeRef.current;
       const barricadeY = h * BARRICADE_Y_RATIO;
       const turretY = h * TURRET_Y_RATIO;
+      const coinsCapped = gameCoinsRef.current >= coinCapRef.current;
 
       screenShakeRef.current.update(dt);
       const shake = screenShakeRef.current.getOffset();
 
-      scrollYRef.current += dt * 1.5;
+      scrollYRef.current += dt * (coinsCapped ? 3 : 1.5);
       if (alertFlashRef.current > 0) alertFlashRef.current = Math.max(0, alertFlashRef.current - dt * 0.05);
 
       ctx.save();
       ctx.translate(shake.x, shake.y);
+
+      // Overdrive border
+      if (overdriveRef.current) {
+        const pulse = 0.3 + Math.sin(now * 0.01) * 0.2;
+        ctx.strokeStyle = `rgba(255,215,0,${pulse})`;
+        ctx.lineWidth = 6;
+        ctx.strokeRect(3, 3, w - 6, h - 6);
+        ctx.strokeStyle = `rgba(255,100,0,${pulse * 0.5})`;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(8, 8, w - 16, h - 16);
+      }
 
       const grad = ctx.createLinearGradient(0, 0, 0, h);
       grad.addColorStop(0, '#1a1505');
@@ -378,6 +446,11 @@ export function ZombieGameScreen() {
       grad.addColorStop(1, '#0a0805');
       ctx.fillStyle = grad;
       ctx.fillRect(-20, -20, w + 40, h + 40);
+
+      if (coinsCapped) {
+        ctx.fillStyle = `rgba(255,50,50,${0.04 + Math.sin(now * 0.01) * 0.02})`;
+        ctx.fillRect(-20, -20, w + 40, h + 40);
+      }
 
       if (alertFlashRef.current > 0) {
         ctx.fillStyle = `rgba(255,50,50,${alertFlashRef.current * 0.08})`;
@@ -416,7 +489,7 @@ export function ZombieGameScreen() {
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
 
         if (touchTargetRef.current.active) {
-          turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.2 * dt);
+          turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.25 * dt);
         } else {
           const targetX = findNearestZombieX();
           turretXRef.current = lerp(turretXRef.current, targetX, 0.08 * dt);
@@ -426,17 +499,18 @@ export function ZombieGameScreen() {
         shoot();
 
         difficultyRef.current = 1 + scoreRef.current / 500;
+        if (coinsCapped) difficultyRef.current *= 1.5;
 
         if (!bossRef.current) {
           spawnTimerRef.current += dt;
-          const interval = Math.max(12, 30 - difficultyRef.current * 2.5);
+          const interval = Math.max(8, (coinsCapped ? 20 : 30) - difficultyRef.current * 2.5);
           if (spawnTimerRef.current > interval) { spawnZombie(); spawnTimerRef.current = 0; }
           if (scoreRef.current >= miniBossThresholdRef.current) {
             for (let i = 0; i < 2; i++) {
               spawnZombie();
               const active = zombiePoolRef.current.getActive();
               const last = active[active.length - 1];
-              if (last) { last.type = 'giant'; last.hp = 200; last.maxHp = 200; last.size = 26 * SPRITE_SCALE; last.color = '#a855f7'; last.vy *= 0.6; }
+              if (last) { last.type = 'tank'; last.hp = 200; last.maxHp = 200; last.size = 26 * SPRITE_SCALE; last.color = '#a855f7'; last.vy *= 0.6; }
             }
             miniBossThresholdRef.current += 500;
             addFloatText('¡Mutantes!', w / 2, h / 3, '#a855f7', 16);
@@ -461,14 +535,27 @@ export function ZombieGameScreen() {
           scoreBoostTimerRef.current -= dt;
           if (scoreBoostTimerRef.current <= 0) { scoreBoostRef.current = false; setScoreBoostActive(false); }
         }
+        if (doubleShotRef.current) {
+          doubleShotTimerRef.current -= dt;
+          if (doubleShotTimerRef.current <= 0) { doubleShotRef.current = false; setDoubleShotActive(false); }
+        }
+        if (coinMagnetRef.current) {
+          coinMagnetTimerRef.current -= dt;
+          if (coinMagnetTimerRef.current <= 0) { coinMagnetRef.current = false; setCoinMagnetActive(false); }
+        }
+        if (overdriveRef.current) {
+          overdriveTimerRef.current -= dt;
+          if (overdriveTimerRef.current <= 0) { overdriveRef.current = false; setOverdriveActive(false); }
+        }
 
         for (const z of zombiePoolRef.current.getActive()) {
           z.y += z.vy * dt;
+          if (z.type === 'fast') z.x += z.vx * dt;
           z.walkCycle += dt * 0.3;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
 
           if (z.y > barricadeY - z.size) {
-            const dmg = z.type === 'giant' ? 25 : z.type === 'fast' ? 12 : 15;
+            const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
             if (shieldRef.current) {
               addFloatText('¡ESCUDO!', z.x, barricadeY - 30, '#22d3ee', 16);
               spawnParticles2D(particlesRef.current, z.x, barricadeY, 10, '#22d3ee', 5);
@@ -478,6 +565,7 @@ export function ZombieGameScreen() {
               addFloatText(`-${dmg}`, z.x, barricadeY - 20, '#ef4444');
               spawnParticles2D(particlesRef.current, z.x, barricadeY, 8, '#ef4444', 4);
               screenShakeRef.current.trigger(3, 10);
+              killStreakRef.current = 0; setKillStreak(0);
             }
             if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
             zombiePoolRef.current.release(z);
@@ -497,6 +585,32 @@ export function ZombieGameScreen() {
           if (b.y > barricadeY - 10) { barrelPoolRef.current.release(b); }
         }
 
+        for (const pu of powerUpPoolRef.current.getActive()) {
+          if (coinMagnetRef.current) {
+            const dx = turretXRef.current - pu.x;
+            const dy = turretY - pu.y;
+            const d = Math.hypot(dx, dy);
+            if (d < 200 && d > 5) { pu.x += (dx / d) * 3 * dt; pu.y += (dy / d) * 3 * dt; }
+          }
+          pu.y += pu.vy * dt;
+          if (pu.y > barricadeY - 10) { powerUpPoolRef.current.release(pu); continue; }
+          if (dist(pu.x, pu.y, turretXRef.current, turretY) < 35) {
+            powerUpPoolRef.current.release(pu);
+            if (pu.type === 'shield') {
+              shieldRef.current = true; setShieldActive(true); shieldTimerRef.current = 360;
+              addFloatText('¡ESCUDO NEÓN!', w / 2, h / 2, '#22d3ee', 16);
+            } else if (pu.type === 'doubleShot') {
+              doubleShotRef.current = true; setDoubleShotActive(true); doubleShotTimerRef.current = 480;
+              addFloatText('¡DOBLE RÁFAGA!', w / 2, h / 2, '#fbbf24', 16);
+            } else if (pu.type === 'coinMagnet') {
+              coinMagnetRef.current = true; setCoinMagnetActive(true); coinMagnetTimerRef.current = 480;
+              addFloatText('¡IMÁN DE MONEDAS!', w / 2, h / 2, '#fbbf24', 16);
+            }
+            playPickup();
+            hapticFeedback(40);
+          }
+        }
+
         for (const b of bulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
           if (b.life <= 0 || b.y < -10) { bulletPoolRef.current.release(b); continue; }
@@ -506,6 +620,7 @@ export function ZombieGameScreen() {
             if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
               spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(4), b.color, 3);
+              addFloatText(`${Math.floor(b.damage)}`, b.x, b.y - 10, '#fbbf24', 11);
               if (z.hp <= 0) {
                 zombiePoolRef.current.release(z);
                 const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
@@ -513,33 +628,50 @@ export function ZombieGameScreen() {
                 if (comboRef.current >= 3) setComboDisplay(comboRef.current);
                 const comboBonus = comboRef.current >= 5 ? 1.5 : comboRef.current >= 3 ? 1.2 : 1;
 
+                killStreakRef.current++; setKillStreak(killStreakRef.current);
+                checkKillStreakMilestone(killStreakRef.current);
+
                 if (z === bossRef.current) {
                   bossRef.current = null; setBossActive(false); finalBossDefeatedRef.current = true;
-                  safeAddCoins(5);
+                  const bossCoins = Math.floor(rand(5, 9));
+                  spawnFloatingCoins(z.x, z.y, bossCoins);
                   scoreRef.current += 5000 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(50), bloodColor, 8);
-                  addFloatText('+5 monedas', w / 2, h / 3, '#fbbf24', 18);
+                  addFloatText(`+${bossCoins} MONEDAS`, w / 2, h / 3, '#fbbf24', 18);
+                  addFloatText('¡JEFE ELIMINADO!', z.x, z.y - 40, '#dc2626', 16);
                   screenShakeRef.current.trigger(10, 25);
                   hapticPattern([50, 30, 100]);
                   finalBossThresholdRef.current += 3000;
-                } else if (z.type === 'giant') {
+                } else if (z.type === 'tank') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 500 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
-                  safeAddCoins(2); playExplosion(); playCoin();
+                  const tankCoins = Math.floor(rand(2, 4));
+                  spawnFloatingCoins(z.x, z.y, tankCoins);
+                  playExplosion(); playCoin();
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(25), bloodColor, 6);
+                  addFloatText('¡TANQUE!', z.x, z.y - 30, '#7c3aed', 14);
                   screenShakeRef.current.trigger(5, 15);
                   hapticFeedback(30);
                 } else if (z.type === 'fast') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 150 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
+                  if (Math.random() < 0.18) spawnFloatingCoins(z.x, z.y, 1);
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(12), bloodColor, 5);
                 } else {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 100 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
-                  if (killCountRef.current % 5 === 0) { safeAddCoins(1); playCoin(); }
+                  if (Math.random() < (0.15 + Math.random() * 0.05)) spawnFloatingCoins(z.x, z.y, 1);
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(10), bloodColor, 4);
                 }
+
+                if (killStreakRef.current === 15 && !overdriveRef.current) {
+                  overdriveRef.current = true; setOverdriveActive(true); overdriveTimerRef.current = 600;
+                  addFloatText('¡FRENESÍ!', w / 2, h * 0.35, '#fbbf24', 22);
+                  screenShakeRef.current.trigger(6, 20);
+                  hapticPattern([50, 30, 50, 30, 100]);
+                }
+
                 if (comboRef.current >= 3 && comboRef.current % 3 === 0) {
                   addFloatText(`COMBO x${comboRef.current}!`, z.x, z.y - 30, '#22d3ee', 16);
                 }
@@ -557,16 +689,13 @@ export function ZombieGameScreen() {
               if (br.hp <= 0) {
                 barrelPoolRef.current.release(br);
                 const r = Math.random();
-                if (r < 0.4) {
-                  const newW: WeaponType = Math.random() < 0.5 ? 'rifle' : 'shotgun';
-                  setWeapon(newW); weaponRef.current = newW;
-                  addFloatText(newW.toUpperCase(), br.x, br.y - 20, '#22d3ee', 16);
-                } else if (r < 0.7) {
-                  safeAddCoins(2); playCoin();
-                  addFloatText('+2 monedas', br.x, br.y - 20, '#fbbf24', 16);
+                if (r < 0.5) {
+                  spawnPowerUpDrop(br.x, br.y);
+                  addFloatText('¡POWER-UP!', br.x, br.y - 20, '#22d3ee', 16);
                 } else {
-                  scoreRef.current += 200 * getScoreMult(); setScore(Math.floor(scoreRef.current));
-                  addFloatText('+200 pts', br.x, br.y - 20, '#34d399', 16);
+                  const barrelCoins = Math.floor(rand(2, 4));
+                  spawnFloatingCoins(br.x, br.y, barrelCoins);
+                  addFloatText(`+${barrelCoins} MONEDAS`, br.x, br.y - 20, '#fbbf24', 16);
                 }
                 playPickup();
                 spawnParticles2D(particlesRef.current, br.x, br.y, 15, '#fbbf24', 5);
@@ -577,6 +706,26 @@ export function ZombieGameScreen() {
             }
           }
           if (hit) bulletPoolRef.current.release(b);
+        }
+
+        for (const c of coinPoolRef.current.getActive()) {
+          if (coinMagnetRef.current) {
+            const tx = turretXRef.current;
+            const ty = turretY;
+            const dx = tx - c.x;
+            const dy = ty - c.y;
+            const d = Math.hypot(dx, dy);
+            if (d > 5) { c.vx += (dx / d) * 0.5 * dt; c.vy += (dy / d) * 0.5 * dt; }
+          } else {
+            c.vy += 0.15 * dt;
+          }
+          c.x += c.vx * dt; c.y += c.vy * dt; c.life -= dt;
+          if (c.life <= 0 || c.y > h + 20) { coinPoolRef.current.release(c); continue; }
+          if (dist(c.x, c.y, turretXRef.current, turretY) < 30) {
+            coinPoolRef.current.release(c);
+            safeAddCoins(1); playCoin();
+            hapticFeedback(15);
+          }
         }
 
         nuclearChargeRef.current += dt * 0.25;
@@ -628,7 +777,7 @@ export function ZombieGameScreen() {
         ctx.moveTo(z.size * 0.5, bobY + z.size * 0.3);
         ctx.lineTo(z.size * 0.3, bobY + z.size * 0.7);
         ctx.stroke();
-        if (z.type === 'giant') {
+        if (z.type === 'tank' || z.type === 'boss') {
           ctx.fillStyle = '#4a3a1a';
           ctx.fillRect(-z.size * 0.6, bobY - z.size * 0.8, z.size * 1.2, z.size * 0.3);
           ctx.strokeStyle = '#6a5a2a';
@@ -671,6 +820,26 @@ export function ZombieGameScreen() {
         ctx.restore();
       }
 
+      for (const pu of powerUpPoolRef.current.getActive()) {
+        ctx.save();
+        ctx.translate(pu.x, pu.y);
+        const pulse = 1 + Math.sin(now * 0.01) * 0.15;
+        ctx.scale(pulse, pulse);
+        const colors: Record<PowerUpType, string> = { shield: '#22d3ee', doubleShot: '#fbbf24', coinMagnet: '#f97316', weapon: '#a855f7', coins: '#fbbf24', points: '#34d399' };
+        const c = colors[pu.type];
+        ctx.shadowColor = c;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const labels: Record<PowerUpType, string> = { shield: 'S', doubleShot: 'D', coinMagnet: 'M', weapon: 'W', coins: '$', points: 'P' };
+        ctx.fillText(labels[pu.type], 0, 0);
+        ctx.restore();
+      }
+
       ctx.fillStyle = '#3a2a1a';
       ctx.fillRect(0, barricadeY, w, 10);
       ctx.fillStyle = '#2a1a0a';
@@ -687,8 +856,8 @@ export function ZombieGameScreen() {
       const tx = turretXRef.current;
       ctx.save();
       ctx.translate(tx, turretY);
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 10;
+      ctx.shadowColor = overdriveRef.current ? '#ff6b00' : '#fbbf24';
+      ctx.shadowBlur = overdriveRef.current ? 20 : 10;
       ctx.fillStyle = '#2a2a2a';
       ctx.fillRect(-34, -14, 68, 27);
       ctx.fillStyle = '#1a1a1a';
@@ -715,35 +884,16 @@ export function ZombieGameScreen() {
         drawNeonCircle(ctx, tx, turretY - 15, 40, '#22d3ee', 20);
       }
 
-      ctx.save();
-      ctx.translate(tx - 50, turretY);
-      ctx.shadowColor = '#d4a574';
-      ctx.shadowBlur = 5;
-      ctx.fillStyle = '#3a3a2a';
-      ctx.beginPath(); ctx.arc(0, -6, 16, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#d4a574';
-      ctx.beginPath(); ctx.arc(0, -16, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#8b6b3a';
-      ctx.fillRect(-13, -18, 26, 5);
-      ctx.fillStyle = '#5a4a2a';
-      ctx.fillRect(-8, -13, 5, 11);
-      ctx.restore();
-
-      ctx.save();
-      ctx.translate(tx + 50, turretY);
-      ctx.shadowColor = '#d4a574';
-      ctx.shadowBlur = 5;
-      ctx.fillStyle = '#3a3a2a';
-      ctx.beginPath(); ctx.arc(0, -6, 16, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#d4a574';
-      ctx.beginPath(); ctx.arc(0, -16, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#8b6b3a';
-      ctx.fillRect(-13, -18, 26, 5);
-      ctx.fillStyle = '#5a4a2a';
-      ctx.fillRect(3, -13, 5, 11);
-      ctx.restore();
+      for (const c of coinPoolRef.current.getActive()) {
+        ctx.save();
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fde68a';
+        ctx.beginPath(); ctx.arc(c.x - 2, c.y - 2, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
 
       for (const b of bulletPoolRef.current.getActive()) {
         ctx.save();
@@ -790,7 +940,7 @@ export function ZombieGameScreen() {
 
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip]);
+  }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -817,21 +967,18 @@ export function ZombieGameScreen() {
     };
   }, []);
 
-  const weaponIcons: Record<WeaponType, typeof Zap> = { pistol: Zap, rifle: Zap, shotgun: Bomb };
-  const WeaponIcon = weaponIcons[weapon];
-
   return (
     <div className="absolute inset-0 bg-black flex flex-col">
       <OfflineBanner />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-3 pb-2">
-        <button onClick={() => setScreen('mode-select')} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
+        <button onClick={() => setScreen('menu')} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5">
             {Array.from({ length: 3 }).map((_, i) => <Heart key={i} className={`w-4 h-4 ${i < lives ? 'text-red-500 fill-red-500' : 'text-white/20'}`} />)}
           </div>
-          <div className="bg-black/50 backdrop-blur rounded-full px-3 py-1.5 text-white text-sm font-bold">{score} pts</div>
-          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5"><Coins className="w-4 h-4 text-amber-400" /><span className="text-amber-400 text-sm font-bold">{coinsEarned}</span></div>
+          <div className="bg-black/50 backdrop-blur rounded-full px-3 py-1.5 text-sm font-bold transition-colors" style={{ color: scoreColor }}>{score} pts</div>
+          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5"><Coins className="w-4 h-4 text-amber-400" /><span className="text-amber-400 text-sm font-bold">{coinsEarned}/{coinCapRef.current}</span></div>
         </div>
       </div>
       <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 w-56">
@@ -851,10 +998,17 @@ export function ZombieGameScreen() {
         </div>
       )}
       <div className="absolute top-24 right-4 z-10 flex flex-col gap-2">
-        <div className="w-12 h-12 rounded-xl bg-black/50 backdrop-blur border border-cyan-400/30 flex items-center justify-center text-cyan-400"><WeaponIcon className="w-5 h-5" /></div>
         {shieldActive && <div className="w-12 h-12 rounded-xl bg-cyan-500/20 backdrop-blur border border-cyan-400/50 flex items-center justify-center text-cyan-400 animate-pulse"><Shield className="w-5 h-5" /></div>}
-        {scoreBoostActive && <div className="w-12 h-12 rounded-xl bg-amber-500/20 backdrop-blur border border-amber-400/50 flex items-center justify-center text-amber-400 animate-pulse"><span className="text-xs font-black">2x</span></div>}
+        {doubleShotActive && <div className="w-12 h-12 rounded-xl bg-amber-500/20 backdrop-blur border border-amber-400/50 flex items-center justify-center text-amber-400 animate-pulse"><Zap className="w-5 h-5" /></div>}
+        {coinMagnetActive && <div className="w-12 h-12 rounded-xl bg-orange-500/20 backdrop-blur border border-orange-400/50 flex items-center justify-center text-orange-400 animate-pulse"><Magnet className="w-5 h-5" /></div>}
+        {scoreBoostActive && <div className="w-12 h-12 rounded-xl bg-blue-500/20 backdrop-blur border border-blue-400/50 flex items-center justify-center text-blue-400 animate-pulse"><span className="text-xs font-black">2x</span></div>}
+        {overdriveActive && <div className="w-12 h-12 rounded-xl bg-red-500/20 backdrop-blur border border-red-400/50 flex items-center justify-center text-red-400 animate-pulse"><Sparkles className="w-5 h-5" /></div>}
       </div>
+      {killStreak > 0 && !gameOver && (
+        <div className="absolute top-32 left-4 z-20 pointer-events-none">
+          <span className="text-white/60 font-bold text-xs">RACHA: {killStreak}</span>
+        </div>
+      )}
       {comboDisplay >= 3 && !gameOver && (
         <div className="absolute top-32 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
           <span className="text-cyan-400 font-black text-lg animate-pulse" style={{ textShadow: '0 0 15px rgba(34,211,238,0.8)' }}>COMBO x{comboDisplay}</span>
@@ -897,7 +1051,7 @@ export function ZombieGameScreen() {
               </button>
             )}
             <button onClick={() => initGame()} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold mb-2 hover:bg-primary/90 shadow-lg shadow-primary/20">Reiniciar</button>
-            <button onClick={() => setScreen('mode-select')} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
+            <button onClick={() => setScreen('menu')} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
           </div>
         </div>
       )}

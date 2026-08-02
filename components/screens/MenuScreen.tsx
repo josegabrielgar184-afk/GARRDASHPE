@@ -197,7 +197,7 @@ export function MenuScreen() {
 
           {/* 4 neon centralized buttons */}
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setScreen('mode-select')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
+            <button onClick={() => setScreen('zombie-game')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
               <Gamepad2 className="w-8 h-8 text-white" />
               <span className="text-white font-bold text-sm">JUGAR</span>
             </button>
@@ -354,7 +354,7 @@ export function MenuScreen() {
               </div>
             </div>
 
-            <p className="mt-6 text-center text-white/30 text-xs">GARRDASHPE v1.0.0 &copy; 2026</p>
+            <p className="mt-6 text-center text-white/30 text-xs">GARRDASH v2.0.0 &copy; 2026</p>
           </div>
         </div>
       )}
