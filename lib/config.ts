@@ -25,7 +25,7 @@ export const VIP_FREE_ROULETTE_SPINS = 3;
 //   ruletaId:       Your Rewarded Ad Unit ID for "Ruleta" (ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX)
 // ============================================================================
 export const ADMOB_CONFIG = {
-  appId: MODO_PRUEBA
+  appId: MODO_PRUEBA: false
     ? 'ca-app-pub-3940256099942544~3347511713'
     : 'ca-app-pub-4019857759287283~2238402676',
   bannerId: MODO_PRUEBA
