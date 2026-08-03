@@ -25,21 +25,11 @@ export const VIP_FREE_ROULETTE_SPINS = 3;
 //   ruletaId:       Your Rewarded Ad Unit ID for "Ruleta" (ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX)
 // ============================================================================
 export const ADMOB_CONFIG = {
-  appId: MODO_PRUEBA: false
-    ? 'ca-app-pub-3940256099942544~3347511713'
-    : 'ca-app-pub-4019857759287283~2238402676',
-  bannerId: MODO_PRUEBA
-    ? 'ca-app-pub-3940256099942544/6300978111'
-    : 'ca-app-pub-4019857759287283/9166507177',
-  anuncioTiempoId: MODO_PRUEBA
-    ? 'ca-app-pub-3940256099942544/1033173712'
-    : 'ca-app-pub-4019857759287283/9604799919',
-  revivirId: MODO_PRUEBA
-    ? 'ca-app-pub-3940256099942544/5224354917'
-    : 'ca-app-pub-4019857759287283/4624626939',
-  ruletaId: MODO_PRUEBA
-    ? 'ca-app-pub-3940256099942544/5224354917'
-    : 'ca-app-pub-4019857759287283/3914180497',
+  appId: "ca-app-pub-4019857759287283~XXXXXXXXXX",
+  bannerId: "ca-app-pub-4019857759287283/9166507177",
+  anuncioTiempoId: "ca-app-pub-4019857759287283/9604799919",
+  revivirId: "ca-app-pub-4019857759287283/4624626939",
+  ruletaId: "ca-app-pub-4019857759287283/3914180497",
 };
 
 export const AYET_STUDIOS_CONFIG = {
