@@ -8,6 +8,22 @@ export const VIP_PRICE_PEN = 11.50;
 export const VIP_COIN_MULTIPLIER = 1.5;
 export const VIP_FREE_ROULETTE_SPINS = 3;
 
+// ============================================================================
+// ADMOB MANUAL ID CONFIGURATION
+// ============================================================================
+// To use your own AdMob IDs, replace the string values in the "else" branches
+// (the ones after the colon ":") below. Keep MODO_PRUEBA = false to use them.
+//
+// File: lib/config.ts
+// Lines: 11-27 (the ADMOB_CONFIG block)
+//
+// Replace each ID after the colon with your real AdMob ID:
+//   appId:          Your AdMob App ID (ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX)
+//   bannerId:       Your Banner Ad Unit ID (ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX)
+//   anuncioTiempoId: Your Interstitial Ad Unit ID (ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX)
+//   revivirId:      Your Rewarded Ad Unit ID for "Revive" (ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX)
+//   ruletaId:       Your Rewarded Ad Unit ID for "Ruleta" (ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX)
+// ============================================================================
 export const ADMOB_CONFIG = {
   appId: MODO_PRUEBA
     ? 'ca-app-pub-3940256099942544~3347511713'

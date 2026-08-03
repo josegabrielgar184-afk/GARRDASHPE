@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { ADMOB_CONFIG } from '@/lib/config';
-
-type AdMobPlugin = {
-  AdMob?: {
-    prepareInterstitial: (opts: Record<string, unknown>) => Promise<void>;
-    showInterstitial: () => Promise<void>;
-  };
-};
+import { AdMob } from '@capacitor-community/admob';
 
 export function InterstitialAd({ onDone }: { onDone: () => void }) {
   const { isOnline } = useGame();
@@ -25,18 +19,11 @@ export function InterstitialAd({ onDone }: { onDone: () => void }) {
         const isNative = Capacitor?.isNativePlatform?.() ?? false;
         if (!isNative) { if (!cancelled) { doneRef.current = true; onDone(); } return; }
 
-        let plugin: AdMobPlugin['AdMob'] | undefined;
-        try {
-          const mod = await (eval('import')('@capacitor-community/admob'));
-          plugin = (mod as unknown as AdMobPlugin).AdMob;
-        } catch { if (!cancelled) { doneRef.current = true; onDone(); } return; }
-        if (!plugin) { if (!cancelled) { doneRef.current = true; onDone(); } return; }
-
-        await plugin.prepareInterstitial({
+        await AdMob.prepareInterstitial({
           adId: ADMOB_CONFIG.anuncioTiempoId,
         });
         if (cancelled) return;
-        await plugin.showInterstitial();
+        await AdMob.showInterstitial();
         if (cancelled) return;
         doneRef.current = true;
         onDone();

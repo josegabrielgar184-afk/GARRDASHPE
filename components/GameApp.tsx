@@ -22,6 +22,7 @@ import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
 import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
+import { AdMob } from '@capacitor-community/admob';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
@@ -165,15 +166,12 @@ function AppShell() {
   }, [screen]);
 
   useEffect(() => {
-    // Initialize AdMob SDK on native platforms
     (async () => {
       try {
         const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
         const isNative = Capacitor?.isNativePlatform?.() ?? false;
         if (!isNative) return;
-        const mod = await (eval('import')('@capacitor-community/admob'));
-        const AdMob = (mod as unknown as { AdMob: { initialize: (opts: Record<string, unknown>) => Promise<void> } }).AdMob;
-        if (AdMob) await AdMob.initialize({ requestTrackingAuthorization: true });
+        await AdMob.initialize({ initializeForTesting: false });
       } catch {}
     })();
   }, []);
