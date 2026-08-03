@@ -165,7 +165,7 @@ export function MenuScreen() {
                   <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span className="text-amber-300 text-[10px] font-bold uppercase tracking-wider">Rey Global</span>
                 </div>
-                <p className="text-white font-bold text-sm truncate">{topPlayerName}</p>
+                <p className="text-white font-bold text-sm truncate flex items-center gap-1"><Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />{topPlayerName}</p>
                 <p className="text-amber-400 font-mono text-xs">{topPlayerScore.toLocaleString()} pts</p>
               </div>
               <div className="text-right shrink-0">

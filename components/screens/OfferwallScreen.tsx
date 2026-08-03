@@ -65,7 +65,7 @@ export function OfferwallScreen() {
                     <p className="text-cyan-400 font-bold text-sm">Gana monedas reales</p>
                   </div>
                 </div>
-                <p className="text-white/40 text-xs">Completa encuestas, descarga apps y juega para ganar monedas. Las recompensas se acreditan automaticamente de forma segura via webhook validado con Firebase.</p>
+                <p className="text-white/40 text-xs">Completa encuestas, descarga apps y juega para ganar monedas. Las recompensas se acreditan a tu cuenta de forma automatica y segura.</p>
               </div>
 
               <button
@@ -95,7 +95,7 @@ export function OfferwallScreen() {
                 <p className="text-white/40">1. Presiona "Abrir Offerwall" para ver las misiones disponibles.</p>
                 <p className="text-white/40">2. Completa la mision (encuesta, descarga, juego, etc).</p>
                 <p className="text-white/40">3. Las monedas se acreditan a tu cuenta automaticamente.</p>
-                <p className="text-white/40">4. El sistema valida cada recompensa via webhook con Firebase.</p>
+                <p className="text-white/40">4. Las monedas aparecen en tu cuenta al instante.</p>
               </div>
             </>
           )}

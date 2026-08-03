@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { MuteButton } from '@/components/game/MuteButton';
 import { ArrowLeft, Heart, Coins, Video, Radiation, Shield, Baby, Sparkles, Magnet, Zap } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
@@ -82,6 +83,7 @@ export function ZombieGameScreen() {
   const [bossMaxHp, setBossMaxHp] = useState(0);
   const [bossName, setBossName] = useState('');
   const [showInterstitial, setShowInterstitial] = useState(false);
+  const pendingExitRef = useRef(false);
   const [nuclearReady, setNuclearReady] = useState(false);
   const [hasRevived, setHasRevived] = useState(false);
   const [milestoneBanner, setMilestoneBanner] = useState<string | null>(null);
@@ -421,6 +423,7 @@ export function ZombieGameScreen() {
     whiteFlashRef.current = 1;
     screenShakeRef.current.trigger(12, 30);
     hapticPattern([100, 50, 100, 50, 200]);
+    const clearedCount = zombiePoolRef.current.getActive().length;
     for (const z of zombiePoolRef.current.getActive()) {
       spawnParticles2D(particlesRef.current, z.x, z.y, 12, '#fbbf24', 6);
       zombiePoolRef.current.release(z);
@@ -428,6 +431,10 @@ export function ZombieGameScreen() {
       killCountRef.current++;
     }
     setScore(Math.floor(scoreRef.current)); setZombiesKilled(killCountRef.current);
+    // Instant respawn - no empty screen after bomb
+    for (let i = 0; i < Math.min(clearedCount, 6); i++) {
+      setTimeout(() => spawnZombie(), i * 50);
+    }
   };
 
   useEffect(() => {
@@ -1210,7 +1217,7 @@ export function ZombieGameScreen() {
       <OfflineBanner />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-3 pb-2">
-        <button onClick={() => setScreen('menu')} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
+        <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else setScreen('menu'); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5">
             {Array.from({ length: 3 }).map((_, i) => <Heart key={i} className={`w-4 h-4 ${i < lives ? 'text-red-500 fill-red-500' : 'text-white/20'}`} />)}
@@ -1301,19 +1308,12 @@ export function ZombieGameScreen() {
               </button>
             )}
             <button onClick={() => initGame()} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold mb-2 hover:bg-primary/90 shadow-lg shadow-primary/20">Reiniciar</button>
-            <button onClick={() => setScreen('menu')} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
+            <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else setScreen('menu'); }} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
           </div>
         </div>
       )}
       {showInterstitial && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 animate-fade-in">
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
-            <Video className="w-16 h-16 text-primary animate-pulse mx-auto mb-4" />
-            <p className="text-white font-bold text-lg mb-2">Anuncio Interstitial</p>
-            <p className="text-white/50 text-sm mb-6">Anuncio publicitario - Cierra en 3 segundos...</p>
-            <button onClick={() => setShowInterstitial(false)} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:opacity-90">Cerrar ahora</button>
-          </div>
-        </div>
+        <InterstitialAd onDone={() => { setShowInterstitial(false); if (pendingExitRef.current) { pendingExitRef.current = false; setScreen('menu'); } }} />
       )}
       <RewardAdModal
         open={showReviveReward}

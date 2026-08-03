@@ -64,7 +64,7 @@ export function CampaignMapScreen() {
         >
           {unlocked ? (
             <>
-              <span className="font-black text-lg" style={{ color }}>{level}</span>
+              <span className={`font-black text-lg ${level === 4 ? 'animate-blink-red' : (level === 10 || level === 30) ? 'animate-glow-white' : ''}`} style={{ color }}>{level}</span>
               {special && (
                 <span className="absolute -top-2 -right-2">
                   {level === 4 ? <Heart className="w-4 h-4 text-red-500 fill-red-500" /> : <Baby className="w-4 h-4 text-white" />}
@@ -101,8 +101,9 @@ export function CampaignMapScreen() {
 
       {/* Top bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-gradient-to-b from-background to-transparent">
-        <button onClick={() => setScreen('menu')} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white">
+        <button onClick={() => setScreen('menu')} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/50 backdrop-blur text-white text-sm font-bold active:scale-95 transition-all">
           <ArrowLeft className="w-5 h-5" />
+          <span>Volver</span>
         </button>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5">
@@ -132,16 +133,7 @@ export function CampaignMapScreen() {
         <InfinityIcon className="w-4 h-4" />
       </button>
 
-      {/* Diamond Exchange */}
-      <button
-        onClick={() => setScreen('offerwall')}
-        className="absolute bottom-36 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-900/40 to-blue-900/40 border border-cyan-500/40 text-cyan-400 font-bold text-xs flex items-center gap-2 active:scale-95 transition-all"
-      >
-        <Gem className="w-3.5 h-3.5" />
-        CANJEAR 100 DIAMANTES FF
-      </button>
-
-      {/* Scrollable map */}
+            {/* Scrollable map */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar pt-28 pb-44 px-4">
         <div className="flex flex-col items-center gap-0 max-w-sm mx-auto">
           {Array.from({ length: TOTAL_CAMPAIGN_LEVELS }, (_, i) => i + 1).map((level) => (
@@ -176,6 +168,18 @@ export function CampaignMapScreen() {
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes blink-red {
+          0%, 50%, 100% { opacity: 1; color: #ef4444; text-shadow: 0 0 15px #ef4444, 0 0 30px #ef4444; }
+          25%, 75% { opacity: 0.3; color: #dc2626; }
+        }
+        .animate-blink-red { animation: blink-red 0.8s ease-in-out infinite; }
+        @keyframes glow-white {
+          0%, 100% { opacity: 1; color: #ffffff; text-shadow: 0 0 10px #ffffff, 0 0 20px #ffffff; }
+          50% { opacity: 0.7; color: #f0f0f0; text-shadow: 0 0 20px #ffffff, 0 0 40px #ffffff; }
+        }
+        .animate-glow-white { animation: glow-white 1.2s ease-in-out infinite; }
+      `}</style>
     </div>
   );
 }

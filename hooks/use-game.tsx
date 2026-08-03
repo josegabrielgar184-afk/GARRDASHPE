@@ -368,7 +368,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedInState] = useState(false);
   const [email, setEmail] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [topPlayerName, setTopPlayerName] = useState('Garricraft_YT');
+  const [topPlayerName, setTopPlayerName] = useState('NeonHunter');
   const [topPlayerScore, setTopPlayerScore] = useState(154820);
   const [topPlayerAvatar, setTopPlayerAvatar] = useState<string | undefined>(undefined);
   const [absoluteRecord, setAbsoluteRecord] = useState(154820);
@@ -465,6 +465,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             if (data.lastLogin) {
               await updateDoc(doc(db, 'usuarios', user.uid), { lastLogin: serverTimestamp() });
             }
+          } else {
+            // Document doesn't exist - create it immediately to prevent ghost registrations
+            await setDoc(doc(db, 'usuarios', user.uid), {
+              nombre: user.email?.split('@')[0] ?? 'Player',
+              email: user.email ?? '',
+              coins: WELCOME_BONUS_COINS,
+              totalRuns: 0,
+              bestScore: 0,
+              createdAt: serverTimestamp(),
+              lastLogin: serverTimestamp(),
+              rol: 'user',
+              welcomeBonusClaimed: true,
+              campaignLevel: 1,
+              campaignKeys: 0,
+              campaignStars: {},
+              towerLevels: { turret: 0, drone: 0, medic: 0 },
+            });
+            setShowWelcomeBonus(true);
           }
         } catch {}
         setUserRole(role);
@@ -545,7 +563,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const unsub = onSnapshot(topRef, (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          const name = data.name || data.nickname || 'Garricraft_YT';
+          const name = data.name || data.nickname || 'NeonHunter';
           const score = data.score || 0;
           const avatar = data.avatar;
           if (score > 0) {

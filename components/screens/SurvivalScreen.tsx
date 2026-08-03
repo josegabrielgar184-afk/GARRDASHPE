@@ -52,6 +52,7 @@ export function SurvivalScreen() {
   const touchTargetRef = useRef<{ x: number; active: boolean }>({ x: 0, active: false });
   const turretXRef = useRef(0);
   const survivalTimeRef = useRef(0);
+  const survivalCoinTimerRef = useRef(0);
   const coinsEarnedRef = useRef(0);
   const barricadeHpRef = useRef(100);
   const gameOverRef = useRef(false);
@@ -153,7 +154,7 @@ export function SurvivalScreen() {
     const c = cratePoolRef.current.acquire();
     c.x = getLaneX(lane); c.y = -20; c.vy = 0.8 + Math.random() * 0.4;
     c.hp = 30; c.maxHp = 30;
-    c.coins = Math.floor(rand(2, 4));
+    c.coins = 1;
   }, []);
 
   useEffect(() => {
@@ -191,6 +192,13 @@ export function SurvivalScreen() {
         survivalTimeRef.current += dt * 16.67;
         setSurvivalTime(Math.floor(survivalTimeRef.current / 1000));
         difficultyRef.current = 1 + survivalTimeRef.current / 30000;
+        // Time-based coin reward: 1 coin per 10 seconds survived
+        survivalCoinTimerRef.current += dt;
+        if (survivalCoinTimerRef.current >= 600) {
+          survivalCoinTimerRef.current = 0;
+          coinsEarnedRef.current += 1; setCoinsEarned(coinsEarnedRef.current);
+          addCoins(1);
+        }
 
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
 
@@ -249,7 +257,7 @@ export function SurvivalScreen() {
               if (z.hp <= 0) {
                 zombiePoolRef.current.release(z);
                 coinsEarnedRef.current += 1; setCoinsEarned(coinsEarnedRef.current);
-                addCoins(1); playCoin();
+                playCoin();
                 spawnParticles2D(particlesRef.current, z.x, z.y, 10, z.color, 4);
               }
               break;
