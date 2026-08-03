@@ -269,7 +269,7 @@ export function ZombieGameScreen() {
     barricadeHpRef.current = 100; barricadeMaxHpRef.current = 100;
     gameOverRef.current = false;
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
-    difficultyRef.current = 1; miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
+    difficultyRef.current = Math.max(0.5, 0.5 + (campaignLevelRef.current - 1) * 0.1); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; scrollYRef.current = 0;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
     coinCapRef.current = randomCoinCap();
@@ -360,10 +360,11 @@ export function ZombieGameScreen() {
     if (difficultyRef.current > 1.5 && r < 0.15) type = 'fast';
     else if (difficultyRef.current > 2 && r < 0.22) type = 'tank';
 
+    const levelScale = Math.max(0.5, Math.min(1, 0.5 + (campaignLevelRef.current - 1) * 0.05));
     let zHp: number, size: number, color: string, vy: number;
-    if (type === 'fast') { zHp = 50; size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = 1.8 + difficultyRef.current * 0.2; }
-    else if (type === 'tank') { zHp = 300; size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = 0.8 + difficultyRef.current * 0.1; }
-    else { zHp = 100; size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = 1.2 + difficultyRef.current * 0.15; }
+    if (type === 'fast') { zHp = Math.floor(25 * levelScale); size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = (0.9 + difficultyRef.current * 0.2) * levelScale; }
+    else if (type === 'tank') { zHp = Math.floor(150 * levelScale); size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = (0.4 + difficultyRef.current * 0.1) * levelScale; }
+    else { zHp = Math.floor(40 * levelScale); size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = (0.6 + difficultyRef.current * 0.15) * levelScale; }
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
@@ -873,7 +874,9 @@ export function ZombieGameScreen() {
         // Simultaneous zombie + barrel spawning - no dead time (BLOCK 7)
         if (!bossRef.current) {
           spawnTimerRef.current += dt;
-          const interval = Math.max(8, (coinsCapped ? 20 : 30) - difficultyRef.current * 2.5);
+          const baseInterval = coinsCapped ? 20 : 30;
+          const levelMultiplier = Math.max(1.5, 2.5 - (campaignLevelRef.current - 1) * 0.1);
+          const interval = Math.max(8, baseInterval * levelMultiplier - difficultyRef.current * 2.5);
           if (spawnTimerRef.current > interval) { spawnZombie(); spawnTimerRef.current = 0; }
           if (scoreRef.current >= miniBossThresholdRef.current) {
             for (let i = 0; i < 2; i++) {

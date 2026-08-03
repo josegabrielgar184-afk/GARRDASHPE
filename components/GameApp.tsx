@@ -165,6 +165,20 @@ function AppShell() {
   }, [screen]);
 
   useEffect(() => {
+    // Initialize AdMob SDK on native platforms
+    (async () => {
+      try {
+        const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+        const isNative = Capacitor?.isNativePlatform?.() ?? false;
+        if (!isNative) return;
+        const mod = await (eval('import')('@capacitor-community/admob'));
+        const AdMob = (mod as unknown as { AdMob: { initialize: (opts: Record<string, unknown>) => Promise<void> } }).AdMob;
+        if (AdMob) await AdMob.initialize({ requestTrackingAuthorization: true });
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
         pauseAudio();

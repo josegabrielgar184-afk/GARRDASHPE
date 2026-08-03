@@ -7,6 +7,7 @@ import {
   updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment,
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
+import { pauseAudio, resumeAudio } from '@/lib/audio';
 import {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   type User,
@@ -368,8 +369,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedInState] = useState(false);
   const [email, setEmail] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [topPlayerName, setTopPlayerName] = useState('NeonHunter');
-  const [topPlayerScore, setTopPlayerScore] = useState(154820);
+  const [topPlayerName, setTopPlayerName] = useState('Cargando...');
+  const [topPlayerScore, setTopPlayerScore] = useState(0);
   const [topPlayerAvatar, setTopPlayerAvatar] = useState<string | undefined>(undefined);
   const [absoluteRecord, setAbsoluteRecord] = useState(154820);
   const [lastRouletteDate, setLastRouletteDate] = useState('');
@@ -578,6 +579,27 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
+  // Real-time query: top player by bestScore across all usuarios
+  useEffect(() => {
+    try {
+      const topQ = query(collection(db, 'usuarios'), orderBy('bestScore', 'desc'), limit(1));
+      const unsub = onSnapshot(topQ, (snap) => {
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          const name = data.nombre || data.email?.split('@')[0] || 'Jugador';
+          const score = data.bestScore ?? 0;
+          if (score > 0) {
+            setTopPlayerName(name);
+            setTopPlayerScore(score);
+            setAbsoluteRecord(score);
+            if (data.avatar) setTopPlayerAvatar(data.avatar);
+          }
+        }
+      }, () => {});
+      return () => unsub();
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const spaceTop = spaceRanking[0];
     const zombieTop = zombieRanking[0];
@@ -614,6 +636,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     } else {
       audioRef.current.play().catch(() => {});
     }
+  }, [muted, screen]);
+
+  // Pause all audio when app goes to background (zero ghost music)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (audioRef.current) audioRef.current.pause();
+        pauseAudio();
+        (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = true;
+      } else {
+        (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = false;
+        if (audioRef.current && !muted && screen !== 'intro' && screen !== 'login') {
+          audioRef.current.play().catch(() => {});
+        }
+        resumeAudio();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [muted, screen]);
 
   const setScreen = useCallback((s: Screen) => setScreenState(s), []);
