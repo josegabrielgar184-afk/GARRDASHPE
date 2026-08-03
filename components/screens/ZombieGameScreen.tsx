@@ -15,6 +15,7 @@ import {
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
+import { getCampaignCoinReward } from '@/lib/config';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, initAudio } from '@/lib/audio';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
@@ -66,7 +67,7 @@ const MILESTONES: Record<number, { title: string; coins?: number; shield?: boole
 function randomCoinCap(): number { return Math.floor(rand(70, 91)); }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel} = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -95,6 +96,8 @@ export function ZombieGameScreen() {
   const [currentWeapon, setCurrentWeapon] = useState<WeaponType>('pistol');
   const [weaponTimer, setWeaponTimer] = useState(0);
   const [themeName, setThemeName] = useState(COLOR_THEMES[0].name);
+  const [campaignLevel, setCampaignLevel] = useState(1);
+  const [reviveShieldTimer, setReviveShieldTimer] = useState(0);
 
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 30));
   const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 80));
@@ -157,6 +160,8 @@ export function ZombieGameScreen() {
   const weaponTimerRef = useRef(0);
   const themeIndexRef = useRef(0);
   const themeTimerRef = useRef(0);
+  const reviveShieldTimerRef = useRef(0);
+  const campaignLevelRef = useRef(1);
 
   const char = getZombieCharacter();
 
@@ -276,6 +281,9 @@ export function ZombieGameScreen() {
     coinMagnetRef.current = false; setCoinMagnetActive(false); coinMagnetTimerRef.current = 0;
     weaponRef.current = 'pistol'; setCurrentWeapon('pistol'); weaponTimerRef.current = 0; setWeaponTimer(0);
     themeIndexRef.current = 0; themeTimerRef.current = 0; setThemeName(COLOR_THEMES[0].name);
+    const cl = getCurrentCampaignLevel();
+    campaignLevelRef.current = cl; setCampaignLevel(cl);
+    reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(100); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
@@ -855,6 +863,7 @@ export function ZombieGameScreen() {
         difficultyRef.current = 1 + scoreRef.current / 500;
         if (coinsCapped) difficultyRef.current *= 1.5;
 
+        // Simultaneous zombie + barrel spawning - no dead time (BLOCK 7)
         if (!bossRef.current) {
           spawnTimerRef.current += dt;
           const interval = Math.max(8, (coinsCapped ? 20 : 30) - difficultyRef.current * 2.5);
@@ -871,10 +880,16 @@ export function ZombieGameScreen() {
             screenShakeRef.current.trigger(4, 15);
           }
           if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current) spawnBoss();
+          // Barrels spawn alongside zombies - always simultaneous
+          barrelTimerRef.current += dt;
+          if (barrelTimerRef.current > 200) { spawnBarrel(); barrelTimerRef.current = 0; }
         }
 
-        barrelTimerRef.current += dt;
-        if (barrelTimerRef.current > 200) { spawnBarrel(); barrelTimerRef.current = 0; }
+        if (reviveShieldTimerRef.current > 0) {
+          reviveShieldTimerRef.current -= dt;
+          setReviveShieldTimer(Math.ceil(reviveShieldTimerRef.current / 60));
+          if (reviveShieldTimerRef.current <= 0) { addFloatText('¡Escudo agotado!', w / 2, h * 0.4, '#ef4444', 14); }
+        }
 
         if (comboTimerRef.current > 0) {
           comboTimerRef.current -= dt;
@@ -896,7 +911,7 @@ export function ZombieGameScreen() {
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
-            if (shieldRef.current) {
+            if (shieldRef.current || reviveShieldTimerRef.current > 0) {
               addFloatText('¡ESCUDO!', z.x, barricadeY - 30, '#22d3ee', 16);
               spawnParticles2D(particlesRef.current, z.x, barricadeY, 10, '#22d3ee', 5);
             } else {
@@ -1201,7 +1216,7 @@ export function ZombieGameScreen() {
             {Array.from({ length: 3 }).map((_, i) => <Heart key={i} className={`w-4 h-4 ${i < lives ? 'text-red-500 fill-red-500' : 'text-white/20'}`} />)}
           </div>
           <div className="bg-black/50 backdrop-blur rounded-full px-3 py-1.5 text-sm font-bold transition-colors" style={{ color: scoreColor }}>{score} pts</div>
-          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5"><Coins className="w-4 h-4 text-amber-400" /><span className="text-amber-400 text-sm font-bold">{coinsEarned}/{coinCapRef.current}</span></div>
+          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5"><Coins className="w-4 h-4 text-amber-400" /><span className="text-amber-400 text-sm font-bold">{coinsEarned}</span></div>
         </div>
       </div>
       <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 w-56">
@@ -1242,6 +1257,18 @@ export function ZombieGameScreen() {
         </div>
       )}
       {floatTexts.map((ft) => <div key={ft.id} className="absolute z-20 font-bold animate-float-up pointer-events-none" style={{ left: ft.x, top: ft.y, transform: 'translate(-50%, -50%)', color: ft.color, fontSize: ft.size || 14 }}>{ft.text}</div>)}
+      {reviveShieldTimer > 0 && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+          <div className="px-4 py-2 rounded-xl bg-cyan-500/20 backdrop-blur border border-cyan-400/50 text-cyan-400 font-bold text-sm animate-pulse flex items-center gap-2">
+            <Shield className="w-4 h-4" /> Escudo de Inmunidad {reviveShieldTimer}s
+          </div>
+        </div>
+      )}
+      {campaignLevel > 0 && !gameOver && (
+        <div className="absolute top-20 left-4 z-10 pointer-events-none">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">NIVEL {campaignLevel}</span>
+        </div>
+      )}
       {milestoneBanner && (
         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none animate-fade-in">
           <div className="px-6 py-4 rounded-2xl bg-gradient-to-r from-amber-600/30 via-amber-400/30 to-amber-600/30 border-2 border-amber-400 shadow-2xl shadow-amber-500/40 backdrop-blur-md text-center" style={{ animation: 'pulse-glow 1s ease-in-out infinite' }}>
@@ -1296,10 +1323,11 @@ export function ZombieGameScreen() {
           barricadeHpRef.current = barricadeMaxHpRef.current; setBarricadeHp(barricadeMaxHpRef.current);
           gameOverRef.current = false; setGameOver(false);
           hasRevivedRef.current = true; setHasRevived(true);
+          reviveShieldTimerRef.current = 120; setReviveShieldTimer(2);
           safeAddCoins(3);
           const { w, h } = canvasSizeRef.current;
           for (const z of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(z);
-          addFloatText('¡REVIVIDO!', w / 2, h / 2, '#34d399', 20);
+          addFloatText('¡ESCUDO DE INMUNIDAD 2s!', w / 2, h / 2, '#22d3ee', 18);
           hapticPattern([50, 30, 100]);
         }}
         title="Revivir"

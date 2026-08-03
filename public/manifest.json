@@ -1,7 +1,7 @@
 {
-  "name": "GarrDash",
+  "name": "GarrDash - Zombie Survivor",
   "short_name": "GarrDash",
-  "description": "Juego espacial y apocalipsis zombie",
+  "description": "Arcade zombie survivor con campaña de 999 niveles, torres de apoyo y ranking global",
   "start_url": "/",
   "display": "fullscreen",
   "orientation": "portrait",

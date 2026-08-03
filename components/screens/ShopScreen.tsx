@@ -12,6 +12,7 @@ export function ShopScreen() {
   const {
     coins, points, spendCoins, addPoints, vip, vipExpiry, buyVIP, setScreen,
     upgrades, buyUpgrade, claimDiamonds, selectedZombie, selectZombie,
+    towerLevels, buyTower, getTowerLevel, campaignProgress, exchangeDiamonds, canExchangeDiamonds,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [tab, setTab] = useState<'upgrades' | 'diamonds' | 'heroes'>('upgrades');
@@ -47,12 +48,12 @@ export function ShopScreen() {
     }
   };
 
-  const upgradeDefs: Array<{ key: keyof typeof UPGRADE_COSTS; icon: typeof Zap; name: string; desc: string; color: string }> = [
-    { key: 'fireRate', icon: Zap, name: 'Cadencia', desc: 'Dispara mas rapido', color: '#f97316' },
-    { key: 'damage', icon: Swords, name: 'Daño', desc: 'Balas mas potentes', color: '#ef4444' },
-    { key: 'coinMagnet', icon: Magnet, name: 'Iman', desc: 'Atrae monedas y botiquines', color: '#22d3ee' },
-    { key: 'superShield', icon: Shield, name: 'Escudo', desc: 'Escudo inicial cada partida', color: '#34d399' },
+  const towerDefs: Array<{ key: 'turret' | 'drone' | 'medic'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
+    { key: 'turret', icon: Zap, name: 'Torreta', desc: 'Dispara junto al jugador', color: '#f97316', baseCost: 200 },
+    { key: 'drone', icon: Swords, name: 'Dron', desc: 'Vuela y dispara a multiples enemigos', color: '#ef4444', baseCost: 500 },
+    { key: 'medic', icon: Shield, name: 'Medico', desc: 'Repara la barricada automaticamente', color: '#34d399', baseCost: 800 },
   ];
+  const towerCost = (key: 'turret' | 'drone' | 'medic') => towerDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
@@ -111,40 +112,37 @@ export function ShopScreen() {
           </div>
 
           <div className="flex gap-2 mb-4">
-            <button onClick={() => setTab('upgrades')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'upgrades' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Upgrades</button>
+            <button onClick={() => setTab('upgrades')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'upgrades' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Torres</button>
             <button onClick={() => setTab('diamonds')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'diamonds' ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/20' : 'bg-card border border-border text-white/60'}`}>Diamantes</button>
             <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-card border border-border text-white/60'}`}>Héroes</button>
           </div>
 
           {tab === 'upgrades' && (
-            <div className="grid grid-cols-2 gap-3">
-              {upgradeDefs.map((u) => {
-                const Icon = u.icon;
-                const cost = upgradeCost(u.key);
+            <div className="grid grid-cols-1 gap-3">
+              {towerDefs.map((t) => {
+                const Icon = t.icon;
+                const cost = towerCost(t.key);
+                const level = getTowerLevel(t.key);
                 return (
-                  <div key={u.key} className="rounded-2xl bg-card border p-3 shadow-lg flex flex-col" style={{ borderColor: `${u.color}55` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${u.color}20` }}>
-                        <Icon className="w-4 h-4" style={{ color: u.color }} />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-white font-bold text-xs truncate">{u.name}</h3>
-                        <p className="text-white/40 text-[10px] truncate">{u.desc}</p>
-                      </div>
+                  <div key={t.key} className="rounded-2xl bg-card border p-4 shadow-lg flex items-center gap-4" style={{ borderColor: `${t.color}55` }}>
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${t.color}20`, boxShadow: `0 0 12px ${t.color}33` }}>
+                      <Icon className="w-6 h-6" style={{ color: t.color }} />
                     </div>
-                    <div className="text-center mb-2">
-                      <span className="font-bold text-lg" style={{ color: u.color }}>Nv.{upgrades[u.key]}</span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-bold text-sm">{t.name}</h3>
+                      <p className="text-white/40 text-xs">{t.desc}</p>
+                      <span className="font-black text-lg" style={{ color: t.color }}>Nv.{level}</span>
                     </div>
                     <button
                       onClick={() => {
                         setError(''); setSuccess('');
-                        if (!buyUpgrade(u.key, cost)) setError('No tienes suficientes monedas.');
-                        else setSuccess(`¡${u.name} mejorada!`);
+                        if (!buyTower(t.key, cost)) setError('No tienes suficientes monedas.');
+                        else setSuccess(`¡${t.name} subida a Nv.${level + 1}!`);
                       }}
-                      className="w-full py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-lg mt-auto"
-                      style={{ backgroundColor: u.color, boxShadow: `0 0 12px ${u.color}40` }}
+                      className="px-4 py-3 rounded-xl text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shadow-lg shrink-0"
+                      style={{ backgroundColor: t.color, boxShadow: `0 0 12px ${t.color}40` }}
                     >
-                      <Coins className="w-3 h-3" />{cost.toLocaleString()}
+                      <Coins className="w-4 h-4" />{cost.toLocaleString()}
                     </button>
                   </div>
                 );
@@ -209,7 +207,17 @@ export function ShopScreen() {
               <div className="rounded-2xl bg-card border border-green-500/30 p-5 shadow-lg shadow-green-500/10">
                 <div className="flex items-center gap-3 mb-4">
                   <Gem className="w-8 h-8 text-green-400" />
-                  <div><h2 className="text-white font-bold">100 Diamantes</h2><p className="text-white/40 text-xs">Costo: 10 Puntos</p></div>
+                  <div><h2 className="text-white font-bold">100 Diamantes Free Fire</h2><p className="text-white/40 text-xs">Costo: 10,000 Monedas + 5 Llaves de Campaña</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                  <div className="rounded-lg bg-background/50 p-2 text-center">
+                    <p className="text-white/40">Monedas</p>
+                    <p className={`font-bold ${coins >= 10000 ? 'text-green-400' : 'text-red-400'}`}>{coins.toLocaleString()} / 10,000</p>
+                  </div>
+                  <div className="rounded-lg bg-background/50 p-2 text-center">
+                    <p className="text-white/40">Llaves</p>
+                    <p className={`font-bold ${campaignProgress.keys >= 5 ? 'text-green-400' : 'text-red-400'}`}>{campaignProgress.keys} / 5</p>
+                  </div>
                 </div>
                 <div className="space-y-3 mb-3">
                   <div>
@@ -221,9 +229,28 @@ export function ShopScreen() {
                     <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-2.5 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
                   </div>
                 </div>
-                <button onClick={handleClaimDiamonds} disabled={claiming} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 disabled:opacity-50">
-                  <Gem className="w-5 h-5" />{claiming ? 'Procesando...' : 'Reclamar 100 Diamantes'}
-                </button>
+                {(() => {
+                  const check = canExchangeDiamonds();
+                  return (
+                    <>
+                      {!check.ok && <p className="text-red-400 text-xs mb-2">{check.reason}</p>}
+                      <button
+                        onClick={async () => {
+                          setError(''); setSuccess('');
+                          setClaiming(true);
+                          const result = await exchangeDiamonds(playerId.trim(), nick.trim());
+                          setClaiming(false);
+                          if (result.ok) { setShowClaimModal(true); setPlayerId(''); setNick(''); }
+                          else setError(result.error || 'Error al procesar');
+                        }}
+                        disabled={claiming || !check.ok}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 disabled:opacity-50"
+                      >
+                        <Gem className="w-5 h-5" />{claiming ? 'Procesando...' : 'Reclamar 100 Diamantes'}
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

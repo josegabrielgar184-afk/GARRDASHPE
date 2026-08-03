@@ -14,7 +14,7 @@ import {
 import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
-import { MIN_CLAIM_COINS } from '@/lib/config';
+import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS } from '@/lib/config';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
@@ -28,8 +28,10 @@ export type Screen =
   | 'login'
   | 'menu'
   | 'mode-select'
+  | 'campaign'
   | 'space-game'
   | 'zombie-game'
+  | 'survival'
   | 'shop'
   | 'roulette'
   | 'characters'
@@ -46,11 +48,26 @@ export interface UpgradeState {
   superShield: number;
 }
 
+export interface CampaignProgress {
+  currentLevel: number;
+  stars: Record<number, number>;
+  keys: number;
+  diamondsClaimed: boolean;
+  lastLevelCompletedAt: number | null;
+}
+
+export interface TowerLevel {
+  turret: number;
+  drone: number;
+  medic: number;
+}
+
 export interface RankEntry {
   name: string;
   score: number;
   uid?: string;
   avatar?: string;
+  level?: number;
 }
 
 export type ControlSize = 'small' | 'medium' | 'large';
@@ -143,6 +160,7 @@ export interface AdminStats {
   inactiveUsers: number;
   returnedUsers: AdminUserInfo[];
   nearClaimSummary: NearClaimSummary;
+  totalExchanges: number;
 }
 
 interface GameState {
@@ -166,6 +184,9 @@ interface GameState {
   rouletteSpinsToday: number;
   suggestions: Array<{ id: number; text: string; date: string }>;
   upgrades: UpgradeState;
+  campaignProgress: CampaignProgress;
+  towerLevels: TowerLevel;
+  survivalBestTime: number;
   spaceRanking: RankEntry[];
   zombieRanking: RankEntry[];
   weeklyRanking: RankEntry[];
@@ -199,6 +220,13 @@ interface GameState {
   getShip: () => ShipDef;
   getZombieCharacter: () => ZombieCharDef;
   buyUpgrade: (key: keyof UpgradeState, cost: number) => boolean;
+  completeLevel: (level: number, stars: number, coinsEarned: number) => void;
+  getCurrentCampaignLevel: () => number;
+  exchangeDiamonds: (playerID: string, nickname: string) => Promise<{ ok: boolean; error?: string }>;
+  buyTower: (tower: keyof TowerLevel, cost: number) => boolean;
+  getTowerLevel: (tower: keyof TowerLevel) => number;
+  submitSurvivalScore: (timeMs: number) => Promise<void>;
+  canExchangeDiamonds: () => { ok: boolean; reason?: string };
   refreshRanking: () => Promise<void>;
   refreshWeeklyRanking: () => Promise<void>;
   loadMoreRanking: (type: 'space' | 'zombie' | 'weekly') => Promise<void>;
@@ -251,6 +279,8 @@ interface GameState {
   addPlayTime: (ms: number) => void;
   startGameBatch: () => void;
   endGameBatch: () => void;
+  showWelcomeBonus: boolean;
+  dismissWelcomeBonus: () => void;
 }
 
 export interface SignUpData {
@@ -290,6 +320,9 @@ interface SaveData {
   bloodEnabled: boolean;
   controlSize: ControlSize;
   orientationMode: OrientationMode;
+  campaignProgress?: CampaignProgress;
+  towerLevels?: TowerLevel;
+  survivalBestTime?: number;
 }
 
 function loadSave(): Partial<SaveData> {
@@ -343,6 +376,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [rouletteSpinsToday, setRouletteSpinsToday] = useState(0);
   const [suggestions, setSuggestions] = useState<Array<{ id: number; text: string; date: string }>>([]);
   const [upgrades, setUpgrades] = useState<UpgradeState>({ fireRate: 0, damage: 0, coinMagnet: 0, superShield: 0 });
+  const [campaignProgress, setCampaignProgress] = useState<CampaignProgress>({ currentLevel: 1, stars: {}, keys: 0, diamondsClaimed: false, lastLevelCompletedAt: null });
+  const [towerLevels, setTowerLevels] = useState<TowerLevel>({ turret: 0, drone: 0, medic: 0 });
+  const [survivalBestTime, setSurvivalBestTime] = useState(0);
+  const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
   const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [weeklyRanking, setWeeklyRanking] = useState<RankEntry[]>([]);
@@ -360,6 +397,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     totalUsers: 0, totalCoins: 0, activeCoins: 0, inactiveCoins: 0,
     reservedAmount: 0, availableAmount: 0, nearClaimUsers: [], activeUsers: 0, inactiveUsers: 0, returnedUsers: [],
     nearClaimSummary: { totalEstimatedCost: 0, totalEstimatedRevenue: 0, totalNet: 0, count: 0 },
+    totalExchanges: 0,
   });
   const [userSearchResults, setUserSearchResults] = useState<AdminUserInfo[]>([]);
   const [hasMoreUsers, setHasMoreUsers] = useState(false);
@@ -398,6 +436,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.rouletteSpinsToday !== undefined) setRouletteSpinsToday(s.rouletteSpinsToday);
     if (s.suggestions !== undefined) setSuggestions(s.suggestions);
     if (s.upgrades !== undefined) setUpgrades(s.upgrades);
+    if (s.campaignProgress !== undefined) setCampaignProgress(s.campaignProgress);
+    if (s.towerLevels !== undefined) setTowerLevels(s.towerLevels);
+    if (s.survivalBestTime !== undefined) setSurvivalBestTime(s.survivalBestTime);
     if (s.bloodEnabled !== undefined) setBloodEnabled(s.bloodEnabled);
     if (s.controlSize !== undefined) setControlSizeState(s.controlSize);
     if (s.orientationMode !== undefined) setOrientationModeState(s.orientationMode);
@@ -443,6 +484,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           }
           const name = data.nombre || data.email?.split('@')[0] || 'Player';
           setPlayerName(name);
+          if (data.campaignLevel !== undefined) {
+            setCampaignProgress(prev => ({ ...prev, currentLevel: data.campaignLevel ?? prev.currentLevel, keys: data.campaignKeys ?? prev.keys, diamondsClaimed: data.diamondsClaimed ?? false }));
+          }
+          if (data.towerLevels !== undefined) setTowerLevels(data.towerLevels);
+          if (data.survivalBestTime !== undefined) setSurvivalBestTime(data.survivalBestTime);
+          if (data.welcomeBonusClaimed !== true) {
+            try {
+              updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(WELCOME_BONUS_COINS), welcomeBonusClaimed: true }).then(() => setShowWelcomeBonus(true));
+            } catch {}
+          }
           saveData({
             coins: data.coins ?? 0, points: data.puntos ?? 0, vip: data.vip ?? false,
             playerName: name, email: data.email ?? user.email ?? '',
@@ -803,6 +854,114 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [spendCoins]);
 
+  const completeLevel = useCallback((level: number, stars: number, coinsEarned: number) => {
+    const isFirstClear = !campaignProgress.stars[level];
+    setCampaignProgress((prev) => {
+      const newStars = { ...prev.stars, [level]: Math.max(prev.stars[level] ?? 0, stars) };
+      const newLevel = Math.max(prev.currentLevel, level + 1);
+      const keysEarned = isFirstClear && level % 10 === 0 ? CAMPAIGN_KEYS_PER_10_LEVELS : 0;
+      const newKeys = prev.keys + keysEarned;
+      const next = { currentLevel: newLevel, stars: newStars, keys: newKeys, diamondsClaimed: prev.diamondsClaimed, lastLevelCompletedAt: Date.now() };
+      saveData({ campaignProgress: next });
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          updateDoc(doc(db, 'usuarios', user.uid), {
+            campaignLevel: newLevel,
+            campaignKeys: newKeys,
+            campaignStars: newStars,
+            lastActive: serverTimestamp(),
+          }).catch(() => {});
+        } catch {}
+      }
+      return next;
+    });
+  }, [campaignProgress.stars]);
+
+  const getCurrentCampaignLevel = useCallback(() => campaignProgress.currentLevel, [campaignProgress.currentLevel]);
+
+  const canExchangeDiamonds = useCallback((): { ok: boolean; reason?: string } => {
+    if (coins < MIN_CLAIM_COINS) return { ok: false, reason: `Necesitas ${MIN_CLAIM_COINS.toLocaleString()} monedas.` };
+    if (campaignProgress.keys < DIAMOND_CLAIM_KEYS_REQUIRED) return { ok: false, reason: `Necesitas ${DIAMOND_CLAIM_KEYS_REQUIRED} llaves de campaña.` };
+    if (campaignProgress.lastLevelCompletedAt) {
+      const daysSinceActivity = (Date.now() - campaignProgress.lastLevelCompletedAt) / (1000 * 60 * 60 * 24);
+      if (daysSinceActivity > RECENT_ACTIVITY_REQUIRED_DAYS) return { ok: false, reason: 'Debes haber jugado una partida en los ultimos 7 dias.' };
+    } else {
+      return { ok: false, reason: 'Debes completar al menos un nivel de campaña primero.' };
+    }
+    return { ok: true };
+  }, [coins, campaignProgress.keys, campaignProgress.lastLevelCompletedAt]);
+
+  const exchangeDiamonds = useCallback(async (playerID: string, nickname: string): Promise<{ ok: boolean; error?: string }> => {
+    const check = canExchangeDiamonds();
+    if (!check.ok) return { ok: false, error: check.reason };
+    if (!playerID.trim() || playerID.trim().length < 4) return { ok: false, error: 'Player ID invalido.' };
+    if (!nickname.trim() || nickname.trim().length < 2) return { ok: false, error: 'Nickname invalido.' };
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'Debes iniciar sesion.' };
+      if (!spendCoins(MIN_CLAIM_COINS)) return { ok: false, error: 'No se pudieron descontar las monedas.' };
+      setCampaignProgress((prev) => {
+        const next = { ...prev, keys: prev.keys - DIAMOND_CLAIM_KEYS_REQUIRED, diamondsClaimed: true };
+        saveData({ campaignProgress: next });
+        return next;
+      });
+      await addDoc(collection(db, 'solicitudes_pendientes'), {
+        userId: user.uid,
+        playerID: playerID.trim(),
+        nickname: nickname.trim(),
+        tiempoJugado: 0,
+        puntosGastados: 0,
+        coinsSpent: MIN_CLAIM_COINS,
+        keysSpent: DIAMOND_CLAIM_KEYS_REQUIRED,
+        fecha: serverTimestamp(),
+        estado: 'pendiente',
+        type: 'diamond_exchange',
+      });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al procesar';
+      return { ok: false, error: msg };
+    }
+  }, [canExchangeDiamonds, spendCoins]);
+
+  const buyTower = useCallback((tower: keyof TowerLevel, cost: number): boolean => {
+    if (!spendCoins(cost)) return false;
+    setTowerLevels((prev) => {
+      const next = { ...prev, [tower]: prev[tower] + 1 };
+      saveData({ towerLevels: next });
+      const user = auth.currentUser;
+      if (user) {
+        try { updateDoc(doc(db, 'usuarios', user.uid), { towerLevels: next }).catch(() => {}); } catch {}
+      }
+      return next;
+    });
+    return true;
+  }, [spendCoins]);
+
+  const getTowerLevel = useCallback((tower: keyof TowerLevel) => towerLevels[tower], [towerLevels]);
+
+  const submitSurvivalScore = useCallback(async (timeMs: number) => {
+    if (timeMs > survivalBestTime) {
+      setSurvivalBestTime(timeMs);
+      saveData({ survivalBestTime: timeMs });
+    }
+    if (!isOnline) return;
+    try {
+      const user = auth.currentUser;
+      const playerNameToUse = playerName || email.split('@')[0] || 'Player';
+      const uid = user?.uid ?? 'anonymous';
+      await addDoc(collection(db, 'scores_survival'), {
+        name: playerNameToUse, uid, timeMs, date: serverTimestamp(),
+      });
+      if (user) {
+        try { updateDoc(doc(db, 'usuarios', user.uid), { lastActive: serverTimestamp() }).catch(() => {}); } catch {}
+      }
+    } catch {}
+  }, [isOnline, survivalBestTime, playerName, email]);
+
+  const dismissWelcomeBonus = useCallback(() => setShowWelcomeBonus(false), []);
+
   const refreshRanking = useCallback(async () => {
     return Promise.resolve();
   }, []);
@@ -995,15 +1154,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         edad: data.age,
         pais: data.country,
         email: data.email,
-        coins: 0,
+        coins: WELCOME_BONUS_COINS,
         totalRuns: 0,
         bestScore: 0,
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
         rol: 'user',
+        welcomeBonusClaimed: true,
+        campaignLevel: 1,
+        campaignKeys: 0,
+        campaignStars: {},
+        towerLevels: { turret: 0, drone: 0, medic: 0 },
       });
       const name = data.email.split('@')[0] ?? 'Player';
       setPlayerName(name);
+      setShowWelcomeBonus(true);
       saveData({ playerName: name });
       return { ok: true };
     } catch (err: unknown) {
@@ -1290,6 +1455,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           totalUsers, totalCoins, activeCoins, inactiveCoins,
           reservedAmount, availableAmount, nearClaimUsers: nearClaim,
           activeUsers, inactiveUsers, returnedUsers, nearClaimSummary,
+          totalExchanges: 0,
         });
         if (reservedAmount > 0) {
           const ratio = activeCoins / (totalCoins || 1);
@@ -1687,6 +1853,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     observerMode, toggleObserverMode,
     addPlayTime,
     startGameBatch, endGameBatch,
+    campaignProgress, towerLevels, survivalBestTime,
+    completeLevel, getCurrentCampaignLevel, exchangeDiamonds, buyTower, getTowerLevel,
+    submitSurvivalScore, canExchangeDiamonds,
+    showWelcomeBonus, dismissWelcomeBonus,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

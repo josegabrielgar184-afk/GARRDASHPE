@@ -9,7 +9,7 @@ import {
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, Eye, EyeOff,
 } from 'lucide-react';
 
-type Tab = 'finance' | 'requests' | 'near' | 'users' | 'su' | 'control' | 'observer';
+type Tab = 'balance' | 'finance' | 'requests' | 'near' | 'users' | 'su' | 'control' | 'observer';
 
 export function AdminScreen() {
   const {
@@ -19,7 +19,7 @@ export function AdminScreen() {
     observerMode, toggleObserverMode,
     searchUsers, userSearchResults, clearUserSearch,
   } = useGame();
-  const [tab, setTab] = useState<Tab>('finance');
+  const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
   const [manualIncome, setManualIncome] = useState('');
   const [exchangeLimit, setExchangeLimit] = useState('');
@@ -119,7 +119,8 @@ export function AdminScreen() {
     );
   }
 
-  const tabs: Array<{ id: Tab; label: string; icon: typeof Wallet; adminOnly?: boolean }> = [
+  const tabs = [
+    { id: 'balance', label: 'Balanza', icon: TrendingUp },
     { id: 'finance', label: 'Finanzas', icon: Wallet },
     { id: 'requests', label: 'Solicitudes', icon: CheckCircle2 },
     { id: 'near', label: 'Casi Listos', icon: TrendingUp },
@@ -185,7 +186,7 @@ export function AdminScreen() {
               return (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => setTab(t.id as Tab)}
                   className={`shrink-0 px-3 py-2 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 ${tab === t.id ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-card border border-border text-white/50'}`}
                 >
                   <Icon className="w-3.5 h-3.5" />{t.label}
@@ -193,6 +194,81 @@ export function AdminScreen() {
               );
             })}
           </div>
+
+          {/* Balance Tab - Net Balance Module */}
+          {tab === 'balance' && (
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-gradient-to-br from-amber-900/30 to-card border-2 border-amber-500/40 p-5 shadow-lg shadow-amber-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-white font-bold">Balanceador de Caja Neto</h2>
+                    <p className="text-white/40 text-xs">Ingresos vs Gastos en tiempo real</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-green-500/10 border border-green-500/30 p-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-green-400 text-sm font-bold flex items-center gap-1"><TrendingUp className="w-4 h-4" /> Dinero Total Ingresado</span>
+                      <span className="text-green-400 font-black text-lg">S/. {adminUserStats.nearClaimSummary.totalEstimatedRevenue.toFixed(2)}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px] mt-1">Acumulado de anuncios AdMob + Offerwall ayeT-Studios</p>
+                  </div>
+                  <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-red-400 text-sm font-bold flex items-center gap-1"><Wallet className="w-4 h-4" /> Gastos Totales</span>
+                      <span className="text-red-400 font-black text-lg">S/. {adminUserStats.nearClaimSummary.totalEstimatedCost.toFixed(2)}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px] mt-1">Recargas de diamantes Free Fire aprobadas</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-500/10 border-2 border-amber-500/40 p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-amber-400 text-base font-black flex items-center gap-1"><DollarSign className="w-5 h-5" /> Utilidad Neta Real</span>
+                      <span className={'font-black text-2xl ' + (adminUserStats.nearClaimSummary.totalNet >= 0 ? 'text-green-400' : 'text-red-400')}>S/. {adminUserStats.nearClaimSummary.totalNet.toFixed(2)}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px] mt-1">Calculo: Ingresos Totales - Gastos Totales = Lo que te queda limpio</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-400" /> Control SUNAT y Reservas</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-white/50">Tope de ingresos permitido:</span><span className="text-white font-bold">S/. 5,000/mes</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Reserva recomendada:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.reservedAmount.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Ganancia neta actual:</span><span className={'font-bold ' + (adminUserStats.nearClaimSummary.totalNet >= 0 ? 'text-green-400' : 'text-red-400')}>S/. {adminUserStats.nearClaimSummary.totalNet.toFixed(2)}</span></div>
+                </div>
+                <p className="text-white/30 text-[10px] mt-2">Ten reservado al menos S/. {adminUserStats.reservedAmount.toFixed(2)} soles para cubrir canjes pendientes.</p>
+              </div>
+
+              <div className="rounded-2xl bg-card border border-red-500/30 p-4 shadow-lg">
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400" /> Alertas de Riesgo (Anti-Hack)</p>
+                {adminUserStats.nearClaimUsers.filter((u) => u.coins > 20000).length === 0 ? (
+                  <p className="text-white/30 text-xs">No hay alertas de riesgo activas.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {adminUserStats.nearClaimUsers.filter((u) => u.coins > 20000).map((u) => (
+                      <div key={u.uid} className="flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/40 p-2">
+                        <span className="text-red-400 text-xs font-bold">{u.nombre}</span>
+                        <span className="text-red-400 text-xs">{u.coins.toLocaleString()} monedas - Subida anormal</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Activity className="w-4 h-4 text-cyan-400" /> Metricas del Equipo</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-white/40">Operador activo:</span><span className={delegateWork ? 'text-green-400 font-bold' : 'text-white/30'}>{delegateWork ? 'Trabajando' : 'Inactivo'}</span></div>
+                  <div className="flex justify-between"><span className="text-white/40">Solicitudes aprobadas:</span><span className="text-green-400 font-bold">{adminUserStats.totalExchanges}</span></div>
+                  <div className="flex justify-between"><span className="text-white/40">Solicitudes pendientes:</span><span className="text-amber-400 font-bold">{pendingRequests.length}</span></div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Finance Tab */}
           {tab === 'finance' && (

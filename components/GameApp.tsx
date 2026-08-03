@@ -7,8 +7,10 @@ import { IntroScreen } from '@/components/screens/IntroScreen';
 import { LoginScreen } from '@/components/screens/LoginScreen';
 import { MenuScreen } from '@/components/screens/MenuScreen';
 import { ModeSelectScreen } from '@/components/screens/ModeSelectScreen';
+import { CampaignMapScreen } from '@/components/screens/CampaignMapScreen';
 import { SpaceGameScreen } from '@/components/screens/SpaceGameScreen';
 import { ZombieGameScreen } from '@/components/screens/ZombieGameScreen';
+import { SurvivalScreen } from '@/components/screens/SurvivalScreen';
 import { ShopScreen } from '@/components/screens/ShopScreen';
 import { RouletteScreen } from '@/components/screens/RouletteScreen';
 import { CharactersScreen } from '@/components/screens/CharactersScreen';
@@ -21,8 +23,8 @@ import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 
-const GAMEPLAY_SCREENS = ['space-game', 'zombie-game'];
-const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
+const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival'];
+const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -36,10 +38,14 @@ function GameRouter() {
       return <MenuScreen />;
     case 'mode-select':
       return <ModeSelectScreen />;
+    case 'campaign':
+      return <CampaignMapScreen />;
     case 'space-game':
       return <SpaceGameScreen />;
     case 'zombie-game':
       return <ZombieGameScreen />;
+    case 'survival':
+      return <SurvivalScreen />;
     case 'shop':
       return <ShopScreen />;
     case 'roulette':
@@ -70,8 +76,9 @@ function BackButtonHandler() {
     const handlePopState = () => {
       const now = Date.now();
       if (GAMEPLAY_SCREENS.includes(screen)) {
-        setScreen('mode-select');
-      } else if (screen === 'mode-select') {
+        pauseAudio();
+        setScreen('menu');
+      } else if (screen === 'campaign') {
         setScreen('menu');
       } else if (MENU_SCREENS.includes(screen) && screen !== 'menu' && screen !== 'login' && screen !== 'intro') {
         setScreen('menu');

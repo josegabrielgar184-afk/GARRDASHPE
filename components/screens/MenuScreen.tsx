@@ -20,6 +20,7 @@ export function MenuScreen() {
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
     bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
     influencerInfo, refreshInfluencerInfo,
+    showWelcomeBonus, dismissWelcomeBonus, campaignProgress,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -197,9 +198,9 @@ export function MenuScreen() {
 
           {/* 4 neon centralized buttons */}
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setScreen('zombie-game')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
+            <button onClick={() => setScreen('campaign')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
               <Gamepad2 className="w-8 h-8 text-white" />
-              <span className="text-white font-bold text-sm">JUGAR</span>
+              <span className="text-white font-bold text-sm">CAMPAÑA</span>
             </button>
             <button onClick={() => setScreen('shop')} className="neon-btn-green aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
               <Store className="w-8 h-8 text-white" />
@@ -213,6 +214,22 @@ export function MenuScreen() {
               <Trophy className="w-8 h-8 text-white" />
               <span className="text-white font-bold text-sm">RANKINGS</span>
             </button>
+          </div>
+
+          {/* Campaign progress indicator */}
+          <div className="mt-3 rounded-xl bg-card border border-cyan-500/20 p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                <span className="text-cyan-400 font-black text-sm">{campaignProgress.currentLevel}</span>
+              </div>
+              <div>
+                <p className="text-white/60 text-[10px] uppercase">Nivel de Campaña</p>
+                <div className="flex items-center gap-1">
+                  {campaignProgress.keys > 0 && <span className="text-amber-400 text-[10px] font-bold flex items-center gap-0.5">{campaignProgress.keys} llaves</span>}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setScreen('campaign')} className="text-cyan-400 text-xs font-bold hover:text-cyan-300">Continuar &gt;</button>
           </div>
 
           {/* Monedas Gratis + Admin row */}
@@ -295,6 +312,18 @@ export function MenuScreen() {
       )}
 
       {/* Toast */}
+      {showWelcomeBonus && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-xs mx-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-card border-2 border-amber-400/50 p-6 text-center animate-scale-in shadow-2xl shadow-amber-500/30">
+            <Gift className="w-16 h-16 text-amber-400 mx-auto mb-3 animate-bounce" />
+            <h2 className="text-amber-300 font-black text-xl mb-2">¡Bono de Bienvenida!</h2>
+            <p className="text-white/70 text-sm mb-1">¡Gracias por unirte a GarrDash!</p>
+            <p className="text-amber-400 font-bold text-lg mb-4">+500 Monedas</p>
+            <button onClick={dismissWelcomeBonus} className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-400">¡Gracias!</button>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-xl bg-card border border-purple-500/40 shadow-2xl shadow-purple-500/20 animate-scale-in max-w-xs">
           <p className="text-white text-xs font-bold text-center">{toast}</p>

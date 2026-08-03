@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown, Crown, Calendar, Globe, User } from 'lucide-react';
+import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown, Crown, Calendar, Globe, User, Heart, Baby, Infinity as InfinityIcon } from 'lucide-react';
 
 export function RankingScreen() {
   const {
@@ -12,7 +12,7 @@ export function RankingScreen() {
     loadMoreRanking, hasMoreRanking, playerName, currentUserRank,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [mainTab, setMainTab] = useState<'weekly' | 'global'>('weekly');
+  const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival'>('weekly');
   const [gameTab, setGameTab] = useState<'space' | 'zombie'>('space');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -33,7 +33,7 @@ export function RankingScreen() {
     return () => el.removeEventListener('scroll', check);
   }, [loading, mainTab, gameTab]);
 
-  const ranking = mainTab === 'weekly' ? weeklyRanking : (gameTab === 'space' ? spaceRanking : zombieRanking);
+  const ranking = mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (zombieRanking) : (gameTab === 'space' ? spaceRanking : zombieRanking);
   const getMedalColor = (i: number) => i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-white/30';
 
   const handleLoadMore = async () => {
@@ -44,7 +44,13 @@ export function RankingScreen() {
     }
   };
 
-  const canLoadMore = mainTab === 'weekly' ? hasMoreRanking('weekly') : hasMoreRanking(gameTab);
+  const canLoadMore = mainTab === 'weekly' ? hasMoreRanking('weekly') : mainTab === 'survival' ? false : hasMoreRanking(gameTab);
+
+  const getLevelColor = (level: number): string | null => {
+    if (level === 4) return '#ef4444';
+    if (level === 10 || level === 30) return '#ffffff';
+    return null;
+  };
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
@@ -75,9 +81,11 @@ export function RankingScreen() {
             <button onClick={() => setMainTab('global')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-1.5 ${mainTab === 'global' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-card border border-border text-white/50'}`}>
               <Globe className="w-4 h-4" />Top Global
             </button>
+            <button onClick={() => setMainTab('survival')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-1.5 ${mainTab === 'survival' ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-lg shadow-red-500/10' : 'bg-card border border-border text-white/50'}`}>
+              <InfinityIcon className="w-4 h-4" />Supervivencia
+            </button>
           </div>
 
-          {/* Game tabs - only for Global */}
           {mainTab === 'global' && (
             <div className="flex gap-2 mb-4">
               <button onClick={() => setGameTab('space')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${gameTab === 'space' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-card border border-border text-white/50'}`}>
@@ -89,6 +97,11 @@ export function RankingScreen() {
             </div>
           )}
 
+          {mainTab === 'survival' && (
+            <div className="text-center mb-3">
+              <p className="text-red-400/60 text-xs flex items-center justify-center gap-1"><Skull className="w-3 h-3" /> Ranking del Camino del Vicio - Mejores tiempos de supervivencia</p>
+            </div>
+          )}
           {mainTab === 'weekly' && (
             <div className="text-center mb-3">
               <p className="text-white/40 text-xs">Reinicio dominical · Premios automaticos para el TOP 3</p>
@@ -120,6 +133,8 @@ export function RankingScreen() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`font-bold text-sm truncate ${i === 0 ? 'text-amber-400' : 'text-white'}`}>{entry.name}</p>
+                    {entry.level === 4 && <span className="text-red-400 text-[10px] font-bold flex items-center gap-0.5"><Heart className="w-2.5 h-2.5 fill-red-400" /> Nivel 4 - Amor</span>}
+                    {(entry.level === 10 || entry.level === 30) && <span className="text-white text-[10px] font-bold flex items-center gap-0.5"><Baby className="w-2.5 h-2.5" /> Nivel {entry.level} - Bebe</span>}
                     {i === 0 && mainTab === 'weekly' && <p className="text-amber-300/60 text-[10px]">Reino semanal</p>}
                   </div>
                   <div className="text-right shrink-0">

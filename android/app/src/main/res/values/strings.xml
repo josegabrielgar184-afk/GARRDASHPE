@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">GarrDash</string>
+    <string name="app_name">GarrDash - Zombie Survivor</string>
     <string name="title_activity_main">GarrDash</string>
-    <string name="package_name">com.garrdashpe.app</string>
-    <string name="custom_url_scheme">com.garrdashpe.app</string>
+    <string name="package_name">com.garricraft.garrdash</string>
+    <string name="custom_url_scheme">com.garricraft.garrdash</string>
 </resources>

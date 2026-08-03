@@ -5,7 +5,7 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { ArrowLeft, Download, Coins, Lock, Clock, CheckCircle2, AlertCircle, ExternalLink, X } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { BITLABS_CONFIG } from '@/lib/config';
+import { AYET_STUDIOS_CONFIG } from '@/lib/config';
 import { auth } from '@/lib/firebase';
 
 export function OfferwallScreen() {
@@ -14,9 +14,9 @@ export function OfferwallScreen() {
   const [loading, setLoading] = useState(false);
   const [showOfferwall, setShowOfferwall] = useState(false);
 
-  const getBitlabsUrl = () => {
+  const getAyetUrl = () => {
     const uid = auth.currentUser?.uid ?? 'guest';
-    return `https://web.bitlabs.ai/?token=${BITLABS_CONFIG.integrationToken}&uid=${uid}`;
+    return `${AYET_STUDIOS_CONFIG.offerwallUrl}&uid=${uid}`;
   };
 
   const handleOpenOfferwall = async () => {
@@ -41,7 +41,7 @@ export function OfferwallScreen() {
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-white font-bold text-xl">Misiones BitLabs</h1>
+          <h1 className="text-white font-bold text-xl">Misiones ayeT-Studios</h1>
         </div>
 
         <div className="max-w-sm mx-auto w-full flex-1 flex flex-col">
@@ -51,7 +51,7 @@ export function OfferwallScreen() {
                 <Lock className="w-10 h-10 text-white/30" />
               </div>
               <h2 className="text-white/60 font-bold text-lg mb-2">Requiere conexion</h2>
-              <p className="text-white/30 text-sm">Necesitas internet para acceder a las misiones BitLabs.</p>
+              <p className="text-white/30 text-sm">Necesitas internet para acceder a las misiones ayeT-Studios.</p>
             </div>
           ) : (
             <>
@@ -61,11 +61,11 @@ export function OfferwallScreen() {
                     <Coins className="w-6 h-6 text-cyan-400" />
                   </div>
                   <div>
-                    <h2 className="text-white font-bold">Misiones BitLabs</h2>
+                    <h2 className="text-white font-bold">Misiones ayeT-Studios</h2>
                     <p className="text-cyan-400 font-bold text-sm">Gana monedas reales</p>
                   </div>
                 </div>
-                <p className="text-white/40 text-xs">Completa encuestas, descarga apps y juega para ganar monedas. Las recompensas se acreditan automaticamente de forma segura.</p>
+                <p className="text-white/40 text-xs">Completa encuestas, descarga apps y juega para ganar monedas. Las recompensas se acreditan automaticamente de forma segura via webhook validado con Firebase.</p>
               </div>
 
               <button
@@ -95,7 +95,7 @@ export function OfferwallScreen() {
                 <p className="text-white/40">1. Presiona "Abrir Offerwall" para ver las misiones disponibles.</p>
                 <p className="text-white/40">2. Completa la mision (encuesta, descarga, juego, etc).</p>
                 <p className="text-white/40">3. Las monedas se acreditan a tu cuenta automaticamente.</p>
-                <p className="text-white/40">4. El sistema valida cada recompensa de forma 100% segura.</p>
+                <p className="text-white/40">4. El sistema valida cada recompensa via webhook con Firebase.</p>
               </div>
             </>
           )}
@@ -105,7 +105,7 @@ export function OfferwallScreen() {
       {showOfferwall && (
         <div className="fixed inset-0 z-[200] flex flex-col bg-black/95 animate-fade-in">
           <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
-            <h2 className="text-white font-bold text-sm">BitLabs Offerwall</h2>
+            <h2 className="text-white font-bold text-sm">ayeT-Studios Offerwall</h2>
             <button
               onClick={() => setShowOfferwall(false)}
               className="w-8 h-8 rounded-full bg-background flex items-center justify-center text-white/50 hover:text-white"
@@ -114,9 +114,9 @@ export function OfferwallScreen() {
             </button>
           </div>
           <iframe
-            src={getBitlabsUrl()}
+            src={getAyetUrl()}
             className="flex-1 w-full border-0"
-            title="BitLabs Offerwall"
+            title="ayeT-Studios Offerwall"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
           />
         </div>

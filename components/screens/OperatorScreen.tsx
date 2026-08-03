@@ -5,7 +5,7 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import {
   ArrowLeft, CheckCircle2, Clock, Ban, Wallet, LogIn, LogOut, AlertTriangle,
-  Users, DollarSign, Receipt, Camera, Coffee, Lock,
+  Users, DollarSign, Receipt, Camera, Coffee, Lock, Target, TrendingUp, Award,
 } from 'lucide-react';
 
 export function OperatorScreen() {
@@ -19,6 +19,8 @@ export function OperatorScreen() {
   const [ending, setEnding] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [checkoutPreview, setCheckoutPreview] = useState<string | null>(null);
+  const [approvedToday, setApprovedToday] = useState(0);
+  const dailyQuota = 50;
 
   useEffect(() => {
     refreshPendingRequests();
@@ -27,6 +29,7 @@ export function OperatorScreen() {
   const handleConfirm = async (id: string) => {
     setProcessing(id);
     await confirmPendingRequest(id);
+    setApprovedToday((prev) => prev + 1);
     setProcessing(null);
   };
 
@@ -161,6 +164,35 @@ export function OperatorScreen() {
                   <div className="flex justify-between"><span className="text-white/50">Saldo inicial:</span><span className="text-white font-bold">S/. {operatorTurn.initialBalance.toFixed(2)}</span></div>
                   <div className="flex justify-between"><span className="text-white/50">Premios pagados:</span><span className="text-red-400 font-bold">S/. {operatorTurn.prizesPaid.toFixed(2)}</span></div>
                   <div className="flex justify-between border-t border-border pt-2"><span className="text-green-400 font-bold">Saldo actual:</span><span className="text-green-400 font-bold text-lg">S/. {operatorTurn.currentBalance.toFixed(2)}</span></div>
+                </div>
+              </div>
+
+              {/* Performance counter */}
+              <div className="rounded-2xl bg-gradient-to-br from-cyan-900/30 to-card border border-cyan-500/30 p-4 mb-4 shadow-lg">
+                <div className="flex items-center gap-3 mb-3">
+                  <Target className="w-5 h-5 text-cyan-400" />
+                  <h2 className="text-white font-bold text-sm">Rendimiento Personal</h2>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-background/50 p-3 text-center">
+                    <CheckCircle2 className="w-6 h-6 text-green-400 mx-auto mb-1" />
+                    <p className="text-green-400 font-black text-xl">{approvedToday}</p>
+                    <p className="text-white/40 text-[10px]">Aprobadas hoy</p>
+                  </div>
+                  <div className="rounded-xl bg-background/50 p-3 text-center">
+                    <TrendingUp className="w-6 h-6 text-cyan-400 mx-auto mb-1" />
+                    <p className="text-cyan-400 font-black text-xl">{Math.max(0, dailyQuota - approvedToday)}</p>
+                    <p className="text-white/40 text-[10px]">Te quedan</p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between text-[10px] mb-1">
+                    <span className="text-white/40">Cuota diaria</span>
+                    <span className="text-cyan-400 font-bold">{approvedToday}/{dailyQuota}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-background overflow-hidden">
+                    <div className="h-full transition-all" style={{ width: `${Math.min((approvedToday / dailyQuota) * 100, 100)}%`, background: 'linear-gradient(90deg, #22d3ee, #34d399)' }} />
+                  </div>
                 </div>
               </div>
 

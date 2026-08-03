@@ -42,7 +42,7 @@ export function CharactersScreen() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
           <button onClick={() => setTab('ships')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${isShips ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20 border-2 border-cyan-400/60' : 'bg-card border border-border text-white/50'}`}>
-            <Rocket className="w-4 h-4" />NAVES
+            <Rocket className="w-4 h-4" />HEROES
           </button>
           <button onClick={() => setTab('zombies')} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${!isShips ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/20 border-2 border-red-400/60' : 'bg-card border border-border text-white/50'}`}>
             <Skull className="w-4 h-4" />ZOMBIE
