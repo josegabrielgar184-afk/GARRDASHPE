@@ -5,7 +5,7 @@ import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Heart, Coins, Video, Radiation, Shield, Baby, Sparkles, Magnet, Zap } from 'lucide-react';
+import { ArrowLeft, Heart, Coins, Video, Radiation, Shield, Baby, Sparkles, Magnet, Zap, Pause, Play, RotateCcw, Home } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   type Particle2D, type MuzzleFlash,
@@ -49,8 +49,10 @@ const WEAPON_FIRE_RATES: Record<WeaponType, number> = {
   pistol: 14, rifle: 8, shotgun: 20, minigun: 4, laser: 6,
 };
 const WEAPON_DAMAGES: Record<WeaponType, number> = {
-  pistol: 30, rifle: 25, shotgun: 50, minigun: 15, laser: 40,
+  pistol: 40, rifle: 30, shotgun: 60, minigun: 20, laser: 50,
 };
+const MAX_ACTIVE_ZOMBIES_BASE = 5;
+const MAX_ACTIVE_ZOMBIES_PER_LEVEL = 0.5;
 
 const COLOR_THEMES = [
   { name: 'Verde Ácido', road: '#2a2a22', fog: 'rgba(100,200,50,0.12)', border: '#84cc16', dash: 'rgba(255,255,255,0.6)' },
@@ -74,8 +76,10 @@ export function ZombieGameScreen() {
   const [score, setScore] = useState(0);
   const [zombiesKilled, setZombiesKilled] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [barricadeHp, setBarricadeHp] = useState(100);
+  const [barricadeHp, setBarricadeHp] = useState(150);
   const [gameOver, setGameOver] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [showPauseModal, setShowPauseModal] = useState(false);
   const [showReviveReward, setShowReviveReward] = useState(false);
   const [floatTexts, setFloatTexts] = useState<Array<{ id: number; text: string; x: number; y: number; color: string; size?: number }>>([]);
   const [bossActive, setBossActive] = useState(false);
@@ -116,9 +120,10 @@ export function ZombieGameScreen() {
   const scoreRef = useRef(0);
   const killCountRef = useRef(0);
   const livesRef = useRef(3);
-  const barricadeHpRef = useRef(100);
-  const barricadeMaxHpRef = useRef(100);
+  const barricadeHpRef = useRef(150);
+  const barricadeMaxHpRef = useRef(150);
   const gameOverRef = useRef(false);
+  const pausedRef = useRef(false);
   const shootCooldownRef = useRef(0);
   const fireRateLevelRef = useRef(0);
   const damageLevelRef = useRef(0);
@@ -266,10 +271,10 @@ export function ZombieGameScreen() {
     muzzleFlashesRef.current = [];
     scoreRef.current = 0; killCountRef.current = 0;
     livesRef.current = 3;
-    barricadeHpRef.current = 100; barricadeMaxHpRef.current = 100;
+    barricadeHpRef.current = 150; barricadeMaxHpRef.current = 150;
     gameOverRef.current = false;
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
-    difficultyRef.current = Math.max(0.5, 0.5 + (campaignLevelRef.current - 1) * 0.1); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
+    difficultyRef.current = Math.max(0.3, 0.3 + (campaignLevelRef.current - 1) * 0.05); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; scrollYRef.current = 0;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
     coinCapRef.current = randomCoinCap();
@@ -286,7 +291,7 @@ export function ZombieGameScreen() {
     const cl = getCurrentCampaignLevel();
     campaignLevelRef.current = cl; setCampaignLevel(cl);
     reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
-    setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(100); setGameOver(false); setBossActive(false);
+    setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
     checkMilestone();
@@ -362,9 +367,9 @@ export function ZombieGameScreen() {
 
     const levelScale = Math.max(0.5, Math.min(1, 0.5 + (campaignLevelRef.current - 1) * 0.05));
     let zHp: number, size: number, color: string, vy: number;
-    if (type === 'fast') { zHp = Math.floor(25 * levelScale); size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = (0.9 + difficultyRef.current * 0.2) * levelScale; }
-    else if (type === 'tank') { zHp = Math.floor(150 * levelScale); size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = (0.4 + difficultyRef.current * 0.1) * levelScale; }
-    else { zHp = Math.floor(40 * levelScale); size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = (0.6 + difficultyRef.current * 0.15) * levelScale; }
+    if (type === 'fast') { zHp = Math.floor(20 * levelScale); size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = (0.7 + difficultyRef.current * 0.15) * levelScale; }
+    else if (type === 'tank') { zHp = Math.floor(100 * levelScale); size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = (0.3 + difficultyRef.current * 0.08) * levelScale; }
+    else { zHp = Math.floor(30 * levelScale); size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = (0.45 + difficultyRef.current * 0.1) * levelScale; }
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
@@ -751,7 +756,7 @@ export function ZombieGameScreen() {
       scrollYRef.current += dt * (coinsCapped ? 3 : 1.5);
 
       // Theme cycling every 30s
-      if (!gameOverRef.current) {
+      if (!gameOverRef.current && !pausedRef.current) {
         themeTimerRef.current += dt;
         if (themeTimerRef.current >= 1800) {
           themeTimerRef.current = 0;
@@ -848,8 +853,7 @@ export function ZombieGameScreen() {
         ctx.fillRect(-20, -20, w + 40, h + 40);
       }
 
-      if (!gameOverRef.current) {
-        if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
+      if (!gameOverRef.current && !pausedRef.current) {
 
         // Touch-only horizontal movement (no auto-aim)
         if (touchTargetRef.current.active) {
@@ -868,16 +872,17 @@ export function ZombieGameScreen() {
           }
         }
 
-        difficultyRef.current = 1 + scoreRef.current / 500;
-        if (coinsCapped) difficultyRef.current *= 1.5;
+        difficultyRef.current = 0.3 + scoreRef.current / 1000;
+        if (coinsCapped) difficultyRef.current *= 1.3;
 
         // Simultaneous zombie + barrel spawning - no dead time (BLOCK 7)
         if (!bossRef.current) {
           spawnTimerRef.current += dt;
-          const baseInterval = coinsCapped ? 20 : 30;
+          const baseInterval = coinsCapped ? 25 : 40;
           const levelMultiplier = Math.max(1.5, 2.5 - (campaignLevelRef.current - 1) * 0.1);
-          const interval = Math.max(8, baseInterval * levelMultiplier - difficultyRef.current * 2.5);
-          if (spawnTimerRef.current > interval) { spawnZombie(); spawnTimerRef.current = 0; }
+          const interval = Math.max(12, baseInterval * levelMultiplier - difficultyRef.current * 2);
+          const maxActive = Math.floor(MAX_ACTIVE_ZOMBIES_BASE + (campaignLevelRef.current - 1) * MAX_ACTIVE_ZOMBIES_PER_LEVEL);
+          if (spawnTimerRef.current > interval && zombiePoolRef.current.getActive().length < maxActive) { spawnZombie(); spawnTimerRef.current = 0; }
           if (scoreRef.current >= miniBossThresholdRef.current) {
             for (let i = 0; i < 2; i++) {
               spawnZombie();
@@ -1220,7 +1225,10 @@ export function ZombieGameScreen() {
       <OfflineBanner />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-3 pb-2">
-        <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else setScreen('menu'); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else setScreen('menu'); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
+          <button onClick={() => { pausedRef.current = true; setPaused(true); setShowPauseModal(true); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-black/70"><Pause className="w-5 h-5" /></button>
+        </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5">
             {Array.from({ length: 3 }).map((_, i) => <Heart key={i} className={`w-4 h-4 ${i < lives ? 'text-red-500 fill-red-500' : 'text-white/20'}`} />)}
@@ -1233,7 +1241,7 @@ export function ZombieGameScreen() {
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-white/60">BARRICADA</span>
           <div className="flex-1 h-3 rounded-full bg-black/50 border border-white/10 overflow-hidden">
-            <div className="h-full transition-all duration-200" style={{ width: `${(barricadeHp / barricadeMaxHpRef.current) * 100}%`, background: barricadeHp > 50 ? '#22c55e' : barricadeHp > 25 ? '#eab308' : '#ef4444' }} />
+            <div className="h-full transition-all duration-200" style={{ width: `${(barricadeHp / barricadeMaxHpRef.current) * 100}%`, background: barricadeHp > 75 ? '#22c55e' : barricadeHp > 38 ? '#eab308' : '#ef4444' }} />
           </div>
         </div>
       </div>
@@ -1337,6 +1345,24 @@ export function ZombieGameScreen() {
         rewardText="¡Has revivido! Barricada reparada, vidas restauradas y 3 monedas extra."
       />
       <MuteButton />
+
+      {/* Pause Modal */}
+      {showPauseModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="rounded-2xl bg-card border border-cyan-500/30 p-6 w-72 shadow-2xl">
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center"><Pause className="w-6 h-6 text-cyan-400" /></div>
+            </div>
+            <h2 className="text-white font-bold text-lg text-center mb-1">Juego en Pausa</h2>
+            <p className="text-white/40 text-xs text-center mb-5">El juego está congelado</p>
+            <div className="space-y-2">
+              <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); }} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-green-500/20"><Play className="w-4 h-4" /> Reanudar</button>
+              <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); initGame(); }} className="w-full py-3 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-500/30"><RotateCcw className="w-4 h-4" /> Reiniciar Nivel</button>
+              <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); setScreen('menu'); }} className="w-full py-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-500/20"><Home className="w-4 h-4" /> Salir al Menú</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

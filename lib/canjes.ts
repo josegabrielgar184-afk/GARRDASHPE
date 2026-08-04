@@ -6,13 +6,10 @@ export type CanjeStatus =
   | 'approved'
   | 'rejected';
 
-export type CanjeGameId = 'free_fire' | 'mlbb' | 'pubg' | 'cod_mobile';
+export type CanjeGameId = 'free_fire';
 
 export const CANJE_GAMES: Array<{ id: CanjeGameId; label: string; icon: string }> = [
   { id: 'free_fire', label: 'Free Fire', icon: '🔥' },
-  { id: 'mlbb', label: 'Mobile Legends', icon: '⚔️' },
-  { id: 'pubg', label: 'PUBG Mobile', icon: '🎯' },
-  { id: 'cod_mobile', label: 'COD Mobile', icon: '🔫' },
 ];
 
 export const CANJE_REWARDS: Array<{ id: string; label: string; coinCost: number; keyCost: number; usdValue: number }> = [

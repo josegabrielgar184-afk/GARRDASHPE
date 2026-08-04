@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
-  Coins, Star, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X,
+  Coins, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert,
   Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye,
 } from 'lucide-react';
@@ -16,7 +16,7 @@ import {
 
 export function MenuScreen() {
   const {
-    coins, points, vip, vipAvailable, vipExpiry, setScreen, getCharacter, logOut,
+    coins, vip, vipAvailable, vipExpiry, setScreen, getCharacter, logOut,
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
     bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
     influencerInfo, refreshInfluencerInfo,
@@ -175,15 +175,11 @@ export function MenuScreen() {
             </div>
           </div>
 
-          {/* Balance cards */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          {/* Balance card */}
+          <div className="mb-4">
             <div className="rounded-2xl bg-card border border-amber-500/30 p-3 flex items-center gap-2 shadow-lg shadow-amber-500/10">
               <div className="w-9 h-9 rounded-full bg-amber-500/20 flex items-center justify-center"><Coins className="w-4 h-4 text-amber-400" /></div>
               <div><p className="text-white/40 text-[10px] uppercase">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
-            </div>
-            <div className="rounded-2xl bg-card border border-cyan-500/30 p-3 flex items-center gap-2 shadow-lg shadow-cyan-500/10">
-              <div className="w-9 h-9 rounded-full bg-cyan-500/20 flex items-center justify-center"><Star className="w-4 h-4 text-cyan-400" /></div>
-              <div><p className="text-white/40 text-[10px] uppercase">Puntos</p><p className="text-cyan-400 font-bold">{points.toLocaleString()}</p></div>
             </div>
           </div>
 

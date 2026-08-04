@@ -299,7 +299,7 @@ export function AdminScreen() {
                       <span className="text-amber-400 text-sm font-bold">Reserva requerida:</span>
                       <span className="text-amber-400 font-bold text-lg">S/. {adminUserStats.reservedAmount.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-xs mt-1">Calculo: 15,000 monedas = S/. 3.80 soles / $1.00 USD</p>
+                    <p className="text-white/30 text-xs mt-1">Calculo: 10,000 monedas + 5 llaves = S/. 3.80 soles / $1.00 USD</p>
                   </div>
                 </div>
               </div>
@@ -414,8 +414,8 @@ export function AdminScreen() {
                 </div>
               ) : (
                 adminUserStats.nearClaimUsers.map((u) => {
-                  const progress = Math.min((u.coins / 15000) * 100, 100);
-                  const estimatedCost = (u.coins / 15000) * 3.80;
+                  const progress = Math.min((u.coins / 10000) * 100, 100);
+                  const estimatedCost = (u.coins / 10000) * 3.80;
                   const revenue = (u.bitlabsEarnings ?? 0) + ((u.adsWatched ?? 0) * 0.001);
                   const net = revenue - estimatedCost;
                   return (

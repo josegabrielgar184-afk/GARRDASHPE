@@ -75,7 +75,7 @@ export function getCampaignCoinReward(level: number): { min: number; max: number
 
 export const INTERSTITIAL_COOLDOWN_SECONDS = 300;
 
-export const COINS_PER_USD = 15000;
+export const COINS_PER_USD = 10000;
 export const SOLES_PER_USD = 3.80;
 export const COINS_PER_SOLES = COINS_PER_USD / SOLES_PER_USD;
 

@@ -213,15 +213,11 @@ export function CanjesScreen() {
           <div className="rounded-2xl bg-card border border-cyan-500/30 p-5 shadow-lg">
             <h2 className="text-white font-bold mb-4">Solicitar Canje</h2>
 
-            {/* Game select */}
-            <label className="text-white/60 text-xs font-medium mb-1 block">Juego</label>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              {CANJE_GAMES.map((g) => (
-                <button key={g.id} onClick={() => setSelectedGame(g.id)} className={`py-2 rounded-xl text-sm font-bold transition-colors ${selectedGame === g.id ? 'bg-cyan-500 text-white' : 'bg-background/60 border border-border text-white/60'}`}>
-                  {g.label}
-                </button>
-              ))}
-            </div>
+          {/* Game badge - Free Fire only */}
+          <div className="mb-3 flex items-center gap-2 rounded-xl bg-card border border-orange-500/30 p-3">
+            <span className="text-2xl">🔥</span>
+            <span className="text-white font-bold text-sm">Free Fire</span>
+          </div>
 
             {/* Reward select */}
             <label className="text-white/60 text-xs font-medium mb-1 block">Recompensa</label>

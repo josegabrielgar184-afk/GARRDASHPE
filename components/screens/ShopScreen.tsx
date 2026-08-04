@@ -5,12 +5,12 @@ import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Coins, Star, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X, Lock } from 'lucide-react';
+import { ArrowLeft, Coins, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X, Lock } from 'lucide-react';
 import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
 
 export function ShopScreen() {
   const {
-    coins, points, spendCoins, addPoints, vip, vipExpiry, buyVIP, setScreen,
+    coins, spendCoins, vip, vipExpiry, buyVIP, setScreen,
     upgrades, buyUpgrade, claimDiamonds, selectedZombie, selectZombie,
     towerLevels, buyTower, getTowerLevel, campaignProgress, exchangeDiamonds, canExchangeDiamonds,
   } = useGame();
@@ -26,15 +26,8 @@ export function ShopScreen() {
   const upgradeCost = (key: keyof typeof UPGRADE_COSTS) =>
     UPGRADE_COSTS[key] * Math.pow(2, upgrades[key]);
 
-  const handleBuyPoints = () => {
-    setError(''); setSuccess('');
-    if (coins < 15000) { setError('No tienes suficientes monedas. Necesitas 15000.'); return; }
-    if (spendCoins(15000)) { addPoints(10); setSuccess('¡Has comprado 10 Puntos por 15000 Monedas!'); }
-  };
-
   const handleClaimDiamonds = async () => {
     setError(''); setSuccess('');
-    if (points < 10) { setError('No tienes suficientes puntos. Necesitas 10.'); return; }
     if (playerId.trim().length < 4) { setError('Debes ingresar tu Player ID (minimo 4 caracteres).'); return; }
     if (nick.trim().length < 2) { setError('Debes ingresar tu In-Game Nickname.'); return; }
     setClaiming(true);
@@ -69,14 +62,10 @@ export function ShopScreen() {
         </div>
 
         <div className="max-w-md mx-auto">
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="mb-4">
             <div className="rounded-xl bg-card border border-amber-500/30 p-3 flex items-center gap-2 shadow-lg shadow-amber-500/10">
               <Coins className="w-5 h-5 text-amber-400" />
               <div><p className="text-white/40 text-[10px]">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
-            </div>
-            <div className="rounded-xl bg-card border border-cyan-500/30 p-3 flex items-center gap-2 shadow-lg shadow-cyan-500/10">
-              <Star className="w-5 h-5 text-cyan-400" />
-              <div><p className="text-white/40 text-[10px]">Puntos</p><p className="text-cyan-400 font-bold">{points.toLocaleString()}</p></div>
             </div>
           </div>
 
@@ -196,14 +185,6 @@ export function ShopScreen() {
 
           {tab === 'diamonds' && (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-card border border-cyan-500/30 p-5 shadow-lg shadow-cyan-500/10">
-                <div className="flex items-center gap-3 mb-3">
-                  <Star className="w-8 h-8 text-cyan-400" />
-                  <div><h2 className="text-white font-bold">Comprar 10 Puntos</h2><p className="text-white/40 text-xs">Costo: 15000 Monedas</p></div>
-                </div>
-                <button onClick={handleBuyPoints} className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold hover:opacity-90 transition-opacity shadow-lg shadow-cyan-500/20">Canjear 15000 Monedas por 10 Puntos</button>
-              </div>
-
               <div className="rounded-2xl bg-card border border-green-500/30 p-5 shadow-lg shadow-green-500/10">
                 <div className="flex items-center gap-3 mb-4">
                   <Gem className="w-8 h-8 text-green-400" />
