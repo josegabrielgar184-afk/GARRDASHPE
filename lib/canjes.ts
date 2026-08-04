@@ -6,10 +6,10 @@ export type CanjeStatus =
   | 'approved'
   | 'rejected';
 
-export type CanjeGameId = 'free_fire';
+export type CanjeGameId = 'battle_royale';
 
 export const CANJE_GAMES: Array<{ id: CanjeGameId; label: string; icon: string }> = [
-  { id: 'free_fire', label: 'Free Fire', icon: '🔥' },
+  { id: 'battle_royale', label: 'Canje de Diamantes', icon: '🔥' },
 ];
 
 export const CANJE_REWARDS: Array<{ id: string; label: string; coinCost: number; keyCost: number; usdValue: number }> = [
