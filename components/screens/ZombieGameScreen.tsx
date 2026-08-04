@@ -340,17 +340,16 @@ export function ZombieGameScreen() {
     };
 const weapon = weaponRef.current;
 
-// Si aún está en enfriamiento, salimos para que no dispare como loco
-if (shootCooldownRef.current > 0) {
-  shootCooldownRef.current -= 1;
-  return;
-}
-
 if (weapon === 'shotgun' || doubleShotRef.current) {
-  fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
-  shootCooldownRef.current = 15; // Velocidad controlada
+  fire(-12, -1.5); 
+  fire(0, 0); 
+  fire(12, 1.5);
 } else if (weapon === 'minigun') {
   fire(rand(-4, 4), rand(-1, 1));
+  fire(0, 0);
+} else {
+  fire(0, 0);
+}
   fire(0, 0);
   shootCooldownRef.current = 8;  // Más rápido por ser minigun
 } else {
