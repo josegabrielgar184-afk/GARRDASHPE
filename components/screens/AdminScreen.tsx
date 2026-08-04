@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
+import type { PendingRequest, AdminStats } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { CANJE_GAMES, formatElapsed, formatCountdown, getDayKey, getDayLabel } from '@/lib/canjes';
+import type { CanjeRequest } from '@/lib/canjes';
 import {
   ArrowLeft, DollarSign, Users, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
@@ -11,7 +13,7 @@ import {
   RefreshCw, AlertCircle, XCircle, Loader2, Key,
 } from 'lucide-react';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'su' | 'control' | 'observer';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'su' | 'control' | 'observer' | 'stats';
 
 export function AdminScreen() {
   const {
@@ -134,6 +136,7 @@ export function AdminScreen() {
     { id: 'su', label: 'SU', icon: Shield },
     { id: 'control', label: 'Control', icon: Settings2 },
     { id: 'observer', label: 'Observador', icon: Eye },
+    { id: 'stats', label: 'Estadisticas', icon: BarChart3 },
   ];
 
   return (
@@ -638,6 +641,16 @@ export function AdminScreen() {
             </div>
           )}
 
+          {/* Stats Tab - Monthly metrics, payment allocation, expense tracking */}
+          {tab === 'stats' && (
+            <AdminStatsTab
+              adminCanjesList={adminCanjesList}
+              adminApprovedList={adminApprovedList}
+              pendingRequests={pendingRequests}
+              adminUserStats={adminUserStats}
+            />
+          )}
+
           {/* Observer Tab */}
           {tab === 'observer' && (
             <div className="space-y-4">
@@ -935,7 +948,6 @@ function AdminCanjesTab({
                     </div>
                     <div className="text-right">
                       <p className="text-green-400 text-xs font-bold">{c.approvedAt ? new Date(c.approvedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</p>
-                      <p className="text-white/40 text-[10px]">~${c.estimatedUsdValue.toFixed(2)}</p>
                     </div>
                   </div>
                 ))}
@@ -944,6 +956,223 @@ function AdminCanjesTab({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminStatsTab({
+  adminCanjesList,
+  adminApprovedList,
+  pendingRequests,
+  adminUserStats,
+}: {
+  adminCanjesList: CanjeRequest[];
+  adminApprovedList: CanjeRequest[];
+  pendingRequests: PendingRequest[];
+  adminUserStats: AdminStats;
+}) {
+  const [expenses, setExpenses] = useState<Array<{ id: number; label: string; amount: number; date: string }>>([]);
+  const [expenseLabel, setExpenseLabel] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('admin_expenses');
+      if (stored) setExpenses(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  const saveExpenses = (next: typeof expenses) => {
+    setExpenses(next);
+    try { localStorage.setItem('admin_expenses', JSON.stringify(next)); } catch {}
+  };
+
+  const addExpense = () => {
+    const amt = parseFloat(expenseAmount);
+    if (!expenseLabel.trim() || isNaN(amt) || amt <= 0) return;
+    const entry = { id: Date.now(), label: expenseLabel.trim(), amount: amt, date: new Date().toISOString() };
+    saveExpenses([entry, ...expenses]);
+    setExpenseLabel(''); setExpenseAmount('');
+  };
+
+  const removeExpense = (id: number) => saveExpenses(expenses.filter((e) => e.id !== id));
+
+  // Monthly metrics from approved canjes
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const monthName = now.toLocaleDateString('es-ES', { month: 'long' });
+
+  const thisMonthApproved = adminApprovedList.filter((c) => {
+    if (!c.approvedAt) return false;
+    const d = new Date(c.approvedAt);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const thisMonthRequests = adminCanjesList.filter((c) => {
+    const d = new Date(c.createdAt);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const thisMonthPending = pendingRequests.filter((r) => {
+    if (!r.fecha) return false;
+    const d = new Date(r.fecha);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const totalApprovedThisMonth = thisMonthApproved.length;
+  const totalRequestsThisMonth = thisMonthRequests.length + thisMonthPending.length + totalApprovedThisMonth;
+  const totalSpentThisMonth = thisMonthApproved.reduce((sum, c) => sum + c.estimatedUsdValue, 0);
+  const totalExpensesThisMonth = expenses.filter((e) => {
+    const d = new Date(e.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).reduce((sum, e) => sum + e.amount, 0);
+
+  // Payment allocation: near-claim users sorted by coins descending
+  const nearClaimUsers = [...adminUserStats.nearClaimUsers].sort((a, b) => b.coins - a.coins).slice(0, 10);
+  const totalToAllocate = nearClaimUsers.reduce((sum, u) => sum + (u.coins / 15000) * 3.80, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Monthly Request Metrics */}
+      <div className="rounded-2xl bg-gradient-to-br from-cyan-900/30 to-card border border-cyan-500/30 p-5 shadow-lg">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+            <BarChart3 className="w-6 h-6 text-cyan-400" />
+          </div>
+          <div>
+            <h2 className="text-white font-bold">Metricas Mensuales</h2>
+            <p className="text-white/40 text-xs capitalize">{monthName} {currentYear}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-card border border-border p-3 text-center">
+            <p className="text-white/40 text-[10px] uppercase">Solicitudes</p>
+            <p className="text-white font-black text-xl">{totalRequestsThisMonth}</p>
+            <p className="text-white/30 text-[9px]">Total recibidas</p>
+          </div>
+          <div className="rounded-xl bg-card border border-green-500/20 p-3 text-center">
+            <p className="text-white/40 text-[10px] uppercase">Aprobadas</p>
+            <p className="text-green-400 font-black text-xl">{totalApprovedThisMonth}</p>
+            <p className="text-white/30 text-[9px]">Completadas</p>
+          </div>
+          <div className="rounded-xl bg-card border border-amber-500/20 p-3 text-center">
+            <p className="text-white/40 text-[10px] uppercase">Pendientes</p>
+            <p className="text-amber-400 font-black text-xl">{thisMonthPending.length + adminCanjesList.filter((c) => c.status === 'pending_review' || c.status === 'waiting_correction').length}</p>
+            <p className="text-white/30 text-[9px]">En espera</p>
+          </div>
+        </div>
+        <div className="mt-3 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3">
+          <div className="flex justify-between items-center">
+            <span className="text-amber-400 text-sm font-bold flex items-center gap-1"><DollarSign className="w-4 h-4" /> Gasto en canjes este mes</span>
+            <span className="text-amber-400 font-black">S/. {totalSpentThisMonth.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Allocation */}
+      <div className="rounded-2xl bg-gradient-to-br from-green-900/30 to-card border border-green-500/30 p-5 shadow-lg">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <Wallet className="w-6 h-6 text-green-400" />
+          </div>
+          <div>
+            <h2 className="text-white font-bold">Dinero a Apartar para Pagos</h2>
+            <p className="text-white/40 text-xs">Usuarios cercanos a canjear</p>
+          </div>
+        </div>
+        <div className="rounded-xl bg-green-500/10 border-2 border-green-500/40 p-4 mb-3 text-center">
+          <p className="text-white/40 text-xs uppercase">Total a reservar</p>
+          <p className="text-green-400 font-black text-2xl">S/. {totalToAllocate.toFixed(2)}</p>
+          <p className="text-white/30 text-[10px] mt-1">Para los {nearClaimUsers.length} usuarios mas cercanos</p>
+        </div>
+        {nearClaimUsers.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">No hay usuarios cercanos a canjear</p>
+        ) : (
+          <div className="space-y-2">
+            {nearClaimUsers.map((u) => {
+              const soles = (u.coins / 15000) * 3.80;
+              const pct = Math.min(100, (u.coins / 10000) * 100);
+              return (
+                <div key={u.uid} className="rounded-xl bg-card border border-border p-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-white text-sm font-bold">{u.nombre}</span>
+                    <span className="text-green-400 text-sm font-bold">S/. {soles.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-400" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-white/40 text-[10px] shrink-0">{u.coins.toLocaleString()} monedas</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Expense Tracking */}
+      <div className="rounded-2xl bg-gradient-to-br from-red-900/30 to-card border border-red-500/30 p-5 shadow-lg">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center">
+            <ScrollText className="w-6 h-6 text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-white font-bold">Registro de Gastos</h2>
+            <p className="text-white/40 text-xs">Control detallado de salidas de dinero</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={expenseLabel}
+            onChange={(e) => setExpenseLabel(e.target.value)}
+            placeholder="Concepto (ej: hosting, dominio)"
+            className="flex-1 px-3 py-2 rounded-xl bg-background border border-border text-white text-sm placeholder:text-white/30 focus:border-red-500/50 outline-none"
+          />
+          <input
+            type="number"
+            value={expenseAmount}
+            onChange={(e) => setExpenseAmount(e.target.value)}
+            placeholder="S/."
+            className="w-20 px-3 py-2 rounded-xl bg-background border border-border text-white text-sm placeholder:text-white/30 focus:border-red-500/50 outline-none"
+          />
+          <button
+            onClick={addExpense}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-sm hover:opacity-90 shrink-0"
+          >
+            Agregar
+          </button>
+        </div>
+
+        <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3 mb-3">
+          <div className="flex justify-between items-center">
+            <span className="text-red-400 text-sm font-bold">Total gastos este mes</span>
+            <span className="text-red-400 font-black text-lg">S/. {totalExpensesThisMonth.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {expenses.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">No hay gastos registrados</p>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+            {expenses.map((e) => (
+              <div key={e.id} className="rounded-xl bg-card border border-border p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-white text-sm font-bold">{e.label}</p>
+                  <p className="text-white/30 text-[10px]">{new Date(e.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-red-400 font-bold text-sm">S/. {e.amount.toFixed(2)}</span>
+                  <button onClick={() => removeExpense(e.id)} className="text-white/30 hover:text-red-400">
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
