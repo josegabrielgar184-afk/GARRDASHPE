@@ -48,8 +48,6 @@ function GameRouter() {
     case 'survival':
       return <SurvivalScreen />;
     case 'shop':
-      return <ShopScreen />;
-    case 'canjes':
       return <CanjesScreen />;
     case 'roulette':
       return <RouletteScreen />;
