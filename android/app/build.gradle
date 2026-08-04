@@ -2,11 +2,11 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "com.garricraft.garrdash"
-    compileSdk rootProject.ext.compileSdkVersion
+    compileSdk 36
     defaultConfig {
         applicationId "com.garricraft.garrdash"
         minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        targetSdkVersion 36
         versionCode 32
         versionName "1.0.0.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
