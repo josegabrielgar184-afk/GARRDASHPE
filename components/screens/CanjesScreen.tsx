@@ -13,7 +13,7 @@ export function CanjesScreen() {
     refreshCanjes, submitCanje, correctCanjeId, cancelCanje,
   } = useGame();
   const [selectedReward, setSelectedReward] = useState(CANJE_REWARDS[0].id);
-  const [selectedGame, setSelectedGame] = useState<CanjeGameId>('free_fire');
+  const [selectedGame, setSelectedGame] = useState<CanjeGameId>('battle_royale');
   const [playerId, setPlayerId] = useState('');
   const [nick, setNick] = useState('');
   const [error, setError] = useState('');
@@ -213,11 +213,11 @@ export function CanjesScreen() {
           <div className="rounded-2xl bg-card border border-cyan-500/30 p-5 shadow-lg">
             <h2 className="text-white font-bold mb-4">Solicitar Canje</h2>
 
-          {/* Game badge - Free Fire only */}
-          <div className="mb-3 flex items-center gap-2 rounded-xl bg-card border border-orange-500/30 p-3">
-            <span className="text-2xl">🔥</span>
-            <span className="text-white font-bold text-sm">Free Fire</span>
-          </div>
+            {/* Game badge - Generic */}
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-card border border-orange-500/30 p-3">
+              <span className="text-2xl">🔥</span>
+              <span className="text-white font-bold text-sm">Canje de Diamantes</span>
+            </div>
 
             {/* Reward select */}
             <label className="text-white/60 text-xs font-medium mb-1 block">Recompensa</label>
