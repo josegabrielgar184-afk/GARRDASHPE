@@ -344,12 +344,9 @@ export function ZombieGameScreen() {
       fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
     } else if (weapon === 'minigun') {
       fire(rand(-4, 4), rand(-1, 1));
-      shootCooldownRef.current = getFireRate();
       fire(0, 0);
-      shootCooldownRef.current = getFireRate();
     } else {
       fire(0, 0);
-      shootCooldownRef.current = getFireRate();
     }
 
     spawnMuzzleFlash(muzzleFlashesRef.current, tx, turretY - 30, -Math.PI / 2, color, 22 * SPRITE_SCALE);
