@@ -5,41 +5,23 @@ import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Coins, Gem, Crown, CheckCircle2, AlertCircle, Zap, Swords, Magnet, Shield, X, Lock } from 'lucide-react';
-import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
+import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key } from 'lucide-react';
+import { VIP_DISPONIBLE_PLAYSTORE, CAMPAIGN_KEY_PRICE_CHEAP, CAMPAIGN_KEY_PRICE_EXPENSIVE, CAMPAIGN_KEY_CHEAP_THRESHOLD } from '@/lib/config';
 
 export function ShopScreen() {
   const {
     coins, spendCoins, vip, vipExpiry, buyVIP, setScreen,
-    upgrades, buyUpgrade, claimDiamonds, selectedZombie, selectZombie,
-    towerLevels, buyTower, getTowerLevel, campaignProgress, exchangeDiamonds, canExchangeDiamonds,
+    upgrades, buyUpgrade, selectedZombie, selectZombie,
+    towerLevels, buyTower, getTowerLevel, campaignProgress,
+    buyCampaignKey, getCampaignKeyPrice,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [tab, setTab] = useState<'upgrades' | 'diamonds' | 'heroes'>('upgrades');
-  const [playerId, setPlayerId] = useState('');
-  const [nick, setNick] = useState('');
+  const [tab, setTab] = useState<'upgrades' | 'keys' | 'heroes'>('upgrades');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showClaimModal, setShowClaimModal] = useState(false);
-  const [claiming, setClaiming] = useState(false);
 
   const upgradeCost = (key: keyof typeof UPGRADE_COSTS) =>
     UPGRADE_COSTS[key] * Math.pow(2, upgrades[key]);
-
-  const handleClaimDiamonds = async () => {
-    setError(''); setSuccess('');
-    if (playerId.trim().length < 4) { setError('Debes ingresar tu Player ID (minimo 4 caracteres).'); return; }
-    if (nick.trim().length < 2) { setError('Debes ingresar tu In-Game Nickname.'); return; }
-    setClaiming(true);
-    const result = await claimDiamonds(playerId.trim(), nick.trim());
-    setClaiming(false);
-    if (result.ok) {
-      setShowClaimModal(true);
-      setPlayerId(''); setNick('');
-    } else {
-      setError(result.error || 'Error al procesar la solicitud');
-    }
-  };
 
   const towerDefs: Array<{ key: 'turret' | 'drone' | 'medic'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
     { key: 'turret', icon: Zap, name: 'Torreta', desc: 'Dispara junto al jugador', color: '#f97316', baseCost: 200 },
@@ -102,7 +84,7 @@ export function ShopScreen() {
 
           <div className="flex gap-2 mb-4">
             <button onClick={() => setTab('upgrades')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'upgrades' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Torres</button>
-            <button onClick={() => setTab('diamonds')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'diamonds' ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/20' : 'bg-card border border-border text-white/60'}`}>Diamantes</button>
+            <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'keys' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20' : 'bg-card border border-border text-white/60'}`}>Llaves</button>
             <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-card border border-border text-white/60'}`}>Héroes</button>
           </div>
 
@@ -183,55 +165,51 @@ export function ShopScreen() {
             </div>
           )}
 
-          {tab === 'diamonds' && (
+          {tab === 'keys' && (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-card border border-green-500/30 p-5 shadow-lg shadow-green-500/10">
+              <div className="rounded-2xl bg-gradient-to-br from-amber-900/40 via-card to-card border border-amber-500/30 p-5 shadow-lg shadow-amber-500/10">
                 <div className="flex items-center gap-3 mb-4">
-                  <Gem className="w-8 h-8 text-green-400" />
-                  <div><h2 className="text-white font-bold">100 Diamantes </h2><p className="text-white/40 text-xs">Costo: 10,000 Monedas + 5 Llaves de Campaña</p></div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                  <div className="rounded-lg bg-background/50 p-2 text-center">
-                    <p className="text-white/40">Monedas</p>
-                    <p className={`font-bold ${coins >= 10000 ? 'text-green-400' : 'text-red-400'}`}>{coins.toLocaleString()} / 10,000</p>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#f59e0b20', boxShadow: '0 0 12px #f59e0b33' }}>
+                    <Key className="w-7 h-7 text-amber-400" />
                   </div>
-                  <div className="rounded-lg bg-background/50 p-2 text-center">
-                    <p className="text-white/40">Llaves</p>
-                    <p className={`font-bold ${campaignProgress.keys >= 5 ? 'text-green-400' : 'text-red-400'}`}>{campaignProgress.keys} / 5</p>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold">Llaves de Campaña</h2>
+                    <p className="text-white/40 text-xs">Desbloquea niveles y canjea por diamantes</p>
                   </div>
-                </div>
-                <div className="space-y-3 mb-3">
-                  <div>
-                    <label className="text-white/60 text-xs font-medium mb-1 block">Player ID *</label>
-                    <input type="text" value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="Ej: 1234567890" className="w-full px-4 py-2.5 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
-                  </div>
-                  <div>
-                    <label className="text-white/60 text-xs font-medium mb-1 block">In-Game Nickname *</label>
-                    <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-2.5 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                  <div className="text-right shrink-0">
+                    <p className="text-white/40 text-[10px]">Tienes</p>
+                    <p className="text-amber-400 font-bold text-lg flex items-center gap-1 justify-end"><Key className="w-4 h-4" />{campaignProgress.keys}</p>
                   </div>
                 </div>
-                {(() => {
-                  const check = canExchangeDiamonds();
-                  return (
-                    <>
-                      {!check.ok && <p className="text-red-400 text-xs mb-2">{check.reason}</p>}
-                      <button
-                        onClick={async () => {
-                          setError(''); setSuccess('');
-                          setClaiming(true);
-                          const result = await exchangeDiamonds(playerId.trim(), nick.trim());
-                          setClaiming(false);
-                          if (result.ok) { setShowClaimModal(true); setPlayerId(''); setNick(''); }
-                          else setError(result.error || 'Error al procesar');
-                        }}
-                        disabled={claiming || !check.ok}
-                        className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 disabled:opacity-50"
-                      >
-                        <Gem className="w-5 h-5" />{claiming ? 'Procesando...' : 'Reclamar 100 Diamantes'}
-                      </button>
-                    </>
-                  );
-                })()}
+
+                <div className="rounded-xl bg-background/50 p-3 mb-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/60">Llaves {Math.min(campaignProgress.keys + 1, CAMPAIGN_KEY_CHEAP_THRESHOLD)}-{CAMPAIGN_KEY_CHEAP_THRESHOLD} (primeras)</span>
+                    <span className="text-amber-400 font-bold flex items-center gap-1"><Coins className="w-3 h-3" />{CAMPAIGN_KEY_PRICE_CHEAP.toLocaleString()} c/u</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/60">Llave {CAMPAIGN_KEY_CHEAP_THRESHOLD + 1} en adelante</span>
+                    <span className="text-orange-400 font-bold flex items-center gap-1"><Coins className="w-3 h-3" />{CAMPAIGN_KEY_PRICE_EXPENSIVE.toLocaleString()} c/u</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 mb-4 text-center">
+                  <p className="text-white/40 text-[10px] mb-1">Precio de la siguiente llave</p>
+                  <p className="text-amber-400 font-black text-2xl flex items-center gap-1 justify-center"><Coins className="w-5 h-5" />{getCampaignKeyPrice().toLocaleString()}</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setError(''); setSuccess('');
+                    const result = buyCampaignKey();
+                    if (result.ok) setSuccess(`¡Llave comprada! Tienes ${campaignProgress.keys + 1} llaves.`);
+                    else setError(result.error || 'No se pudo completar la compra.');
+                  }}
+                  disabled={coins < getCampaignKeyPrice()}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  <Key className="w-5 h-5" />Comprar 1 Llave
+                </button>
               </div>
             </div>
           )}
@@ -246,24 +224,6 @@ export function ShopScreen() {
       </div>
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
-
-      {/* Claim success modal */}
-      {showClaimModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur animate-fade-in">
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-card border border-green-500/40 p-8 text-center animate-scale-in shadow-2xl shadow-green-500/20">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-green-400" />
-              </div>
-            </div>
-            <h2 className="text-white font-bold text-xl mb-2">¡Reclamado con exito!</h2>
-            <p className="text-green-300 text-sm mb-6">Tus diamantes te llegaran en un plazo de 24 a 72 horas.</p>
-            <button onClick={() => setShowClaimModal(false)} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold hover:opacity-90 transition-opacity">
-              Entendido
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

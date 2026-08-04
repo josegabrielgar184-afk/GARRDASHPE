@@ -17,7 +17,7 @@ import {
 import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
-import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS } from '@/lib/config';
+import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
@@ -231,6 +231,8 @@ interface GameState {
   getTowerLevel: (tower: keyof TowerLevel) => number;
   submitSurvivalScore: (timeMs: number) => Promise<void>;
   canExchangeDiamonds: () => { ok: boolean; reason?: string };
+  buyCampaignKey: () => { ok: boolean; error?: string };
+  getCampaignKeyPrice: () => number;
   refreshRanking: () => Promise<void>;
   refreshWeeklyRanking: () => Promise<void>;
   loadMoreRanking: (type: 'space' | 'zombie' | 'weekly') => Promise<void>;
@@ -975,6 +977,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
     return { ok: true };
   }, [coins, campaignProgress.keys, campaignProgress.lastLevelCompletedAt]);
+
+  const getCampaignKeyPrice = useCallback((): number => {
+    return getConfigCampaignKeyPrice(campaignProgress.keys);
+  }, [campaignProgress.keys]);
+
+  const buyCampaignKey = useCallback((): { ok: boolean; error?: string } => {
+    const price = getConfigCampaignKeyPrice(campaignProgress.keys);
+    if (!spendCoins(price)) return { ok: false, error: 'No tienes suficientes monedas.' };
+    setCampaignProgress((prev) => {
+      const next = { ...prev, keys: prev.keys + 1 };
+      saveData({ campaignProgress: next });
+      const user = auth.currentUser;
+      if (user) {
+        try { updateDoc(doc(db, 'usuarios', user.uid), { campaignKeys: next.keys }).catch(() => {}); } catch {}
+      }
+      return next;
+    });
+    return { ok: true };
+  }, [campaignProgress.keys, spendCoins]);
 
   const exchangeDiamonds = useCallback(async (playerID: string, nickname: string): Promise<{ ok: boolean; error?: string }> => {
     const check = canExchangeDiamonds();
@@ -2315,6 +2336,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     campaignProgress, towerLevels, survivalBestTime,
     completeLevel, getCurrentCampaignLevel, exchangeDiamonds, buyTower, getTowerLevel,
     submitSurvivalScore, canExchangeDiamonds,
+    buyCampaignKey, getCampaignKeyPrice,
     showWelcomeBonus, dismissWelcomeBonus,
   };
 

@@ -861,6 +861,7 @@ export function ZombieGameScreen() {
         }
         turretXRef.current = clamp(turretXRef.current, 30, w - 30);
 
+        if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
         shoot();
 
         // Weapon timer countdown

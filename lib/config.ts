@@ -94,6 +94,16 @@ export const OPERATOR_LUNCH_BREAK_HOURS = 4;
 export const RANKING_PAGE_SIZE = 20;
 export const IMAGE_MAX_SIZE_KB = 500;
 
+export const CAMPAIGN_KEY_PRICE_CHEAP = 400;
+export const CAMPAIGN_KEY_CHEAP_THRESHOLD = 3;
+export const CAMPAIGN_KEY_PRICE_EXPENSIVE = 1000;
+
+export function getCampaignKeyPrice(currentKeys: number): number {
+  return currentKeys < CAMPAIGN_KEY_CHEAP_THRESHOLD
+    ? CAMPAIGN_KEY_PRICE_CHEAP
+    : CAMPAIGN_KEY_PRICE_EXPENSIVE;
+}
+
 export const MAX_DAILY_EXCHANGES = 50;
 export const INACTIVITY_EXPIRY_DAYS = 30;
 export const RECENT_ACTIVITY_REQUIRED_DAYS = 7;
