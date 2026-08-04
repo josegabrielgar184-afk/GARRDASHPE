@@ -342,11 +342,9 @@ export function ZombieGameScreen() {
     const weapon = weaponRef.current;
     if (weapon === 'shotgun' || doubleShotRef.current) {
       fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
-      shootCooldownRef.current = getFireRate();
     } else if (weapon === 'minigun') {
       fire(rand(-4, 4), rand(-1, 1));
       shootCooldownRef.current = getFireRate();
-    } else if (weapon === 'laser') {
       fire(0, 0);
       shootCooldownRef.current = getFireRate();
     } else {
