@@ -23,6 +23,7 @@ import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
 import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
+import { acquireWakeLock, releaseWakeLock } from '@/lib/wake-lock';
 import { AdMob } from '@capacitor-community/admob';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival'];
@@ -179,12 +180,23 @@ function AppShell() {
     })();
   }, []);
 
+  // Wake Lock: keep screen on while in gameplay
+  useEffect(() => {
+    if (isGameplay) {
+      acquireWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    return () => { releaseWakeLock(); };
+  }, [isGameplay]);
+
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
         pauseAudio();
       } else {
         resumeAudio();
+        if (isGameplay) acquireWakeLock();
       }
     };
     const handleBlur = () => pauseAudio();
@@ -199,7 +211,7 @@ function AppShell() {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
     };
-  }, []);
+  }, [isGameplay]);
 
   if (isDeviceBanned) {
     return (

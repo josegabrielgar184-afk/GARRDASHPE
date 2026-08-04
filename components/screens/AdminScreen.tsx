@@ -10,10 +10,10 @@ import {
   ArrowLeft, DollarSign, Users, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, Eye, EyeOff,
-  RefreshCw, AlertCircle, XCircle, Loader2, Key,
+  RefreshCw, AlertCircle, XCircle, Loader2, Key, List, Mail, Gamepad2, Timer, IdCard,
 } from 'lucide-react';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'su' | 'control' | 'observer' | 'stats' | 'levels';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels';
 
 export function AdminScreen() {
   const {
@@ -25,6 +25,7 @@ export function AdminScreen() {
     adminCanjesList, adminApprovedList, refreshAdminCanjes, adminCanjesPage, setAdminCanjesPage,
     adminApproveCanje, adminMarkCorrection, adminRejectCanje,
     campaignLevelStats, refreshCampaignLevelStats,
+    allUsersList,
   } = useGame();
   const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -138,6 +139,7 @@ export function AdminScreen() {
     { id: 'canjes', label: 'Canjes', icon: RefreshCw },
     { id: 'near', label: 'Casi Listos', icon: TrendingUp },
     { id: 'users', label: 'Usuarios', icon: Users },
+    { id: 'dusers', label: 'Detallados', icon: List },
     { id: 'su', label: 'SU', icon: Shield },
     { id: 'control', label: 'Control', icon: Settings2 },
     { id: 'observer', label: 'Observador', icon: Eye },
@@ -595,6 +597,87 @@ export function AdminScreen() {
           )}
 
           {/* SU Tab */}
+          {tab === 'dusers' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <List className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-white font-bold text-sm">Usuarios Detallados ({allUsersList.length})</h3>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-white/40">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  Tiempo Real
+                </div>
+              </div>
+              {allUsersList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-white/30">
+                  <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                  <p className="text-sm">Cargando usuarios...</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allUsersList.map((user, idx) => (
+                    <div
+                      key={user.uid}
+                      className={`rounded-xl border p-3 transition-all hover:border-amber-500/40 ${user.banned ? 'bg-red-950/30 border-red-500/30' : 'bg-card border-border'}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 shrink-0">
+                          <span className="text-amber-400 font-bold text-xs">{idx + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-white font-bold text-sm truncate">{user.nombre}</span>
+                            {user.vip && <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                            {user.banned && <span className="text-red-400 text-[10px] font-bold bg-red-500/10 px-1.5 py-0.5 rounded">BANEADO</span>}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-white/50 text-xs">
+                            <Mail className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{user.email || 'Sin correo'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-white/50 text-xs">
+                            <IdCard className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{user.playerID || 'Sin Player ID'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-white/50 text-xs">
+                            <Gamepad2 className="w-3 h-3 shrink-0" />
+                            <span>Nick: {user.nickname || 'Sin nick'}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="flex items-center gap-1 text-cyan-400">
+                              <Timer className="w-3 h-3" />
+                              {Math.floor(user.tiempo_jugado_min)}min jugado
+                            </span>
+                            <span className="flex items-center gap-1 text-emerald-400">
+                              <Clock className="w-3 h-3" />
+                              {Math.floor(user.tiempo_app_min)}min app
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs">
+                            <span className="flex items-center gap-1 text-amber-400">
+                              <Coins className="w-3 h-3" />
+                              {user.coins.toLocaleString()} monedas
+                            </span>
+                            <span className="flex items-center gap-1 text-white/50">
+                              <TrendingUp className="w-3 h-3" />
+                              {user.puntos.toLocaleString()} puntos
+                            </span>
+                          </div>
+                          {user.currentRequest && (
+                            <div className="flex items-center gap-1.5 text-xs text-blue-400">
+                              <AlertCircle className="w-3 h-3 shrink-0" />
+                              <span>Solicitud: {user.currentRequest}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {tab === 'su' && (
             <div className="space-y-4">
               <div className="rounded-2xl bg-gradient-to-br from-purple-900/30 to-card border border-purple-500/30 p-4 shadow-lg">

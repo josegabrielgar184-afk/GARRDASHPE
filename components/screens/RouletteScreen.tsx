@@ -6,6 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
+import { ADMOB_CONFIG } from '@/lib/config';
 import { ArrowLeft, Coins, Calendar, CheckCircle2, Crown, Gift, Video, Sparkles } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
@@ -358,6 +359,7 @@ export function RouletteScreen() {
         onReward={() => setExtraSpins((e) => e + 1)}
         title="Giro Extra"
         rewardText="¡Has ganado un giro extra en la ruleta!"
+        adId={ADMOB_CONFIG.ruletaId}
       />
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>

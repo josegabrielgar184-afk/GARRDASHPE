@@ -9,7 +9,7 @@ import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown,
 export function RankingScreen() {
   const {
     setScreen, spaceRanking, zombieRanking, weeklyRanking, refreshRanking, refreshWeeklyRanking,
-    loadMoreRanking, hasMoreRanking, playerName, currentUserRank,
+    loadMoreRanking, hasMoreRanking, playerName, currentUserRank, currentUserScore,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival'>('weekly');
@@ -171,9 +171,15 @@ export function RankingScreen() {
             </div>
             <div className="text-right shrink-0">
               {currentUserRank ? (
-                <p className="text-cyan-400 font-bold text-lg">#{currentUserRank}</p>
+                <div>
+                  <p className="text-cyan-400 font-bold text-lg">#{currentUserRank}</p>
+                  <p className="text-white/50 text-xs">{currentUserScore.toLocaleString()} puntos</p>
+                </div>
               ) : (
-                <p className="text-white/30 text-sm">Juega para entrar al ranking</p>
+                <div>
+                  <p className="text-white/30 text-sm">Juega para entrar al ranking</p>
+                  <p className="text-white/20 text-xs">Juega una partida para aparecer aqui</p>
+                </div>
               )}
             </div>
           </div>

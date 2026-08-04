@@ -11,9 +11,10 @@ interface RewardAdModalProps {
   onReward: () => void;
   title: string;
   rewardText: string;
+  adId?: string;
 }
 
-export function RewardAdModal({ open, onClose, onReward, title, rewardText }: RewardAdModalProps) {
+export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId }: RewardAdModalProps) {
   const [phase, setPhase] = useState<'loading' | 'ad' | 'reward' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
   const rewardedRef = useRef(false);
@@ -65,9 +66,9 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText }: Re
           }
         });
 
-        // Prepare the rewarded ad
+        // Prepare the rewarded ad - use provided adId or fall back to revivirId
         await AdMob.prepareRewardVideoAd({
-          adId: ADMOB_CONFIG.revivirId,
+          adId: adId || ADMOB_CONFIG.revivirId,
         });
 
         if (cancelled) {

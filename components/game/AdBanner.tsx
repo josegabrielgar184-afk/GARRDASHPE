@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { ADMOB_CONFIG } from '@/lib/config';
-import { AdMob, BannerAdSize, BannerAdPosition } from '@capacitor-community/admob';
+import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 10;
 const RETRY_BASE_MS = 2000;
 
 export function AdBanner() {
@@ -14,10 +14,24 @@ export function AdBanner() {
   const [retryCount, setRetryCount] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNativeRef = useRef(false);
+  const listenerCleanupRef = useRef<(() => void) | null>(null);
 
   const showBanner = useCallback(async () => {
     try {
       await AdMob.initialize({ initializeForTesting: false });
+      // Listen for banner load events
+      const loadListener = await AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+        setAdLoaded(true);
+        setRetryCount(0);
+      });
+      const failListener = await AdMob.addListener(BannerAdPluginEvents.FailedToLoad, () => {
+        setAdLoaded(false);
+        scheduleRetry();
+      });
+      listenerCleanupRef.current = () => {
+        loadListener.remove();
+        failListener.remove();
+      };
       await AdMob.showBanner({
         adId: ADMOB_CONFIG.bannerId,
         adSize: BannerAdSize.SMART_BANNER,
@@ -51,6 +65,7 @@ export function AdBanner() {
     if (vip || !isOnline) {
       setAdLoaded(false);
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      if (listenerCleanupRef.current) { listenerCleanupRef.current(); listenerCleanupRef.current = null; }
       if (isNativeRef.current) {
         AdMob.hideBanner().catch(() => {});
       }
@@ -63,6 +78,7 @@ export function AdBanner() {
 
     return () => {
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      if (listenerCleanupRef.current) { listenerCleanupRef.current(); listenerCleanupRef.current = null; }
     };
   }, [vip, isOnline, showBanner]);
 
@@ -72,6 +88,7 @@ export function AdBanner() {
     const handleOnline = () => {
       if (vip) return;
       setRetryCount(0);
+      // Force re-initialize and show banner on network recovery
       showBanner();
     };
     const handleOffline = () => {
@@ -85,6 +102,17 @@ export function AdBanner() {
       window.removeEventListener('offline', handleOffline);
     };
   }, [vip, showBanner]);
+
+  // Periodic health check: if banner not loaded and online, retry
+  useEffect(() => {
+    if (!isNativeRef.current || vip || !isOnline) return;
+    const healthCheck = setInterval(() => {
+      if (!adLoaded && retryCount < MAX_RETRIES) {
+        showBanner();
+      }
+    }, 30000); // Check every 30 seconds
+    return () => clearInterval(healthCheck);
+  }, [adLoaded, retryCount, vip, isOnline, showBanner]);
 
   if (vip || !adLoaded) return null;
 

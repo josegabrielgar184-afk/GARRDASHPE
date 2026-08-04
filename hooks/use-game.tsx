@@ -303,6 +303,13 @@ interface GameState {
   adminPanicButton: () => Promise<{ ok: boolean; error?: string }>;
   transactionLight: TransactionLight;
   currentUserRank: number | null;
+  currentUserScore: number;
+  allUsersList: Array<{
+    uid: string; nombre: string; email: string; coins: number;
+    puntos: number; vip: boolean; playerID: string; nickname: string;
+    tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
+    lastActive: unknown; banned: boolean; currentRequest: string;
+  }>;
   observerMode: boolean;
   toggleObserverMode: () => void;
   addPlayTime: (ms: number) => void;
@@ -447,6 +454,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [influencerInfo, setInfluencerInfo] = useState<InfluencerInfo | null>(null);
   const [transactionLight, setTransactionLight] = useState<TransactionLight>('green');
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
+  const [currentUserScore, setCurrentUserScore] = useState<number>(0);
+  const [allUsersList, setAllUsersList] = useState<Array<{
+    uid: string; nombre: string; email: string; coins: number;
+    puntos: number; vip: boolean; playerID: string; nickname: string;
+    tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
+    lastActive: unknown; banned: boolean; currentRequest: string;
+  }>>([]);
   const [vipExpiry, setVipExpiry] = useState<string | null>(null);
   const [observerMode, setObserverMode] = useState(false);
 
@@ -1023,24 +1037,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         saveData({ campaignProgress: next });
         return next;
       });
-      await addDoc(collection(db, 'solicitudes_pendientes'), {
+      // Write to 'canjes' collection (user-writable) instead of 'solicitudes_pendientes' (admin-only)
+      const newReqRef = doc(collection(db, 'canjes'));
+      await setDoc(newReqRef, {
+        id: newReqRef.id,
         userId: user.uid,
+        userName: nickname.trim(),
+        gameId: 'free_fire',
+        selectedReward: 'Recarga de Diamantes',
+        coinCost: MIN_CLAIM_COINS,
+        keyCost: DIAMOND_CLAIM_KEYS_REQUIRED,
+        estimatedUsdValue: 1.0,
+        status: 'pending_review',
+        createdAt: Date.now(),
+        queuePosition: 0,
         playerID: playerID.trim(),
         nickname: nickname.trim(),
-        tiempoJugado: 0,
-        puntosGastados: 0,
-        coinsSpent: MIN_CLAIM_COINS,
-        keysSpent: DIAMOND_CLAIM_KEYS_REQUIRED,
-        fecha: serverTimestamp(),
-        estado: 'pendiente',
+        correctionDeadline: null,
+        approvedAt: null,
+        rejectedAt: null,
+        rejectReason: '',
         type: 'diamond_exchange',
       });
+      // Update user doc with coins and keys
+      await updateDoc(doc(db, 'usuarios', user.uid), {
+        coins: coins - MIN_CLAIM_COINS,
+        campaignKeys: Math.max(0, campaignProgress.keys - DIAMOND_CLAIM_KEYS_REQUIRED),
+        lastActive: serverTimestamp(),
+      }).catch(() => {});
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al procesar';
       return { ok: false, error: msg };
     }
-  }, [canExchangeDiamonds, spendCoins]);
+  }, [canExchangeDiamonds, spendCoins, coins, campaignProgress.keys]);
 
   const buyTower = useCallback((tower: keyof TowerLevel, cost: number): boolean => {
     if (!spendCoins(cost)) return false;
@@ -1165,6 +1195,43 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => unsubs.forEach((u) => u());
   }, [fillWithBots]);
 
+  // Real-time listener for all users (admin panel)
+  useEffect(() => {
+    if (userRole !== 'admin' && userRole !== 'operador') return;
+    try {
+      const unsub = onSnapshot(collection(db, 'usuarios'), (snap) => {
+        const users: Array<{
+          uid: string; nombre: string; email: string; coins: number;
+          puntos: number; vip: boolean; playerID: string; nickname: string;
+          tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
+          lastActive: unknown; banned: boolean; currentRequest: string;
+        }> = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          users.push({
+            uid: d.id,
+            nombre: data.nombre ?? data.email?.split('@')[0] ?? 'Jugador',
+            email: data.email ?? '',
+            coins: data.coins ?? 0,
+            puntos: (data.puntos_espacio ?? 0) + (data.puntos_zombies ?? 0) + (data.puntos_semanales ?? 0),
+            vip: data.vip ?? false,
+            playerID: data.playerID ?? '',
+            nickname: data.nickname ?? data.nombre ?? '',
+            tiempo_jugado_min: data.tiempo_jugado_min ?? 0,
+            tiempo_app_min: data.tiempo_app_min ?? 0,
+            createdAt: data.createdAt ?? null,
+            lastActive: data.lastActive ?? null,
+            banned: data.banned ?? false,
+            currentRequest: data.currentRequest ?? '',
+          });
+        });
+        users.sort((a, b) => b.coins - a.coins);
+        setAllUsersList(users);
+      }, () => {});
+      return () => unsub();
+    } catch { return; }
+  }, [userRole]);
+
   const getFreeSpinsRemaining = useCallback((): number => {
     const today = new Date().toISOString().slice(0, 10);
     const isToday = lastRouletteDate === today;
@@ -1282,6 +1349,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const uid = cred.user.uid;
+      // Force token refresh so Firestore security rules see the fresh auth state
+      try { await cred.user.getIdToken(true); } catch {}
       await setDoc(doc(db, 'usuarios', uid), {
         nombre: data.fullName,
         edad: data.age,
@@ -1328,14 +1397,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const user = auth.currentUser;
       if (!user) return { ok: false, error: 'Debes iniciar sesion.' };
       if (!spendPoints(10)) return { ok: false, error: 'No se pudieron descontar los puntos.' };
-      await addDoc(collection(db, 'solicitudes_pendientes'), {
+      await addDoc(collection(db, 'canjes'), {
         userId: user.uid,
         playerID: playerID.trim(),
         nickname: nickname.trim(),
         tiempoJugado: scoreRef.current || 0,
         puntosGastados: 10,
-        fecha: serverTimestamp(),
-        estado: 'pendiente',
+        gameId: 'free_fire',
+        selectedReward: 'Canje de Puntos',
+        coinCost: 0,
+        keyCost: 0,
+        estimatedUsdValue: 0,
+        status: 'pending_review',
+        createdAt: Date.now(),
+        queuePosition: 0,
+        type: 'points_exchange',
       });
       return { ok: true };
     } catch (err: unknown) {
@@ -1802,60 +1878,65 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const adminCanjesPageSize = 100;
 
   const refreshAdminCanjes = useCallback(async () => {
+    return Promise.resolve();
+  }, []);
+
+  // Real-time listener for admin canjes (pending + approved)
+  useEffect(() => {
+    if (userRole !== 'admin' && userRole !== 'operador') return;
     try {
-      const user = auth.currentUser;
-      if (!user) return;
-      // Fetch pending canjes
-      const pendingSnap = await getDocs(query(
+      const pendingQ = query(
         collection(db, 'canjes'),
         where('status', 'in', ['pending_review', 'waiting_correction'])
-      ));
-      const pendingList: CanjeRequest[] = [];
-      pendingSnap.forEach((d) => {
-        const data = d.data();
-        pendingList.push({
-          id: d.id, userId: data.userId ?? '', userName: data.userName ?? '',
-          gameId: data.gameId ?? 'free_fire', selectedReward: data.selectedReward ?? '',
-          coinCost: data.coinCost ?? 0, keyCost: data.keyCost ?? 0,
-          estimatedUsdValue: data.estimatedUsdValue ?? 0, status: data.status ?? 'pending_review',
-          createdAt: data.createdAt ?? 0, queuePosition: data.queuePosition ?? 0,
-          playerID: data.playerID ?? '', nickname: data.nickname ?? '',
-          correctionDeadline: data.correctionDeadline ?? null,
+      );
+      const unsubPending = onSnapshot(pendingQ, (snap) => {
+        const pendingList: CanjeRequest[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          pendingList.push({
+            id: d.id, userId: data.userId ?? '', userName: data.userName ?? '',
+            gameId: data.gameId ?? 'free_fire', selectedReward: data.selectedReward ?? '',
+            coinCost: data.coinCost ?? 0, keyCost: data.keyCost ?? 0,
+            estimatedUsdValue: data.estimatedUsdValue ?? 0, status: data.status ?? 'pending_review',
+            createdAt: data.createdAt ?? 0, queuePosition: data.queuePosition ?? 0,
+            playerID: data.playerID ?? '', nickname: data.nickname ?? '',
+            correctionDeadline: data.correctionDeadline ?? null,
+          });
         });
-      });
-      pendingList.sort((a, b) => a.createdAt - b.createdAt);
-      pendingList.forEach((c, i) => { c.queuePosition = i + 1; });
+        pendingList.sort((a, b) => a.createdAt - b.createdAt);
+        pendingList.forEach((c, i) => { c.queuePosition = i + 1; });
+        setAdminCanjesList(pendingList);
+      }, () => {});
 
-      // Fetch approved canjes
-      const approvedSnap = await getDocs(collection(db, 'canjes_aprobadas'));
-      const approvedList: CanjeRequest[] = [];
-      approvedSnap.forEach((d) => {
-        const data = d.data();
-        approvedList.push({
-          id: d.id, userId: data.userId ?? '', userName: data.userName ?? '',
-          gameId: data.gameId ?? 'free_fire', selectedReward: data.selectedReward ?? '',
-          coinCost: data.coinCost ?? 0, keyCost: data.keyCost ?? 0,
-          estimatedUsdValue: data.estimatedUsdValue ?? 0, status: 'approved',
-          createdAt: data.createdAt ?? 0, queuePosition: 0,
-          playerID: data.playerID ?? '', nickname: data.nickname ?? '',
-          approvedAt: data.approvedAt ?? null,
+      const unsubApproved = onSnapshot(collection(db, 'canjes_aprobadas'), (snap) => {
+        const approvedList: CanjeRequest[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          approvedList.push({
+            id: d.id, userId: data.userId ?? '', userName: data.userName ?? '',
+            gameId: data.gameId ?? 'free_fire', selectedReward: data.selectedReward ?? '',
+            coinCost: data.coinCost ?? 0, keyCost: data.keyCost ?? 0,
+            estimatedUsdValue: data.estimatedUsdValue ?? 0, status: 'approved',
+            createdAt: data.createdAt ?? 0, queuePosition: 0,
+            playerID: data.playerID ?? '', nickname: data.nickname ?? '',
+            approvedAt: data.approvedAt ?? null,
+          });
         });
-      });
-      approvedList.sort((a, b) => (b.approvedAt ?? 0) - (a.approvedAt ?? 0));
+        approvedList.sort((a, b) => (b.approvedAt ?? 0) - (a.approvedAt ?? 0));
+        setAdminApprovedList(approvedList);
+        setAdminCanjesCounts((prev) => ({
+          ...prev,
+          approved: approvedList.length,
+          pending: adminCanjesList.length,
+        }));
+      }, () => {});
 
-      // Fetch rejected count
-      const rejectedSnap = await getDocs(collection(db, 'canjes_rechazadas'));
-
-      setAdminCanjesList(pendingList);
-      setAdminApprovedList(approvedList);
-      setAdminCanjesCounts({
-        total: pendingList.length + approvedList.length + rejectedSnap.size,
-        approved: approvedList.length,
-        pending: pendingList.length,
-        rejected: rejectedSnap.size,
-      });
-    } catch {}
-  }, []);
+      return () => {
+        unsubPending();
+        unsubApproved();
+      };
+    } catch { return; }
+  }, [userRole]);
 
   const canjesPagination = {
     page: adminCanjesPage,
@@ -2321,8 +2402,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         // If user has no points at all, they can't be ranked
         if (userSpace <= 0 && userZombie <= 0 && userWeekly <= 0) {
           setCurrentUserRank(null);
+          setCurrentUserScore(0);
           return;
         }
+
+        // Set the user's best score for display
+        const bestScore = Math.max(userSpace, userZombie, userWeekly);
+        setCurrentUserScore(bestScore);
 
         // Compute rank for each category: count users with higher score
         let bestRank: number | null = null;
@@ -2382,7 +2468,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     operatorTurn, startOperatorTurn, endOperatorTurn, operatorOnLunch,
     influencerInfo, refreshInfluencerInfo, requestInfluencerWithdraw,
     adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton,
-    transactionLight, currentUserRank,
+    transactionLight, currentUserRank, currentUserScore, allUsersList,
     observerMode, toggleObserverMode,
     addPlayTime,
     startGameBatch, endGameBatch,
