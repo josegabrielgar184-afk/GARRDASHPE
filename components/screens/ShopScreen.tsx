@@ -188,7 +188,7 @@ export function ShopScreen() {
               <div className="rounded-2xl bg-card border border-green-500/30 p-5 shadow-lg shadow-green-500/10">
                 <div className="flex items-center gap-3 mb-4">
                   <Gem className="w-8 h-8 text-green-400" />
-                  <div><h2 className="text-white font-bold">100 Diamantes </h2><p className="text-white/40 text-xs">Costo: 10,000 Monedas + 5 Llaves de Campaña</p></div>
+                  <div><h2 className="text-white font-bold">100 Diamantes Free Fire</h2><p className="text-white/40 text-xs">Costo: 10,000 Monedas + 5 Llaves de Campaña</p></div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
                   <div className="rounded-lg bg-background/50 p-2 text-center">

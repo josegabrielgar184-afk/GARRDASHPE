@@ -2,13 +2,13 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "com.garricraft.garrdash"
-    compileSdk 36
+    compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.garricraft.garrdash"
         minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion 36
-        versionCode 32
-        versionName "1.0.0.4"
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 31
+        versionName "1.0.0.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

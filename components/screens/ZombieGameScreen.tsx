@@ -338,35 +338,25 @@ export function ZombieGameScreen() {
       b.vx = vxMod; b.vy = -speed;
       b.life = 80; b.damage = dmg; b.color = color;
     };
-const weapon = weaponRef.current;
 
-if (weapon === 'shotgun' || doubleShotRef.current) {
-  fire(-12, -1.5); 
-  fire(0, 0); 
-  fire(12, 1.5);
-} else if (weapon === 'minigun') {
-  fire(rand(-4, 4), rand(-1, 1));
-  fire(0, 0);
-} else {
-  fire(0, 0);
-}
-  fire(0, 0);
-  shootCooldownRef.current = 10; // Dispara más rápido
-} else {
-  fire(0, 0);
-  shootCooldownRef.current = 30; // Velocidad normal de pistola
-}
-  fire(0, 0);
-  shootCooldownRef.current = 8;  // Más rápido por ser minigun
-} else {
-  fire(0, 0);
-  shootCooldownRef.current = 20; // Velocidad normal
-}
+    const weapon = weaponRef.current;
+    if (weapon === 'shotgun' || doubleShotRef.current) {
+      fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
+      shootCooldownRef.current = getFireRate();
+    } else if (weapon === 'minigun') {
+      fire(rand(-4, 4), rand(-1, 1));
+      shootCooldownRef.current = getFireRate();
+    } else if (weapon === 'laser') {
+      fire(0, 0);
+      shootCooldownRef.current = getFireRate();
+    } else {
+      fire(0, 0);
+      shootCooldownRef.current = getFireRate();
+    }
 
     spawnMuzzleFlash(muzzleFlashesRef.current, tx, turretY - 30, -Math.PI / 2, color, 22 * SPRITE_SCALE);
     playShoot();
   }, []);
- 
 
   const spawnZombie = useCallback(() => {
     const lane = Math.floor(Math.random() * LANE_COUNT);
