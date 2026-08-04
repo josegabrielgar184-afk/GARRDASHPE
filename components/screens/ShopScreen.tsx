@@ -6,41 +6,41 @@ import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key } from 'lucide-react';
-import { VIP_DISPONIBLE_PLAYSTORE, CAMPAIGN_KEY_PRICE_CHEAP, CAMPAIGN_KEY_PRICE_EXPENSIVE, CAMPAIGN_KEY_CHEAP_THRESHOLD } from '@/lib/config';
+import { VIP_DISPONIBLE_PLAYSTORE, getCampaignKeyPrice } from '@/lib/config';
 
 export function ShopScreen() {
   const {
     coins, spendCoins, vip, vipExpiry, buyVIP, setScreen,
     upgrades, buyUpgrade, selectedZombie, selectZombie,
     towerLevels, buyTower, getTowerLevel, campaignProgress,
-    buyCampaignKey, getCampaignKeyPrice,
+    buyCampaignKey, getCampaignKeyPrice: getGameCampaignKeyPrice,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [tab, setTab] = useState<'upgrades' | 'keys' | 'heroes'>('upgrades');
+  const [tab, setTab] = useState<'companions' | 'keys' | 'heroes'>('companions');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const upgradeCost = (key: keyof typeof UPGRADE_COSTS) =>
     UPGRADE_COSTS[key] * Math.pow(2, upgrades[key]);
 
-  const towerDefs: Array<{ key: 'turret' | 'drone' | 'medic'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
-    { key: 'turret', icon: Zap, name: 'Torreta', desc: 'Dispara junto al jugador', color: '#f97316', baseCost: 200 },
-    { key: 'drone', icon: Swords, name: 'Dron', desc: 'Vuela y dispara a multiples enemigos', color: '#ef4444', baseCost: 500 },
-    { key: 'medic', icon: Shield, name: 'Medico', desc: 'Repara la barricada automaticamente', color: '#34d399', baseCost: 800 },
+  const companionDefs: Array<{ key: 'turret' | 'drone' | 'medic'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
+    { key: 'turret', icon: Zap, name: 'Francotirador', desc: 'Dispara junto a ti', color: '#f97316', baseCost: 200 },
+    { key: 'drone', icon: Swords, name: 'Dron', desc: 'Vuela y dispara a múltiples enemigos', color: '#ef4444', baseCost: 500 },
+    { key: 'medic', icon: Shield, name: 'Médico', desc: 'Repara la barricada automáticamente', color: '#34d399', baseCost: 800 },
   ];
-  const towerCost = (key: 'turret' | 'drone' | 'medic') => towerDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
+  const companionCost = (key: 'turret' | 'drone' | 'medic') => companionDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      <div className="pt-16 px-4 pb-28 flex-1">
+      <div className="pt-16 px-4 pb-28 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-white font-bold text-xl" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>RECLAIM YOUR DIAMONDS</h1>
+          <h1 className="text-white font-bold text-xl" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>TIENDA</h1>
         </div>
 
         <div className="max-w-md mx-auto">
@@ -58,7 +58,7 @@ export function ShopScreen() {
                 <span>VIP Activo</span>
                 {vipExpiry && (
                   <span className="text-white/40 text-xs font-normal ml-1">
-                    · {Math.max(0, Math.ceil((new Date(vipExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} dias restantes
+                    · {Math.max(0, Math.ceil((new Date(vipExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} días restantes
                   </span>
                 )}
               </div>
@@ -66,7 +66,7 @@ export function ShopScreen() {
               <div className="flex items-center gap-3">
                 <Crown className="w-6 h-6 text-amber-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-white font-bold text-sm">Pase VIP (60 dias)</h2>
+                  <h2 className="text-white font-bold text-sm">Pase VIP (60 días)</h2>
                   <p className="text-white/40 text-[11px] leading-tight">Sin anuncios · 2x monedas en partida · 3 ruletas gratis diarias</p>
                 </div>
                 <button onClick={buyVIP} className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20 shrink-0">Comprar</button>
@@ -75,24 +75,24 @@ export function ShopScreen() {
               <div className="flex items-center gap-3 opacity-60">
                 <Lock className="w-6 h-6 text-white/40 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-white/50 font-bold text-sm">Pase VIP Proximamente</h2>
-                  <p className="text-white/30 text-[11px] leading-tight">El pase VIP estara disponible muy pronto en la Play Store</p>
+                  <h2 className="text-white/50 font-bold text-sm">Pase VIP Próximamente</h2>
+                  <p className="text-white/30 text-[11px] leading-tight">El pase VIP estará disponible muy pronto en la Play Store</p>
                 </div>
               </div>
             )}
           </div>
 
           <div className="flex gap-2 mb-4">
-            <button onClick={() => setTab('upgrades')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'upgrades' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Torres</button>
+            <button onClick={() => setTab('companions')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'companions' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Compañeros</button>
             <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'keys' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20' : 'bg-card border border-border text-white/60'}`}>Llaves</button>
             <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-card border border-border text-white/60'}`}>Héroes</button>
           </div>
 
-          {tab === 'upgrades' && (
+          {tab === 'companions' && (
             <div className="grid grid-cols-1 gap-3">
-              {towerDefs.map((t) => {
+              {companionDefs.map((t) => {
                 const Icon = t.icon;
-                const cost = towerCost(t.key);
+                const cost = companionCost(t.key);
                 const level = getTowerLevel(t.key);
                 return (
                   <div key={t.key} className="rounded-2xl bg-card border p-4 shadow-lg flex items-center gap-4" style={{ borderColor: `${t.color}55` }}>
@@ -108,7 +108,7 @@ export function ShopScreen() {
                       onClick={() => {
                         setError(''); setSuccess('');
                         if (!buyTower(t.key, cost)) setError('No tienes suficientes monedas.');
-                        else setSuccess(`¡${t.name} subida a Nv.${level + 1}!`);
+                        else setSuccess(`¡${t.name} subido a Nv.${level + 1}!`);
                       }}
                       className="px-4 py-3 rounded-xl text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shadow-lg shrink-0"
                       style={{ backgroundColor: t.color, boxShadow: `0 0 12px ${t.color}40` }}
@@ -174,28 +174,11 @@ export function ShopScreen() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-white font-bold">Llaves de Campaña</h2>
-                    <p className="text-white/40 text-xs">Desbloquea niveles y canjea por diamantes</p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-white/40 text-[10px]">Tienes</p>
                     <p className="text-amber-400 font-bold text-lg flex items-center gap-1 justify-end"><Key className="w-4 h-4" />{campaignProgress.keys}</p>
                   </div>
-                </div>
-
-                <div className="rounded-xl bg-background/50 p-3 mb-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/60">Llaves {Math.min(campaignProgress.keys + 1, CAMPAIGN_KEY_CHEAP_THRESHOLD)}-{CAMPAIGN_KEY_CHEAP_THRESHOLD} (primeras)</span>
-                    <span className="text-amber-400 font-bold flex items-center gap-1"><Coins className="w-3 h-3" />{CAMPAIGN_KEY_PRICE_CHEAP.toLocaleString()} c/u</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/60">Llave {CAMPAIGN_KEY_CHEAP_THRESHOLD + 1} en adelante</span>
-                    <span className="text-orange-400 font-bold flex items-center gap-1"><Coins className="w-3 h-3" />{CAMPAIGN_KEY_PRICE_EXPENSIVE.toLocaleString()} c/u</span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 mb-4 text-center">
-                  <p className="text-white/40 text-[10px] mb-1">Precio de la siguiente llave</p>
-                  <p className="text-amber-400 font-black text-2xl flex items-center gap-1 justify-center"><Coins className="w-5 h-5" />{getCampaignKeyPrice().toLocaleString()}</p>
                 </div>
 
                 <button
@@ -205,7 +188,7 @@ export function ShopScreen() {
                     if (result.ok) setSuccess(`¡Llave comprada! Tienes ${campaignProgress.keys + 1} llaves.`);
                     else setError(result.error || 'No se pudo completar la compra.');
                   }}
-                  disabled={coins < getCampaignKeyPrice()}
+                  disabled={coins < getGameCampaignKeyPrice()}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
                 >
                   <Key className="w-5 h-5" />Comprar 1 Llave

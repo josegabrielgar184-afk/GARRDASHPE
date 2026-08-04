@@ -135,10 +135,6 @@ export function CanjesScreen() {
                         <p className="text-white font-bold">{formatElapsed(elapsed)}</p>
                       </div>
                       <div className="rounded-lg bg-background/50 p-2 text-center">
-                        <p className="text-white/40">Valor</p>
-                        <p className="text-green-400 font-bold">~${c.estimatedUsdValue.toFixed(2)}</p>
-                      </div>
-                      <div className="rounded-lg bg-background/50 p-2 text-center">
                         <p className="text-white/40">Player ID</p>
                         <p className="text-white font-mono truncate">{c.playerID}</p>
                       </div>
@@ -228,7 +224,7 @@ export function CanjesScreen() {
                   <button key={r.id} onClick={() => setSelectedReward(r.id)} disabled={!canAfford} className={`w-full p-3 rounded-xl text-left transition-colors border ${selectedReward === r.id ? 'bg-cyan-500/20 border-cyan-500/50' : 'bg-background/40 border-border'} ${!canAfford ? 'opacity-40' : ''}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-white font-bold text-sm">{r.label}</span>
-                      <span className="text-green-400 text-xs font-bold">~${r.usdValue.toFixed(2)}</span>
+
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-[10px]">
                       <span className="text-amber-400 flex items-center gap-1"><Coins className="w-3 h-3" /> {r.coinCost.toLocaleString()}</span>

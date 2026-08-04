@@ -192,9 +192,9 @@ export function SurvivalScreen() {
         survivalTimeRef.current += dt * 16.67;
         setSurvivalTime(Math.floor(survivalTimeRef.current / 1000));
         difficultyRef.current = 1 + survivalTimeRef.current / 30000;
-        // Time-based coin reward: 1 coin per 10 seconds survived
+        // Time-based coin reward: vicio mode gives 50% coins (1 coin per 20s)
         survivalCoinTimerRef.current += dt;
-        if (survivalCoinTimerRef.current >= 600) {
+        if (survivalCoinTimerRef.current >= 1200) {
           survivalCoinTimerRef.current = 0;
           coinsEarnedRef.current += 1; setCoinsEarned(coinsEarnedRef.current);
           addCoins(1);
@@ -270,8 +270,9 @@ export function SurvivalScreen() {
               spawnParticles2D(particlesRef.current, b.x, b.y, 5, '#fbbf24', 3);
               if (c.hp <= 0) {
                 cratePoolRef.current.release(c);
-                coinsEarnedRef.current += c.coins; setCoinsEarned(coinsEarnedRef.current);
-                addCoins(c.coins); playPickup();
+                const halfCoins = Math.ceil(c.coins * 0.5);
+                coinsEarnedRef.current += halfCoins; setCoinsEarned(coinsEarnedRef.current);
+                addCoins(halfCoins); playPickup();
                 spawnParticles2D(particlesRef.current, c.x, c.y, 15, '#fbbf24', 5);
               }
               break;

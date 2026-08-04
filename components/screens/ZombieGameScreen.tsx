@@ -70,7 +70,7 @@ const MILESTONES: Record<number, { title: string; coins?: number; shield?: boole
 function randomCoinCap(): number { return Math.floor(rand(70, 91)); }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel} = useGame();
+  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel} = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -170,6 +170,15 @@ export function ZombieGameScreen() {
   const reviveShieldTimerRef = useRef(0);
   const campaignLevelRef = useRef(1);
 
+  // Companion refs
+  const companionBulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 40));
+  const sniperCooldownRef = useRef(0);
+  const droneCooldownRef = useRef(0);
+  const medicCooldownRef = useRef(0);
+  const towerLevelsRef = useRef({ turret: 0, drone: 0, medic: 0 });
+
+  useEffect(() => { towerLevelsRef.current = towerLevels; }, [towerLevels]);
+
   const char = getZombieCharacter();
 
   useEffect(() => {
@@ -262,6 +271,7 @@ export function ZombieGameScreen() {
     turretXRef.current = canvas.width / 2;
     zombiePoolRef.current.releaseAll();
     bulletPoolRef.current.releaseAll();
+    companionBulletPoolRef.current.releaseAll();
     barrelPoolRef.current.releaseAll();
     coinPoolRef.current.releaseAll();
     powerUpPoolRef.current.releaseAll();
@@ -864,6 +874,57 @@ export function ZombieGameScreen() {
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
         shoot();
 
+        // === Companions ===
+        const tl = towerLevelsRef.current;
+        const companionBullets = companionBulletPoolRef.current;
+        const activeZombies = zombiePoolRef.current.getActive();
+
+        // Francotirador: shoots straight up, high damage, slow fire rate
+        if (tl.turret > 0) {
+          sniperCooldownRef.current -= dt;
+          if (sniperCooldownRef.current <= 0) {
+            const compX = turretXRef.current;
+            const b = companionBullets.acquire();
+            b.x = compX - 25; b.y = turretY - 30; b.vx = 0; b.vy = -8;
+            b.damage = 25 + tl.turret * 15; b.color = '#f97316'; b.life = 120;
+            const b2 = companionBullets.acquire();
+            b2.x = compX + 25; b2.y = turretY - 30; b2.vx = 0; b2.vy = -8;
+            b2.damage = 25 + tl.turret * 15; b2.color = '#f97316'; b2.life = 120;
+            spawnMuzzleFlash(muzzleFlashesRef.current, compX - 25, turretY - 30, -Math.PI / 2, '#f97316', 14 * SPRITE_SCALE);
+            spawnMuzzleFlash(muzzleFlashesRef.current, compX + 25, turretY - 30, -Math.PI / 2, '#f97316', 14 * SPRITE_SCALE);
+            sniperCooldownRef.current = Math.max(20, 60 - tl.turret * 5);
+          }
+        }
+
+        // Dron: targets nearest zombie, medium damage, faster fire rate
+        if (tl.drone > 0) {
+          droneCooldownRef.current -= dt;
+          if (droneCooldownRef.current <= 0 && activeZombies.length > 0) {
+            const targets = activeZombies.slice(0, Math.min(1 + tl.drone, 3));
+            for (const z of targets) {
+              const b = companionBullets.acquire();
+              b.x = turretXRef.current; b.y = turretY - 40;
+              const dx = z.x - b.x; const dy = z.y - b.y; const d = Math.hypot(dx, dy) || 1;
+              b.vx = (dx / d) * 7; b.vy = (dy / d) * 7;
+              b.damage = 15 + tl.drone * 8; b.color = '#ef4444'; b.life = 100;
+            }
+            spawnMuzzleFlash(muzzleFlashesRef.current, turretXRef.current, turretY - 40, -Math.PI / 2, '#ef4444', 12 * SPRITE_SCALE);
+            droneCooldownRef.current = Math.max(15, 45 - tl.drone * 3);
+          }
+        }
+
+        // Médico: repairs barricade periodically
+        if (tl.medic > 0) {
+          medicCooldownRef.current -= dt;
+          if (medicCooldownRef.current <= 0 && barricadeHpRef.current < barricadeMaxHpRef.current) {
+            const heal = 10 + tl.medic * 8;
+            barricadeHpRef.current = Math.min(barricadeMaxHpRef.current, barricadeHpRef.current + heal);
+            setBarricadeHp(barricadeHpRef.current);
+            addFloatText(`+${heal}`, turretXRef.current + 30, turretY - 20, '#34d399', 12);
+            medicCooldownRef.current = Math.max(60, 180 - tl.medic * 15);
+          }
+        }
+
         // Weapon timer countdown
         if (weaponRef.current !== 'pistol') {
           weaponTimerRef.current -= dt;
@@ -1061,6 +1122,29 @@ export function ZombieGameScreen() {
           if (hit) bulletPoolRef.current.release(b);
         }
 
+        // Companion bullets update + collision
+        for (const b of companionBulletPoolRef.current.getActive()) {
+          b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+          if (b.life <= 0 || b.y < -10 || b.y > h + 10 || b.x < -10 || b.x > w + 10) { companionBulletPoolRef.current.release(b); continue; }
+          let hit = false;
+          for (const z of zombiePoolRef.current.getActive()) {
+            if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
+              z.hp -= b.damage; z.hitFlash = 1; hit = true;
+              spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
+              if (z.hp <= 0) {
+                zombiePoolRef.current.release(z);
+                const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
+                killCountRef.current++; setZombiesKilled(killCountRef.current);
+                scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
+                if (Math.random() < 0.12) spawnFloatingCoins(z.x, z.y, 1);
+                spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
+              }
+              break;
+            }
+          }
+          if (hit) companionBulletPoolRef.current.release(b);
+        }
+
         for (const c of coinPoolRef.current.getActive()) {
           if (coinMagnetRef.current || char.magnetMeds) {
             const dx = turretXRef.current - c.x;
@@ -1144,6 +1228,49 @@ export function ZombieGameScreen() {
 
       if (shieldRef.current) drawNeonCircle(ctx, tx, turretY - 15, 40, '#22d3ee', 20);
 
+      // Draw companions next to survivor
+      const tl = towerLevelsRef.current;
+      if (tl.turret > 0) {
+        const sx = tx - 55; const sy = turretY;
+        ctx.save();
+        ctx.shadowColor = '#f97316'; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath(); ctx.arc(sx, sy - 15, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fb923c';
+        ctx.fillRect(sx - 5, sy - 5, 10, 20);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(sx - 2, sy - 17, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx + 2, sy - 17, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(sx, sy - 22); ctx.lineTo(sx, sy - 35); ctx.stroke();
+        ctx.restore();
+      }
+      if (tl.drone > 0) {
+        const dx = tx + 55; const dy = turretY - 50 + Math.sin(now * 0.005) * 5;
+        ctx.save();
+        ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 10;
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath(); ctx.ellipse(dx, dy, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fca5a5';
+        ctx.beginPath(); ctx.arc(dx, dy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(dx - 12, dy); ctx.lineTo(dx - 18, dy + 8);
+        ctx.moveTo(dx + 12, dy); ctx.lineTo(dx + 18, dy + 8); ctx.stroke();
+        ctx.restore();
+      }
+      if (tl.medic > 0) {
+        const mx = tx + 40; const my = turretY;
+        ctx.save();
+        ctx.shadowColor = '#34d399'; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#34d399';
+        ctx.beginPath(); ctx.arc(mx, my - 15, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#6ee7b7';
+        ctx.fillRect(mx - 5, my - 5, 10, 20);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(mx - 1, my - 18, 2, 6); ctx.fillRect(mx - 3, my - 16, 6, 2);
+        ctx.restore();
+      }
+
       // Floating coins
       for (const c of coinPoolRef.current.getActive()) {
         ctx.save();
@@ -1163,6 +1290,16 @@ export function ZombieGameScreen() {
         ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x, b.y + 16); ctx.stroke();
         ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+
+      // Companion bullets
+      for (const b of companionBulletPoolRef.current.getActive()) {
+        ctx.save();
+        ctx.fillStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(b.x, b.y, 2, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
 

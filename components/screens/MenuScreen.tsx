@@ -216,22 +216,6 @@ export function MenuScreen() {
             </button>
           </div>
 
-          {/* Campaign progress indicator */}
-          <div className="mt-3 rounded-xl bg-card border border-cyan-500/20 p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                <span className="text-cyan-400 font-black text-sm">{campaignProgress.currentLevel}</span>
-              </div>
-              <div>
-                <p className="text-white/60 text-[10px] uppercase">Nivel de Campaña</p>
-                <div className="flex items-center gap-1">
-                  {campaignProgress.keys > 0 && <span className="text-amber-400 text-[10px] font-bold flex items-center gap-0.5">{campaignProgress.keys} llaves</span>}
-                </div>
-              </div>
-            </div>
-            <button onClick={() => setScreen('campaign')} className="text-cyan-400 text-xs font-bold hover:text-cyan-300">Continuar &gt;</button>
-          </div>
-
           {/* Monedas Gratis + Admin row */}
           <div className="mt-3 grid grid-cols-2 gap-3">
             <button
@@ -383,7 +367,7 @@ export function MenuScreen() {
               </div>
             </div>
 
-            <p className="mt-6 text-center text-white/30 text-xs">GARRDASH v2.0.0 &copy; 2026</p>
+            <p className="mt-6 text-center text-white/30 text-xs">&copy; 2026</p>
           </div>
         </div>
       )}

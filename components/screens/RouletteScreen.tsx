@@ -5,27 +5,27 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
-import { ArrowLeft, Disc, Coins, Calendar, CheckCircle2, Crown, Gift, Video } from 'lucide-react';
+import { ArrowLeft, Coins, Calendar, CheckCircle2, Crown, Gift, Video, Sparkles } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
 import { hapticFeedback, hapticPattern } from '@/lib/engine2d';
 
-interface Prize { coins: number; label: string; color: string; tier: 'high' | 'medium' | 'consolation'; }
+interface Prize { coins: number; label: string; color: string; glow: string; tier: 'high' | 'medium' | 'consolation'; }
 interface ConfettiPiece { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; rot: number; rotVel: number; life: number; }
 
 const PRIZES: Prize[] = [
-  { coins: 5, label: '5 Monedas', color: '#64748b', tier: 'consolation' },
-  { coins: 10, label: '10 Monedas', color: '#3b82f6', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', tier: 'consolation' },
-  { coins: 20, label: '20 Monedas', color: '#06b6d4', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', tier: 'consolation' },
-  { coins: 50, label: '50 Monedas', color: '#10b981', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', tier: 'consolation' },
-  { coins: 130, label: '130 Monedas', color: '#f59e0b', tier: 'high' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', tier: 'consolation' },
-  { coins: 30, label: '30 Monedas', color: '#8b5cf6', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', tier: 'consolation' },
-  { coins: 200, label: '200 Monedas', color: '#ef4444', tier: 'high' },
+  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 10, label: '10 Monedas', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
+  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 20, label: '20 Monedas', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
+  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 50, label: '50 Monedas', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
+  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 130, label: '130 Monedas', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
+  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 30, label: '30 Monedas', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
+  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 200, label: '200 Monedas', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
 ];
 
 const PROB_HIGH = 0.009;
@@ -61,17 +61,17 @@ export function RouletteScreen() {
   const spawnConfetti = () => {
     const colors = ['#fbbf24', '#22d3ee', '#ef4444', '#34d399', '#a855f7', '#f97316'];
     const pieces: ConfettiPiece[] = [];
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 50; i++) {
       pieces.push({
         id: ++confettiIdRef.current,
         x: 150, y: 150,
-        vx: (Math.random() - 0.5) * 8,
-        vy: -Math.random() * 8 - 3,
+        vx: (Math.random() - 0.5) * 10,
+        vy: -Math.random() * 10 - 4,
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: 4 + Math.random() * 6,
+        size: 5 + Math.random() * 8,
         rot: Math.random() * Math.PI * 2,
-        rotVel: (Math.random() - 0.5) * 0.3,
-        life: 120,
+        rotVel: (Math.random() - 0.5) * 0.4,
+        life: 150,
       });
     }
     setConfetti(pieces);
@@ -111,7 +111,7 @@ export function RouletteScreen() {
     const fullSpins = 5 + Math.floor(Math.random() * 3);
     const finalRotation = rotationRef.current + fullSpins * 360 + (360 - targetAngle);
     const startRotation = rotationRef.current;
-    const duration = 3500;
+    const duration = 4000;
     const startTime = performance.now();
 
     const animate = (now: number) => {
@@ -149,60 +149,105 @@ export function RouletteScreen() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
+    <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e27] via-[#0f1535] to-[#1a1040]">
       <OfflineBanner />
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      <div className="pt-16 px-6 pb-28 flex-1 flex flex-col items-center">
+      {/* Ambient glow orbs */}
+      <div className="absolute top-10 left-5 w-40 h-40 rounded-full opacity-20 pointer-events-none" style={{ background: 'radial-gradient(circle, #22d3ee, transparent)', filter: 'blur(40px)' }} />
+      <div className="absolute bottom-20 right-5 w-48 h-48 rounded-full opacity-15 pointer-events-none" style={{ background: 'radial-gradient(circle, #f59e0b, transparent)', filter: 'blur(50px)' }} />
+
+      <div className="pt-16 px-6 pb-28 flex-1 flex flex-col items-center relative z-10">
         <div className="flex items-center gap-3 mb-6 w-full max-w-sm">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white"><ArrowLeft className="w-6 h-6" /></button>
-          <h1 className="text-white font-bold text-xl">Ruleta Neón</h1>
+          <h1 className="text-white font-bold text-xl flex items-center gap-2" style={{ textShadow: '0 0 20px rgba(245,158,11,0.6)' }}>
+            <Sparkles className="w-5 h-5 text-amber-400" /> Ruleta
+          </h1>
         </div>
 
         <div className="max-w-sm w-full flex flex-col items-center">
           <div key={refreshKey} className="flex items-center gap-2 mb-4 animate-fade-in">
-            <Calendar className="w-4 h-4 text-primary" />
+            <Calendar className="w-4 h-4 text-amber-400" />
             <span className="text-white/60 text-sm">
               {freeSpinsRemaining > 0 ? `${freeSpinsRemaining} giro${freeSpinsRemaining > 1 ? 's' : ''} gratis disponible${freeSpinsRemaining > 1 ? 's' : ''}` : 'Sin giros gratis hoy'}
             </span>
           </div>
 
           {vip && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 mb-4">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/40 mb-4" style={{ boxShadow: '0 0 15px rgba(245,158,11,0.3)' }}>
               <Crown className="w-3.5 h-3.5 text-amber-400" />
               <span className="text-amber-400 text-xs font-bold">VIP: 3 giros gratis diarios</span>
             </div>
           )}
 
+          {/* Wheel container - GamePass style */}
           <div className="relative w-72 h-72 mb-6">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
-              <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[20px] border-l-transparent border-r-transparent border-t-primary" />
+            {/* Outer glow ring */}
+            <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
+
+            {/* Outer ring with studs */}
+            <div className="absolute inset-0 rounded-full" style={{
+              background: 'linear-gradient(135deg, #1a1a2e, #16213e, #1a1a2e)',
+              boxShadow: '0 0 30px rgba(245,158,11,0.3), inset 0 0 20px rgba(0,0,0,0.8)',
+              border: '4px solid rgba(245,158,11,0.4)',
+            }}>
+              {/* Stud decorations around the rim */}
+              {Array.from({ length: 16 }).map((_, i) => {
+                const angle = (i * 360) / 16;
+                return (
+                  <div key={i} className="absolute w-2.5 h-2.5 rounded-full" style={{
+                    top: '50%', left: '50%',
+                    transform: `rotate(${angle}deg) translateY(-136px) translate(-50%, -50%)`,
+                    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                    boxShadow: '0 0 6px rgba(251,191,36,0.6)',
+                  }} />
+                );
+              })}
             </div>
 
+            {/* Pointer */}
+            <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 z-30">
+              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-amber-400" style={{ filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' }} />
+            </div>
+
+            {/* Spinning wheel */}
             <div
-              className="relative w-full h-full rounded-full border-4 border-primary/30 shadow-2xl"
+              className="absolute inset-3 rounded-full overflow-hidden"
               style={{
                 transform: `rotate(${rotation}deg)`,
                 background: `conic-gradient(${PRIZES.map((p, i) => {
                   const angle = 360 / PRIZES.length;
                   return `${p.color} ${i * angle}deg ${(i + 1) * angle}deg`;
                 }).join(', ')})`,
-                boxShadow: '0 0 30px rgba(34,211,238,0.3), inset 0 0 20px rgba(0,0,0,0.5)',
+                boxShadow: 'inset 0 0 30px rgba(0,0,0,0.6)',
+                border: '3px solid rgba(255,255,255,0.15)',
               }}
             >
+              {/* Segment dividers */}
+              {PRIZES.map((_, i) => {
+                const angle = (i * 360) / PRIZES.length;
+                return (
+                  <div key={i} className="absolute top-1/2 left-1/2 origin-left h-px" style={{
+                    width: '50%',
+                    transform: `rotate(${angle}deg)`,
+                    background: 'rgba(255,255,255,0.15)',
+                  }} />
+                );
+              })}
+
+              {/* Prize labels */}
               {PRIZES.map((prize, i) => {
                 const angle = (i * 360) / PRIZES.length + (360 / PRIZES.length) / 2;
                 return (
                   <div
                     key={i}
-                    className="absolute left-1/2 top-1/2 origin-top"
+                    className="absolute left-1/2 top-1/2 origin-center"
                     style={{
-                      transform: `rotate(${angle}deg) translateY(-120px)`,
-                      transformOrigin: 'center',
+                      transform: `rotate(${angle}deg) translateY(-100px)`,
                     }}
                   >
-                    <span className="text-white text-[10px] font-bold drop-shadow-lg whitespace-nowrap" style={{ textShadow: '0 0 8px rgba(0,0,0,0.8)' }}>
+                    <span className="text-white text-[11px] font-black whitespace-nowrap block text-center" style={{ textShadow: '0 0 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.7)' }}>
                       {prize.coins}
                     </span>
                   </div>
@@ -210,49 +255,82 @@ export function RouletteScreen() {
               })}
             </div>
 
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-card border-2 border-primary flex items-center justify-center z-10" style={{ boxShadow: '0 0 15px rgba(34,211,238,0.5)' }}>
-              <Disc className="w-6 h-6 text-primary" />
+            {/* Center hub */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex items-center justify-center z-20" style={{
+              background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+              border: '3px solid rgba(245,158,11,0.5)',
+              boxShadow: '0 0 20px rgba(245,158,11,0.4), inset 0 0 10px rgba(0,0,0,0.5)',
+            }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{
+                background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                boxShadow: '0 0 15px rgba(251,191,36,0.6)',
+              }}>
+                <Coins className="w-4 h-4 text-amber-900" />
+              </div>
             </div>
 
             {confetti.map((c) => (
               <div
                 key={c.id}
-                className="absolute z-30 pointer-events-none"
+                className="absolute z-40 pointer-events-none"
                 style={{
                   left: c.x, top: c.y,
                   width: c.size, height: c.size,
                   background: c.color,
                   transform: `rotate(${c.rot}rad)`,
-                  opacity: c.life / 120,
+                  opacity: c.life / 150,
                   borderRadius: '2px',
+                  boxShadow: `0 0 6px ${c.color}`,
                 }}
               />
             ))}
           </div>
 
+          {/* Spin button - GamePass style */}
           <button
             onClick={spin}
             disabled={spinning || !canSpin}
-            className="w-full max-w-xs py-4 rounded-2xl bg-primary text-primary-foreground font-bold text-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-all shadow-lg shadow-primary/30"
-            style={{ boxShadow: '0 0 20px rgba(34,211,238,0.3)' }}
+            className="w-full max-w-xs py-4 rounded-2xl font-black text-lg transition-all relative overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: canSpin && !spinning
+                ? 'linear-gradient(135deg, #f59e0b, #ef4444, #f59e0b)'
+                : 'linear-gradient(135deg, #374151, #1f2937)',
+              color: '#fff',
+              boxShadow: canSpin && !spinning
+                ? '0 0 25px rgba(245,158,11,0.5), 0 4px 15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)'
+                : '0 4px 10px rgba(0,0,0,0.3)',
+              border: '2px solid rgba(255,255,255,0.2)',
+              textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+            }}
           >
-            {spinning ? 'Girando...' : canSpin ? (isFreeSpin ? `GIRAR GRATIS (${freeSpinsRemaining})` : `GIRAR (Extra: ${extraSpins})`) : 'Sin giros disponibles'}
+            {spinning ? (
+              <span className="flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5 animate-spin" /> Girando...
+              </span>
+            ) : canSpin ? (
+              isFreeSpin ? `GIRAR GRATIS (${freeSpinsRemaining})` : `GIRAR (Extra: ${extraSpins})`
+            ) : 'Sin giros disponibles'}
           </button>
 
           {freeSpinsRemaining === 0 && extraSpins === 0 && !spinning && (
             <button
               onClick={() => setShowReward(true)}
               disabled={!isOnline}
-              className="w-full max-w-xs mt-3 py-3 rounded-2xl bg-green-500 text-white font-bold hover:bg-green-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
+              className="w-full max-w-xs mt-3 py-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
+              style={{ border: '2px solid rgba(255,255,255,0.15)' }}
             >
-              <Gift className="w-4 h-4" />{isOnline ? 'Ver video para girar extra' : 'Requiere conexión a Internet'}
+              <Gift className="w-4 h-4" />{isOnline ? 'Ver video para girar extra' : 'Requiere conexión'}
             </button>
           )}
 
           {result && !spinning && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-green-400 text-sm animate-scale-in" style={{ boxShadow: '0 0 15px rgba(34,197,94,0.2)' }}>
-              <CheckCircle2 className="w-5 h-5" />
-              ¡Ganaste {result.label}!
+            <div className="mt-4 flex items-center gap-2 rounded-xl p-3 text-sm animate-scale-in" style={{
+              background: `${result.color}15`,
+              border: `2px solid ${result.color}`,
+              boxShadow: `0 0 20px ${result.glow}`,
+            }}>
+              <CheckCircle2 className="w-5 h-5" style={{ color: result.color }} />
+              <span className="font-bold" style={{ color: result.color }}>¡Ganaste {result.label}!</span>
             </div>
           )}
 
@@ -271,11 +349,11 @@ export function RouletteScreen() {
 
       {showInterstitial && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 animate-fade-in">
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
-            <Video className="w-16 h-16 text-primary animate-pulse mx-auto mb-4" />
+          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-amber-500/30 p-8 text-center" style={{ boxShadow: '0 0 30px rgba(245,158,11,0.2)' }}>
+            <Video className="w-16 h-16 text-amber-400 animate-pulse mx-auto mb-4" />
             <p className="text-white font-bold text-lg mb-2">Anuncio Interstitial</p>
             <p className="text-white/50 text-sm mb-6">Anuncio publicitario - Cierra en 3 segundos...</p>
-            <button onClick={() => setShowInterstitial(false)} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:opacity-90">Cerrar ahora</button>
+            <button onClick={() => setShowInterstitial(false)} className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:opacity-90" style={{ border: '2px solid rgba(255,255,255,0.15)' }}>Cerrar ahora</button>
           </div>
         </div>
       )}
