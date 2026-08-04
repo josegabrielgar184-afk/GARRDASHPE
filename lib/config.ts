@@ -57,20 +57,14 @@ export const SPECIAL_LEVELS: Record<number, { theme: string; color: string; mess
 };
 
 export const TOTAL_CAMPAIGN_LEVELS = 999;
-export const CAMPAIGN_COIN_TIERS = [
-  { maxLevel: 10, min: 10, max: 30 },
-  { maxLevel: 20, min: 20, max: 60 },
-  { maxLevel: 50, min: 40, max: 100 },
-  { maxLevel: 100, min: 60, max: 150 },
-  { maxLevel: 200, min: 100, max: 200 },
-  { maxLevel: 999, min: 100, max: 200 },
-];
-
+// Level 1: 10 coins. Level 30: 100-150 coins. Proportional increase per level.
+// Beyond level 30, capped at 100-150 to keep resource acquisition slow and challenging.
 export function getCampaignCoinReward(level: number): { min: number; max: number } {
-  for (const tier of CAMPAIGN_COIN_TIERS) {
-    if (level <= tier.maxLevel) return { min: tier.min, max: tier.max };
-  }
-  return { min: 100, max: 200 };
+  if (level <= 0) level = 1;
+  if (level >= 30) return { min: 100, max: 150 };
+  const min = Math.round(10 + (level - 1) * 3.1);
+  const max = Math.round(10 + (level - 1) * 4.83);
+  return { min, max };
 }
 
 export const INTERSTITIAL_COOLDOWN_SECONDS = 300;

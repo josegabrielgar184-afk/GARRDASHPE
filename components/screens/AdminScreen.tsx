@@ -13,7 +13,7 @@ import {
   RefreshCw, AlertCircle, XCircle, Loader2, Key,
 } from 'lucide-react';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'su' | 'control' | 'observer' | 'stats';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'su' | 'control' | 'observer' | 'stats' | 'levels';
 
 export function AdminScreen() {
   const {
@@ -24,6 +24,7 @@ export function AdminScreen() {
     searchUsers, userSearchResults, clearUserSearch,
     adminCanjesList, adminApprovedList, refreshAdminCanjes, adminCanjesPage, setAdminCanjesPage,
     adminApproveCanje, adminMarkCorrection, adminRejectCanje,
+    campaignLevelStats, refreshCampaignLevelStats,
   } = useGame();
   const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -41,6 +42,10 @@ export function AdminScreen() {
     refreshAdminStats();
     refreshAdminCanjes();
   }, [refreshPendingRequests, refreshAdminStats, refreshAdminCanjes]);
+
+  useEffect(() => {
+    if (tab === 'levels') refreshCampaignLevelStats();
+  }, [tab, refreshCampaignLevelStats]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,6 +142,7 @@ export function AdminScreen() {
     { id: 'control', label: 'Control', icon: Settings2 },
     { id: 'observer', label: 'Observador', icon: Eye },
     { id: 'stats', label: 'Estadisticas', icon: BarChart3 },
+    { id: 'levels', label: 'Niveles', icon: BarChart3 },
   ];
 
   return (
@@ -203,6 +209,47 @@ export function AdminScreen() {
               );
             })}
           </div>
+
+          {/* Campaign Levels Tab - Active players per level */}
+          {tab === 'levels' && (
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-gradient-to-br from-cyan-900/30 to-card border border-cyan-500/30 p-5 shadow-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+                    <BarChart3 className="w-6 h-6 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-white font-bold">Jugadores por Nivel</h2>
+                    <p className="text-white/40 text-xs">Distribucion de jugadores activos en la campana</p>
+                  </div>
+                </div>
+                <button onClick={() => refreshCampaignLevelStats()} className="mb-4 w-full py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-bold text-xs hover:bg-cyan-500/30 flex items-center justify-center gap-2"><RefreshCw className="w-4 h-4" /> Actualizar datos</button>
+                {campaignLevelStats.length === 0 ? (
+                  <p className="text-white/30 text-xs text-center py-4">Cargando datos...</p>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                    {campaignLevelStats.map((stat) => {
+                      const maxPlayers = Math.max(...campaignLevelStats.map(s => s.activePlayers));
+                      const barWidth = maxPlayers > 0 ? (stat.activePlayers / maxPlayers) * 100 : 0;
+                      return (
+                        <div key={stat.level} className="flex items-center gap-3 rounded-lg bg-card border border-border p-2">
+                          <span className="text-white/60 text-xs font-bold w-16 shrink-0">Nivel {stat.level}</span>
+                          <div className="flex-1 h-6 rounded-full bg-white/5 overflow-hidden">
+                            <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all" style={{ width: `${barWidth}%` }} />
+                          </div>
+                          <span className="text-cyan-400 text-xs font-bold w-8 text-right shrink-0">{stat.activePlayers}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="mt-4 rounded-xl bg-card border border-border p-3">
+                  <p className="text-white/40 text-xs">Total de jugadores: <span className="text-white font-bold">{campaignLevelStats.reduce((sum, s) => sum + s.activePlayers, 0)}</span></p>
+                  <p className="text-white/40 text-xs mt-1">Niveles alcanzados: <span className="text-white font-bold">{campaignLevelStats.length}</span></p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Balance Tab - Net Balance Module */}
           {tab === 'balance' && (

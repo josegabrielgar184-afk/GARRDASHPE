@@ -167,6 +167,11 @@ export interface AdminStats {
   totalExchanges: number;
 }
 
+export interface CampaignLevelStat {
+  level: number;
+  activePlayers: number;
+}
+
 interface GameState {
   screen: Screen;
   coins: number;
@@ -304,6 +309,8 @@ interface GameState {
   endGameBatch: () => void;
   showWelcomeBonus: boolean;
   dismissWelcomeBonus: () => void;
+  campaignLevelStats: CampaignLevelStat[];
+  refreshCampaignLevelStats: () => Promise<void>;
 }
 
 export interface SignUpData {
@@ -403,6 +410,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [towerLevels, setTowerLevels] = useState<TowerLevel>({ turret: 0, drone: 0, medic: 0 });
   const [survivalBestTime, setSurvivalBestTime] = useState(0);
   const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
+  const [campaignLevelStats, setCampaignLevelStats] = useState<CampaignLevelStat[]>([]);
   const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [weeklyRanking, setWeeklyRanking] = useState<RankEntry[]>([]);
@@ -1066,6 +1074,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline, survivalBestTime, playerName, email]);
 
   const dismissWelcomeBonus = useCallback(() => setShowWelcomeBonus(false), []);
+
+  const refreshCampaignLevelStats = useCallback(async () => {
+    try {
+      const snap = await getDocs(collection(db, 'usuarios'));
+      const counts: Record<number, number> = {};
+      snap.forEach((d) => {
+        const data = d.data();
+        const lvl = data.campaignLevel ?? 1;
+        counts[lvl] = (counts[lvl] ?? 0) + 1;
+      });
+      const stats: CampaignLevelStat[] = Object.entries(counts)
+        .map(([lvl, count]) => ({ level: parseInt(lvl, 10), activePlayers: count }))
+        .sort((a, b) => a.level - b.level);
+      setCampaignLevelStats(stats);
+    } catch {}
+  }, []);
 
   const refreshRanking = useCallback(async () => {
     return Promise.resolve();
@@ -2338,6 +2362,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     submitSurvivalScore, canExchangeDiamonds,
     buyCampaignKey, getCampaignKeyPrice,
     showWelcomeBonus, dismissWelcomeBonus,
+    campaignLevelStats, refreshCampaignLevelStats,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

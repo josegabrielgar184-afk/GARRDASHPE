@@ -17,6 +17,11 @@ import {
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { getCampaignCoinReward } from '@/lib/config';
+
+function randomCoinCap(level: number): number {
+  const { min, max } = getCampaignCoinReward(level);
+  return Math.floor(rand(min, max + 1));
+}
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, initAudio } from '@/lib/audio';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
@@ -67,10 +72,9 @@ const MILESTONES: Record<number, { title: string; coins?: number; shield?: boole
   30: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true, color: '#60a5fa' },
 };
 
-function randomCoinCap(): number { return Math.floor(rand(70, 91)); }
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel} = useGame();
+  const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel} = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -135,6 +139,9 @@ export function ZombieGameScreen() {
   const finalBossThresholdRef = useRef(1500);
   const finalBossDefeatedRef = useRef(false);
   const victoryTriggeredRef = useRef(false);
+  const bossWavesRef = useRef(1);
+  const bossWavesTotalRef = useRef(1);
+  const bossWaveIndexRef = useRef(0);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
   const scrollYRef = useRef(0);
   const bloodEnabledRef = useRef(true);
@@ -201,6 +208,16 @@ export function ZombieGameScreen() {
     gameCoinsRef.current += toAdd;
     setCoinsEarned(gameCoinsRef.current);
   }, [addCoins]);
+
+  // Abandonment penalty: discard all coins/points earned during this run
+  const abandonGame = useCallback(() => {
+    if (gameCoinsRef.current > 0) {
+      spendCoins(gameCoinsRef.current);
+      gameCoinsRef.current = 0;
+      setCoinsEarned(0);
+    }
+    setScreen('menu');
+  }, [spendCoins, setScreen]);
 
   const getFireRate = () => {
     const base = WEAPON_FIRE_RATES[weaponRef.current] ?? 14;
@@ -288,8 +305,12 @@ export function ZombieGameScreen() {
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
     difficultyRef.current = Math.max(0.3, 0.3 + (campaignLevelRef.current - 1) * 0.05); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; victoryTriggeredRef.current = false; setVictory(false); scrollYRef.current = 0;
+    // Multiple bosses: more bosses at higher levels (1 boss per 10 levels, min 1, max 4)
+    bossWavesTotalRef.current = Math.min(4, Math.max(1, Math.floor(campaignLevelRef.current / 10) + 1));
+    bossWaveIndexRef.current = 0;
+    bossWavesRef.current = 1;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
-    coinCapRef.current = randomCoinCap();
+    coinCapRef.current = randomCoinCap(campaignLevelRef.current);
     nuclearChargeRef.current = 0; nuclearActiveRef.current = false; nuclearTimerRef.current = 0;
     hasRevivedRef.current = false; setHasRevived(false);
     comboRef.current = 0; comboTimerRef.current = 0; setComboDisplay(0);
@@ -393,14 +414,18 @@ export function ZombieGameScreen() {
   const spawnBoss = useCallback(() => {
     const { w } = canvasSizeRef.current;
     const level = campaignLevelRef.current;
-    const zHp = 2000 + (level - 1) * 500;
+    const waveIdx = bossWaveIndexRef.current;
+    // Each subsequent boss in the wave is tougher
+    const waveMult = 1 + waveIdx * 0.35;
+    const zHp = Math.floor((2000 + (level - 1) * 500) * waveMult);
     const boss = zombiePoolRef.current.acquire();
-    boss.x = w / 2; boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02); boss.vx = 0; boss.walkCycle = 0;
+    boss.x = w / 2; boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02) * (1 + waveIdx * 0.15); boss.vx = 0; boss.walkCycle = 0;
     boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#65a30d'; boss.type = 'boss'; boss.hitFlash = 0;
     bossRef.current = boss;
-    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp); setBossName(`JEFE NIVEL ${level}`);
+    setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp);
+    setBossName(`JEFE NIVEL ${level} - OLEADA ${waveIdx + 1}/${bossWavesTotalRef.current}`);
     playBossAlert();
-    addFloatText('¡JEFE DE FÚTBOL GIGANTE!', w / 2, canvasSizeRef.current.h / 3, '#dc2626', 18);
+    addFloatText(`¡JEFE ${waveIdx + 1}/${bossWavesTotalRef.current}!`, w / 2, canvasSizeRef.current.h / 3, '#dc2626', 18);
     screenShakeRef.current.trigger(6, 20);
     hapticFeedback(50);
   }, []);
@@ -940,8 +965,8 @@ export function ZombieGameScreen() {
         difficultyRef.current = 0.3 + scoreRef.current / 1000;
         if (coinsCapped) difficultyRef.current *= 1.3;
 
-        // Simultaneous zombie + barrel spawning - no dead time (BLOCK 7)
-        if (!bossRef.current && !victoryTriggeredRef.current && !victory) {
+        // Continuous zombie + barrel spawning - never pauses, even during boss or ulti (BLOCK 7)
+        if (!victoryTriggeredRef.current && !victory) {
           spawnTimerRef.current += dt;
           const baseInterval = coinsCapped ? 25 : 40;
           const levelMultiplier = Math.max(1.2, 2.5 - (campaignLevelRef.current - 1) * 0.08);
@@ -959,7 +984,8 @@ export function ZombieGameScreen() {
             addFloatText('¡Mutantes!', w / 2, h / 3, '#a855f7', 16);
             screenShakeRef.current.trigger(4, 15);
           }
-          if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current) spawnBoss();
+          // Boss waves: spawn next boss when score threshold reached and not all waves defeated
+          if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current && !bossRef.current) spawnBoss();
           // Barrels spawn alongside zombies - always simultaneous
           barrelTimerRef.current += dt;
           if (barrelTimerRef.current > 200) { spawnBarrel(); barrelTimerRef.current = 0; }
@@ -1058,7 +1084,7 @@ export function ZombieGameScreen() {
                 checkKillStreakMilestone(killStreakRef.current);
 
                 if (z === bossRef.current) {
-                  bossRef.current = null; setBossActive(false); finalBossDefeatedRef.current = true;
+                  bossRef.current = null; setBossActive(false);
                   const bossCoins = Math.floor(rand(5, 9));
                   spawnFloatingCoins(z.x, z.y, bossCoins);
                   scoreRef.current += 5000 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
@@ -1067,10 +1093,18 @@ export function ZombieGameScreen() {
                   addFloatText(`+${bossCoins} MONEDAS`, w / 2, h / 3, '#fbbf24', 18);
                   addFloatText('¡JEFE ELIMINADO!', z.x, z.y - 40, '#dc2626', 16);
                   screenShakeRef.current.trigger(10, 25); hapticPattern([50, 30, 100]);
-                  // Trigger victory: stop enemy flow and show victory screen
-                  victoryTriggeredRef.current = true;
-                  for (const zz of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(zz);
-                  setTimeout(() => { if (victoryTriggeredRef.current) { victoryTriggeredRef.current = false; setVictory(true); } }, 1500);
+                  bossWaveIndexRef.current++;
+                  // Check if more boss waves remain
+                  if (bossWaveIndexRef.current < bossWavesTotalRef.current) {
+                    finalBossThresholdRef.current += 1000;
+                    addFloatText(`¡OLEADA ${bossWaveIndexRef.current + 1}/${bossWavesTotalRef.current} ENTRANTE!`, w / 2, h / 3, '#dc2626', 20);
+                  } else {
+                    // All bosses defeated - trigger victory
+                    finalBossDefeatedRef.current = true;
+                    victoryTriggeredRef.current = true;
+                    for (const zz of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(zz);
+                    setTimeout(() => { if (victoryTriggeredRef.current) { victoryTriggeredRef.current = false; setVictory(true); } }, 1500);
+                  }
                 } else if (z.type === 'tank') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 500 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
@@ -1370,7 +1404,7 @@ export function ZombieGameScreen() {
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
-          <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else setScreen('menu'); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
+          <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else abandonGame(); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
           <button onClick={() => { pausedRef.current = true; setPaused(true); setShowPauseModal(true); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-black/70"><Pause className="w-5 h-5" /></button>
         </div>
         <div className="flex items-center gap-2">
@@ -1463,7 +1497,7 @@ export function ZombieGameScreen() {
               </button>
             )}
             <button onClick={() => initGame()} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold mb-2 hover:bg-primary/90 shadow-lg shadow-primary/20">Reiniciar</button>
-            <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else setScreen('menu'); }} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
+            <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else abandonGame(); }} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
           </div>
         </div>
       )}
@@ -1497,7 +1531,7 @@ export function ZombieGameScreen() {
         </div>
       )}
       {showInterstitial && (
-        <InterstitialAd onDone={() => { setShowInterstitial(false); if (pendingExitRef.current) { pendingExitRef.current = false; setScreen('menu'); } }} />
+        <InterstitialAd onDone={() => { setShowInterstitial(false); if (pendingExitRef.current) { pendingExitRef.current = false; abandonGame(); } }} />
       )}
       <RewardAdModal
         open={showReviveReward}
@@ -1531,7 +1565,7 @@ export function ZombieGameScreen() {
             <div className="space-y-2">
               <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); }} className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 shadow-lg shadow-green-500/20"><Play className="w-4 h-4" /> Reanudar</button>
               <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); initGame(); }} className="w-full py-3 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold text-sm flex items-center justify-center gap-2 hover:bg-amber-500/30"><RotateCcw className="w-4 h-4" /> Reiniciar Nivel</button>
-              <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); setScreen('menu'); }} className="w-full py-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-500/20"><Home className="w-4 h-4" /> Salir al Menú</button>
+              <button onClick={() => { pausedRef.current = false; setPaused(false); setShowPauseModal(false); abandonGame(); }} className="w-full py-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-500/20"><Home className="w-4 h-4" /> Salir al Menú</button>
             </div>
           </div>
         </div>
