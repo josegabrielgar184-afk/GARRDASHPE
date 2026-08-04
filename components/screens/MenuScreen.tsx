@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
-  Coins, Gamepad2, Store, Disc, Users, Crown, LogOut, Trophy, Settings, X,
+  Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert,
   Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye,
 } from 'lucide-react';
@@ -16,7 +16,7 @@ import {
 
 export function MenuScreen() {
   const {
-    coins, vip, vipAvailable, vipExpiry, setScreen, getCharacter, logOut,
+    coins, vip, vipAvailable, vipExpiry, setScreen, logOut,
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
     bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
     influencerInfo, refreshInfluencerInfo,
@@ -28,8 +28,6 @@ export function MenuScreen() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [canScrollUp, setCanScrollUp] = useState(false);
-  const char = getCharacter();
-
   useEffect(() => {
     refreshInfluencerInfo();
   }, [refreshInfluencerInfo]);
@@ -182,15 +180,6 @@ export function MenuScreen() {
               <div><p className="text-white/40 text-[10px] uppercase">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
             </div>
           </div>
-
-          {/* Character badge */}
-          <button onClick={() => setScreen('characters')} className="w-full rounded-2xl bg-card border p-3 flex items-center gap-3 mb-6 shadow-lg transition-colors hover:bg-secondary/40" style={{ borderColor: `${char.color}55` }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${char.color}30`, border: `2px solid ${char.color}` }}>
-              <span className="font-bold" style={{ color: char.color }}>{char.name[0]}</span>
-            </div>
-            <div className="flex-1 text-left"><p className="text-white font-bold text-sm">{char.name}</p><p className="text-white/40 text-xs">{char.skill}</p></div>
-            <Users className="w-5 h-5 text-cyan-400/60" />
-          </button>
 
           {/* 4 neon centralized buttons */}
           <div className="grid grid-cols-2 gap-3">

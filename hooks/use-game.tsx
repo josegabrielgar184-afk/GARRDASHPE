@@ -635,9 +635,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (zombieTop) candidates.push(zombieTop);
     if (candidates.length > 0) {
       const best = candidates.reduce((a, b) => (b.score > a.score ? b : a));
+      setTopPlayerName(best.name);
+      setTopPlayerScore(best.score);
       if (best.score > absoluteRecord) {
-        setTopPlayerName(best.name);
-        setTopPlayerScore(best.score);
         setAbsoluteRecord(best.score);
       }
     }
