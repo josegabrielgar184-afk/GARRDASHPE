@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
+import { CANJE_GAMES, formatElapsed, formatCountdown, getDayKey, getDayLabel } from '@/lib/canjes';
 import {
   ArrowLeft, DollarSign, Users, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, Eye, EyeOff,
+  RefreshCw, AlertCircle, XCircle, Loader2, Key,
 } from 'lucide-react';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'near' | 'users' | 'su' | 'control' | 'observer';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'su' | 'control' | 'observer';
 
 export function AdminScreen() {
   const {
@@ -18,6 +20,8 @@ export function AdminScreen() {
     adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton, transactionLight,
     observerMode, toggleObserverMode,
     searchUsers, userSearchResults, clearUserSearch,
+    adminCanjesList, adminApprovedList, refreshAdminCanjes, adminCanjesPage, setAdminCanjesPage,
+    adminApproveCanje, adminMarkCorrection, adminRejectCanje,
   } = useGame();
   const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -33,7 +37,8 @@ export function AdminScreen() {
   useEffect(() => {
     refreshPendingRequests();
     refreshAdminStats();
-  }, [refreshPendingRequests, refreshAdminStats]);
+    refreshAdminCanjes();
+  }, [refreshPendingRequests, refreshAdminStats, refreshAdminCanjes]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,6 +128,7 @@ export function AdminScreen() {
     { id: 'balance', label: 'Balanza', icon: TrendingUp },
     { id: 'finance', label: 'Finanzas', icon: Wallet },
     { id: 'requests', label: 'Solicitudes', icon: CheckCircle2 },
+    { id: 'canjes', label: 'Canjes', icon: RefreshCw },
     { id: 'near', label: 'Casi Listos', icon: TrendingUp },
     { id: 'users', label: 'Usuarios', icon: Users },
     { id: 'su', label: 'SU', icon: Shield },
@@ -364,6 +370,20 @@ export function AdminScreen() {
                 ))
               )}
             </div>
+          )}
+
+          {/* Canjes Tab - New Exchange/Withdrawal Management */}
+          {tab === 'canjes' && (
+            <AdminCanjesTab
+              adminCanjesList={adminCanjesList}
+              adminApprovedList={adminApprovedList}
+              refreshAdminCanjes={refreshAdminCanjes}
+              adminApproveCanje={adminApproveCanje}
+              adminMarkCorrection={adminMarkCorrection}
+              adminRejectCanje={adminRejectCanje}
+              adminCanjesPage={adminCanjesPage}
+              setAdminCanjesPage={setAdminCanjesPage}
+            />
           )}
 
           {/* Near Claim Tab */}
@@ -714,6 +734,216 @@ export function AdminScreen() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminCanjesTab({
+  adminCanjesList, adminApprovedList, refreshAdminCanjes,
+  adminApproveCanje, adminMarkCorrection, adminRejectCanje,
+  adminCanjesPage, setAdminCanjesPage,
+}: {
+  adminCanjesList: import('@/lib/canjes').CanjeRequest[];
+  adminApprovedList: import('@/lib/canjes').CanjeRequest[];
+  refreshAdminCanjes: () => Promise<void>;
+  adminApproveCanje: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  adminMarkCorrection: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  adminRejectCanje: (id: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
+  adminCanjesPage: number;
+  setAdminCanjesPage: (page: number) => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [subTab, setSubTab] = useState<'pending' | 'approved'>('pending');
+  const pageSize = 100;
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Group approved by day
+  const approvedByDay = adminApprovedList.reduce<Record<string, import('@/lib/canjes').CanjeRequest[]>>((acc, c) => {
+    const dayKey = c.approvedAt ? getDayKey(c.approvedAt) : 'unknown';
+    if (!acc[dayKey]) acc[dayKey] = [];
+    acc[dayKey].push(c);
+    return acc;
+  }, {});
+  const dayKeys = Object.keys(approvedByDay).sort((a, b) => b.localeCompare(a));
+
+  // Pagination for pending
+  const totalPages = Math.max(1, Math.ceil(adminCanjesList.length / pageSize));
+  const currentPage = Math.min(adminCanjesPage, totalPages - 1);
+  const pagedPending = adminCanjesList.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+  const handleApprove = async (id: string) => {
+    setActionLoading(id);
+    await adminApproveCanje(id);
+    setActionLoading(null);
+    await refreshAdminCanjes();
+  };
+  const handleCorrect = async (id: string) => {
+    setActionLoading(id);
+    await adminMarkCorrection(id);
+    setActionLoading(null);
+    await refreshAdminCanjes();
+  };
+  const handleReject = async (id: string) => {
+    if (rejectReason.trim().length < 3) return;
+    setActionLoading(id);
+    await adminRejectCanje(id, rejectReason.trim());
+    setActionLoading(null);
+    setRejectingId(null);
+    setRejectReason('');
+    await refreshAdminCanjes();
+  };
+
+  const totalUsd = adminCanjesList.reduce((sum, c) => sum + c.estimatedUsdValue, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Status counters */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="rounded-xl bg-card border border-white/10 p-3 text-center">
+          <p className="text-white/40 text-[10px]">Total</p>
+          <p className="text-white font-bold text-lg">{adminCanjesList.length + adminApprovedList.length}</p>
+        </div>
+        <div className="rounded-xl bg-card border border-green-500/20 p-3 text-center">
+          <p className="text-white/40 text-[10px]">Aprobadas</p>
+          <p className="text-green-400 font-bold text-lg">{adminApprovedList.length}</p>
+        </div>
+        <div className="rounded-xl bg-card border border-amber-500/20 p-3 text-center">
+          <p className="text-white/40 text-[10px]">Pendientes</p>
+          <p className="text-amber-400 font-bold text-lg">{adminCanjesList.length}</p>
+        </div>
+        <div className="rounded-xl bg-card border border-red-500/20 p-3 text-center">
+          <p className="text-white/40 text-[10px]">Costo Total</p>
+          <p className="text-red-400 font-bold text-lg">${totalUsd.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-2">
+        <button onClick={() => setSubTab('pending')} className={`flex-1 py-2 rounded-xl font-bold text-sm ${subTab === 'pending' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-card border border-border text-white/60'}`}>
+          Pendientes ({adminCanjesList.length})
+        </button>
+        <button onClick={() => setSubTab('approved')} className={`flex-1 py-2 rounded-xl font-bold text-sm ${subTab === 'approved' ? 'bg-green-500/20 text-green-400 border border-green-500/40' : 'bg-card border border-border text-white/60'}`}>
+          Aprobados ({adminApprovedList.length})
+        </button>
+      </div>
+
+      <button onClick={() => refreshAdminCanjes()} className="flex items-center gap-2 text-white/50 hover:text-white text-sm">
+        <RefreshCw className="w-4 h-4" /> Actualizar
+      </button>
+
+      {subTab === 'pending' && (
+        <div className="space-y-3">
+          {pagedPending.length === 0 && (
+            <p className="text-white/40 text-center py-8">No hay solicitudes pendientes</p>
+          )}
+          {pagedPending.map((c, idx) => {
+            const elapsed = now - c.createdAt;
+            const isCorrection = c.status === 'waiting_correction';
+            const remaining = (c.correctionDeadline ?? 0) - now;
+            return (
+              <div key={c.id} className={`rounded-2xl border p-4 ${isCorrection ? 'bg-red-950/30 border-red-500/50' : 'bg-card border-cyan-500/20'}`}>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs ${isCorrection ? 'bg-red-500/20 text-red-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
+                      #{idx + 1 + currentPage * pageSize}
+                    </span>
+                    <div>
+                      <p className="text-white font-bold text-sm">{c.nickname}</p>
+                      <p className="text-white/40 text-[10px]">{CANJE_GAMES.find((g) => g.id === c.gameId)?.label} · {c.playerID}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white/40 text-[10px]">Esperando</p>
+                    <p className={`font-bold text-xs ${elapsed > 30 * 60 * 1000 ? 'text-red-400' : 'text-white/60'}`}>
+                      {formatElapsed(elapsed)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-3 text-xs">
+                  <span className="text-cyan-400 font-bold">{c.selectedReward}</span>
+                  <span className="text-green-400 font-bold">~${c.estimatedUsdValue.toFixed(2)}</span>
+                </div>
+
+                {isCorrection && (
+                  <div className="rounded-lg bg-red-500/10 border border-red-500/30 p-2 mb-3">
+                    <p className="text-red-400 text-[10px] font-bold">Corrección: {formatCountdown(Math.max(0, remaining))}</p>
+                  </div>
+                )}
+
+                {rejectingId === c.id ? (
+                  <div className="space-y-2">
+                    <input type="text" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Motivo de rechazo" className="w-full px-3 py-2 rounded-lg bg-background/60 border border-red-500/40 text-white text-sm focus:outline-none" />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleReject(c.id)} disabled={actionLoading === c.id} className="flex-1 py-2 rounded-lg bg-red-500 text-white font-bold text-xs disabled:opacity-50">
+                        {actionLoading === c.id ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Confirmar Rechazo'}
+                      </button>
+                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="px-3 py-2 rounded-lg bg-card border border-border text-white/60 text-xs">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => handleApprove(c.id)} disabled={actionLoading === c.id} className="flex-1 py-2 rounded-lg bg-green-500 text-white font-bold text-xs hover:bg-green-400 disabled:opacity-50 flex items-center justify-center gap-1">
+                      {actionLoading === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-3.5 h-3.5" /> Confirmar</>}
+                    </button>
+                    <button onClick={() => handleCorrect(c.id)} disabled={actionLoading === c.id} className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold text-xs disabled:opacity-50">
+                      ID Erróneo
+                    </button>
+                    <button onClick={() => setRejectingId(c.id)} className="px-3 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-xs">
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button onClick={() => setAdminCanjesPage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className="px-3 py-1.5 rounded-lg bg-card border border-border text-white/60 text-xs disabled:opacity-30">Anterior</button>
+              <span className="text-white/40 text-xs">Página {currentPage + 1} / {totalPages}</span>
+              <button onClick={() => setAdminCanjesPage(Math.min(totalPages - 1, currentPage + 1))} disabled={currentPage >= totalPages - 1} className="px-3 py-1.5 rounded-lg bg-card border border-border text-white/60 text-xs disabled:opacity-30">Siguiente</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {subTab === 'approved' && (
+        <div className="space-y-4">
+          {dayKeys.length === 0 && <p className="text-white/40 text-center py-8">No hay canjes aprobados</p>}
+          {dayKeys.map((dayKey, dayIdx) => (
+            <div key={dayKey}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 font-bold text-[10px]">{dayIdx + 1}</div>
+                <h3 className="text-green-400 font-bold text-sm">{getDayLabel(approvedByDay[dayKey][0].approvedAt ?? 0)}</h3>
+                <span className="text-white/40 text-xs">({approvedByDay[dayKey].length} canjes)</span>
+              </div>
+              <div className="space-y-2 ml-8">
+                {approvedByDay[dayKey].map((c) => (
+                  <div key={c.id} className="rounded-xl bg-card border border-green-500/15 p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-bold text-xs">{c.nickname} · {c.selectedReward}</p>
+                      <p className="text-white/40 text-[10px]">{c.playerID} · {CANJE_GAMES.find((g) => g.id === c.gameId)?.label}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-green-400 text-xs font-bold">{c.approvedAt ? new Date(c.approvedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : ''}</p>
+                      <p className="text-white/40 text-[10px]">~${c.estimatedUsdValue.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

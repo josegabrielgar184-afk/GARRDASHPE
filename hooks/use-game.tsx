@@ -8,6 +8,8 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
+import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
+import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
 import {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   type User,
@@ -40,7 +42,8 @@ export type Screen =
   | 'offerwall'
   | 'admin'
   | 'operator'
-  | 'influencer';
+  | 'influencer'
+  | 'canjes';
 
 export interface UpgradeState {
   fireRate: number;
@@ -250,6 +253,23 @@ interface GameState {
   refreshPendingRequests: () => Promise<void>;
   confirmPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
   rejectPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
+  // New canjes system
+  canjes: CanjeRequest[];
+  refreshCanjes: () => Promise<void>;
+  submitCanje: (rewardId: string, gameId: CanjeGameId, playerID: string, nickname: string) => Promise<{ ok: boolean; error?: string }>;
+  correctCanjeId: (canjeId: string, newPlayerID: string) => Promise<{ ok: boolean; error?: string }>;
+  cancelCanje: (canjeId: string) => Promise<{ ok: boolean; error?: string }>;
+  adminApproveCanje: (canjeId: string) => Promise<{ ok: boolean; error?: string }>;
+  adminMarkCorrection: (canjeId: string) => Promise<{ ok: boolean; error?: string }>;
+  adminRejectCanje: (canjeId: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
+  approvedCanjes: CanjeRequest[];
+  canjesPagination: { page: number; totalPages: number; total: number; approved: number; pending: number; rejected: number; };
+  setCanjesPage: (page: number) => void;
+  adminCanjesList: CanjeRequest[];
+  adminApprovedList: CanjeRequest[];
+  refreshAdminCanjes: () => Promise<void>;
+  adminCanjesPage: number;
+  setAdminCanjesPage: (page: number) => void;
   adminUserStats: AdminStats;
   refreshAdminStats: () => Promise<void>;
   searchUsers: (query: string) => Promise<void>;
@@ -394,6 +414,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [offerwallDownloadsToday, setOfferwallDownloadsToday] = useState(0);
   const [userRole, setUserRole] = useState<'user' | 'operador' | 'admin'>('user');
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [canjes, setCanjes] = useState<CanjeRequest[]>([]);
+  const [approvedCanjes, setApprovedCanjes] = useState<CanjeRequest[]>([]);
+  const [canjesPage, setCanjesPage] = useState(0);
+  const [canjesTotalCounts, setCanjesTotalCounts] = useState({ total: 0, approved: 0, pending: 0, rejected: 0 });
+  const canjesPageSize = 100;
   const [adminUserStats, setAdminUserStats] = useState<AdminStats>({
     totalUsers: 0, totalCoins: 0, activeCoins: 0, inactiveCoins: 0,
     reservedAmount: 0, availableAmount: 0, nearClaimUsers: [], activeUsers: 0, inactiveUsers: 0, returnedUsers: [],
@@ -1421,6 +1446,377 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ===== New Canjes System =====
+  const refreshCanjes = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const snap = await getDocs(query(
+        collection(db, 'canjes'),
+        where('userId', '==', user.uid)
+      ));
+      const list: CanjeRequest[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        list.push({
+          id: d.id,
+          userId: data.userId ?? '',
+          userName: data.userName ?? '',
+          gameId: data.gameId ?? 'free_fire',
+          selectedReward: data.selectedReward ?? '',
+          coinCost: data.coinCost ?? 0,
+          keyCost: data.keyCost ?? 0,
+          estimatedUsdValue: data.estimatedUsdValue ?? 0,
+          status: data.status ?? 'pending_review',
+          createdAt: data.createdAt ?? 0,
+          queuePosition: data.queuePosition ?? 0,
+          playerID: data.playerID ?? '',
+          nickname: data.nickname ?? '',
+          correctionDeadline: data.correctionDeadline ?? null,
+          approvedAt: data.approvedAt ?? null,
+          rejectedAt: data.rejectedAt ?? null,
+          rejectReason: data.rejectReason ?? '',
+        });
+      });
+      list.sort((a, b) => b.createdAt - a.createdAt);
+      setCanjes(list);
+
+      // Also fetch approved canjes for the user
+      const approvedSnap = await getDocs(query(
+        collection(db, 'canjes_aprobadas'),
+        where('userId', '==', user.uid)
+      ));
+      const approvedList: CanjeRequest[] = [];
+      approvedSnap.forEach((d) => {
+        const data = d.data();
+        approvedList.push({
+          id: d.id,
+          userId: data.userId ?? '',
+          userName: data.userName ?? '',
+          gameId: data.gameId ?? 'free_fire',
+          selectedReward: data.selectedReward ?? '',
+          coinCost: data.coinCost ?? 0,
+          keyCost: data.keyCost ?? 0,
+          estimatedUsdValue: data.estimatedUsdValue ?? 0,
+          status: 'approved',
+          createdAt: data.createdAt ?? 0,
+          queuePosition: 0,
+          playerID: data.playerID ?? '',
+          nickname: data.nickname ?? '',
+          approvedAt: data.approvedAt ?? null,
+        });
+      });
+      approvedList.sort((a, b) => (b.approvedAt ?? 0) - (a.approvedAt ?? 0));
+      setApprovedCanjes(approvedList);
+    } catch {}
+  }, []);
+
+  const submitCanje = useCallback(async (rewardId: string, gameId: CanjeGameId, playerID: string, nickname: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const reward = getRewardById(rewardId);
+      if (!reward) return { ok: false, error: 'Recompensa no encontrada' };
+      if (playerID.trim().length < 4) return { ok: false, error: 'Player ID demasiado corto' };
+      if (nickname.trim().length < 2) return { ok: false, error: 'Nickname demasiado corto' };
+      if (coins < reward.coinCost) return { ok: false, error: 'Monedas insuficientes' };
+      if (campaignProgress.keys < reward.keyCost) return { ok: false, error: 'Llaves insuficientes' };
+
+      // Count pending canjes to calculate queue position
+      const pendingSnap = await getDocs(query(
+        collection(db, 'canjes'),
+        where('status', 'in', ['pending_review', 'waiting_correction'])
+      ));
+      const queuePosition = pendingSnap.size + 1;
+
+      const newCanjeRef = doc(collection(db, 'canjes'));
+      const now = Date.now();
+      await setDoc(newCanjeRef, {
+        id: newCanjeRef.id,
+        userId: user.uid,
+        userName: nickname,
+        gameId,
+        selectedReward: reward.label,
+        coinCost: reward.coinCost,
+        keyCost: reward.keyCost,
+        estimatedUsdValue: reward.usdValue,
+        status: 'pending_review',
+        createdAt: now,
+        queuePosition,
+        playerID: playerID.trim(),
+        nickname: nickname.trim(),
+        correctionDeadline: null,
+        approvedAt: null,
+        rejectedAt: null,
+        rejectReason: '',
+      });
+
+      // Deduct coins and keys
+      spendCoins(reward.coinCost);
+      if (typeof window !== 'undefined') {
+        const newKeys = Math.max(0, campaignProgress.keys - reward.keyCost);
+        localStorage.setItem('campaignKeys', String(newKeys));
+      }
+      // Update keys in Firebase user doc
+      await updateDoc(doc(db, 'usuarios', user.uid), {
+        coins: coins - reward.coinCost,
+        campaignKeys: Math.max(0, campaignProgress.keys - reward.keyCost),
+      }).catch(() => {});
+
+      await refreshCanjes();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al enviar canje';
+      return { ok: false, error: msg };
+    }
+  }, [coins, campaignProgress.keys, spendCoins, refreshCanjes]);
+
+  const correctCanjeId = useCallback(async (canjeId: string, newPlayerID: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (newPlayerID.trim().length < 4) return { ok: false, error: 'Player ID demasiado corto' };
+      const canjeRef = doc(db, 'canjes', canjeId);
+      const canjeDoc = await getDoc(canjeRef);
+      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
+      const data = canjeDoc.data();
+      if (data.status !== 'waiting_correction') return { ok: false, error: 'El canje no está en corrección' };
+      await updateDoc(canjeRef, {
+        playerID: newPlayerID.trim(),
+        status: 'pending_review',
+        correctionDeadline: null,
+      });
+      await refreshCanjes();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al corregir ID';
+      return { ok: false, error: msg };
+    }
+  }, [refreshCanjes]);
+
+  const cancelCanje = useCallback(async (canjeId: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const canjeRef = doc(db, 'canjes', canjeId);
+      const canjeDoc = await getDoc(canjeRef);
+      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
+      const data = canjeDoc.data();
+      // Refund coins and keys
+      const refundCoins = data.coinCost ?? 0;
+      const refundKeys = data.keyCost ?? 0;
+      await updateDoc(doc(db, 'usuarios', user.uid), {
+        coins: (coins + refundCoins),
+        campaignKeys: (campaignProgress.keys + refundKeys),
+      }).catch(() => {});
+      await deleteDoc(canjeRef);
+      await refreshCanjes();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al cancelar canje';
+      return { ok: false, error: msg };
+    }
+  }, [coins, campaignProgress.keys, refreshCanjes]);
+
+  // Admin functions
+  const adminApproveCanje = useCallback(async (canjeId: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const canjeRef = doc(db, 'canjes', canjeId);
+      const canjeDoc = await getDoc(canjeRef);
+      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
+      const data = canjeDoc.data();
+      const now = Date.now();
+      // Move to approved collection
+      await setDoc(doc(db, 'canjes_aprobadas', canjeId), {
+        ...data,
+        status: 'approved',
+        approvedAt: now,
+        approvedBy: user.uid,
+      });
+      await deleteDoc(canjeRef);
+      await refreshCanjes();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al aprobar canje';
+      return { ok: false, error: msg };
+    }
+  }, [refreshCanjes]);
+
+  const adminMarkCorrection = useCallback(async (canjeId: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const canjeRef = doc(db, 'canjes', canjeId);
+      const canjeDoc = await getDoc(canjeRef);
+      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
+      const data = canjeDoc.data();
+      if (data.status !== 'pending_review') return { ok: false, error: 'El canje no está pendiente' };
+      const deadline = Date.now() + CORRECTION_TIMEOUT_MS;
+      await updateDoc(canjeRef, {
+        status: 'waiting_correction',
+        correctionDeadline: deadline,
+      });
+      await refreshCanjes();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al marcar corrección';
+      return { ok: false, error: msg };
+    }
+  }, [refreshCanjes]);
+
+  const adminRejectCanje = useCallback(async (canjeId: string, reason: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const canjeRef = doc(db, 'canjes', canjeId);
+      const canjeDoc = await getDoc(canjeRef);
+      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
+      const data = canjeDoc.data();
+      const now = Date.now();
+      // Refund user
+      const refundCoins = data.coinCost ?? 0;
+      const refundKeys = data.keyCost ?? 0;
+      if (data.userId) {
+        const userRef = doc(db, 'usuarios', data.userId);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          await updateDoc(userRef, {
+            coins: (userData.coins ?? 0) + refundCoins,
+            campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
+          }).catch(() => {});
+        }
+      }
+      await setDoc(doc(db, 'canjes_rechazadas', canjeId), {
+        ...data,
+        status: 'rejected',
+        rejectedAt: now,
+        rejectedBy: user.uid,
+        rejectReason: reason,
+      });
+      await deleteDoc(canjeRef);
+      await refreshCanjes();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al rechazar canje';
+      return { ok: false, error: msg };
+    }
+  }, [refreshCanjes]);
+
+  // Auto-cancel expired correction canjes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      canjes.forEach(async (c) => {
+        if (c.status === 'waiting_correction' && c.correctionDeadline && Date.now() >= c.correctionDeadline) {
+          try {
+            const user = auth.currentUser;
+            if (!user) return;
+            const canjeRef = doc(db, 'canjes', c.id);
+            const canjeDoc = await getDoc(canjeRef);
+            if (!canjeDoc.exists()) return;
+            const data = canjeDoc.data();
+            if (data.status !== 'waiting_correction') return;
+            // Auto-reject with refund
+            const now = Date.now();
+            const refundCoins = data.coinCost ?? 0;
+            const refundKeys = data.keyCost ?? 0;
+            if (data.userId) {
+              const userRef = doc(db, 'usuarios', data.userId);
+              const userDoc = await getDoc(userRef);
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                await updateDoc(userRef, {
+                  coins: (userData.coins ?? 0) + refundCoins,
+                  campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
+                }).catch(() => {});
+              }
+            }
+            await setDoc(doc(db, 'canjes_rechazadas', c.id), {
+              ...data,
+              status: 'rejected',
+              rejectedAt: now,
+              rejectReason: 'Rechazado por tiempo expirado (2h)',
+            });
+            await deleteDoc(canjeRef);
+            await refreshCanjes();
+          } catch {}
+        }
+      });
+    }, 30000); // check every 30s
+    return () => clearInterval(interval);
+  }, [canjes, refreshCanjes]);
+
+  // Admin: fetch all canjes with pagination
+  const adminCanjes = useRef<CanjeRequest[]>([]);
+  const [adminCanjesList, setAdminCanjesList] = useState<CanjeRequest[]>([]);
+  const [adminApprovedList, setAdminApprovedList] = useState<CanjeRequest[]>([]);
+  const [adminCanjesCounts, setAdminCanjesCounts] = useState({ total: 0, approved: 0, pending: 0, rejected: 0 });
+  const [adminCanjesPage, setAdminCanjesPage] = useState(0);
+  const adminCanjesPageSize = 100;
+
+  const refreshAdminCanjes = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      // Fetch pending canjes
+      const pendingSnap = await getDocs(query(
+        collection(db, 'canjes'),
+        where('status', 'in', ['pending_review', 'waiting_correction'])
+      ));
+      const pendingList: CanjeRequest[] = [];
+      pendingSnap.forEach((d) => {
+        const data = d.data();
+        pendingList.push({
+          id: d.id, userId: data.userId ?? '', userName: data.userName ?? '',
+          gameId: data.gameId ?? 'free_fire', selectedReward: data.selectedReward ?? '',
+          coinCost: data.coinCost ?? 0, keyCost: data.keyCost ?? 0,
+          estimatedUsdValue: data.estimatedUsdValue ?? 0, status: data.status ?? 'pending_review',
+          createdAt: data.createdAt ?? 0, queuePosition: data.queuePosition ?? 0,
+          playerID: data.playerID ?? '', nickname: data.nickname ?? '',
+          correctionDeadline: data.correctionDeadline ?? null,
+        });
+      });
+      pendingList.sort((a, b) => a.createdAt - b.createdAt);
+      pendingList.forEach((c, i) => { c.queuePosition = i + 1; });
+
+      // Fetch approved canjes
+      const approvedSnap = await getDocs(collection(db, 'canjes_aprobadas'));
+      const approvedList: CanjeRequest[] = [];
+      approvedSnap.forEach((d) => {
+        const data = d.data();
+        approvedList.push({
+          id: d.id, userId: data.userId ?? '', userName: data.userName ?? '',
+          gameId: data.gameId ?? 'free_fire', selectedReward: data.selectedReward ?? '',
+          coinCost: data.coinCost ?? 0, keyCost: data.keyCost ?? 0,
+          estimatedUsdValue: data.estimatedUsdValue ?? 0, status: 'approved',
+          createdAt: data.createdAt ?? 0, queuePosition: 0,
+          playerID: data.playerID ?? '', nickname: data.nickname ?? '',
+          approvedAt: data.approvedAt ?? null,
+        });
+      });
+      approvedList.sort((a, b) => (b.approvedAt ?? 0) - (a.approvedAt ?? 0));
+
+      // Fetch rejected count
+      const rejectedSnap = await getDocs(collection(db, 'canjes_rechazadas'));
+
+      setAdminCanjesList(pendingList);
+      setAdminApprovedList(approvedList);
+      setAdminCanjesCounts({
+        total: pendingList.length + approvedList.length + rejectedSnap.size,
+        approved: approvedList.length,
+        pending: pendingList.length,
+        rejected: rejectedSnap.size,
+      });
+    } catch {}
+  }, []);
+
+  const canjesPagination = {
+    page: adminCanjesPage,
+    totalPages: Math.max(1, Math.ceil(adminCanjesList.length / adminCanjesPageSize)),
+    total: adminCanjesCounts.total,
+    approved: adminCanjesCounts.approved,
+    pending: adminCanjesCounts.pending,
+    rejected: adminCanjesCounts.rejected,
+  };
+
   const refreshAdminStats = useCallback(async () => {
     return Promise.resolve();
   }, []);
@@ -1901,6 +2297,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     claimDiamonds, sendSuggestion,
     offerwallConfig, refreshOfferwallConfig, offerwallDownloadsToday, recordOfferwallDownload,
     userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
+    canjes, refreshCanjes, submitCanje, correctCanjeId, cancelCanje,
+    adminApproveCanje, adminMarkCorrection, adminRejectCanje,
+    approvedCanjes, canjesPagination, setCanjesPage,
+    adminCanjesList, adminApprovedList, refreshAdminCanjes, adminCanjesPage, setAdminCanjesPage,
     adminUserStats, refreshAdminStats,
     searchUsers, userSearchResults, loadMoreUsers, hasMoreUsers, clearUserSearch,
     isDeviceBanned, checkDeviceBan, reportSuspiciousActivity,

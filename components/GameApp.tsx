@@ -13,6 +13,7 @@ import { ZombieGameScreen } from '@/components/screens/ZombieGameScreen';
 import { SurvivalScreen } from '@/components/screens/SurvivalScreen';
 import { ShopScreen } from '@/components/screens/ShopScreen';
 import { RouletteScreen } from '@/components/screens/RouletteScreen';
+import { CanjesScreen } from '@/components/screens/CanjesScreen';
 import { CharactersScreen } from '@/components/screens/CharactersScreen';
 import { RankingScreen } from '@/components/screens/RankingScreen';
 import { OfferwallScreen } from '@/components/screens/OfferwallScreen';
@@ -49,6 +50,8 @@ function GameRouter() {
       return <SurvivalScreen />;
     case 'shop':
       return <ShopScreen />;
+    case 'canjes':
+      return <CanjesScreen />;
     case 'roulette':
       return <RouletteScreen />;
     case 'characters':
@@ -153,7 +156,7 @@ function AppShell() {
   const isGameplay = GAMEPLAY_SCREENS.includes(screen);
   const [showInterstitial, setShowInterstitial] = useState(false);
   const lastScreenRef = useRef(screen);
-  const menuScreens = ['menu', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
+  const menuScreens = ['menu', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
 
   useEffect(() => {
     const fromMenu = menuScreens.includes(lastScreenRef.current);

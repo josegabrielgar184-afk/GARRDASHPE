@@ -206,6 +206,10 @@ export function MenuScreen() {
               <Store className="w-8 h-8 text-white" />
               <span className="text-white font-bold text-sm">TIENDA</span>
             </button>
+            <button onClick={() => setScreen('canjes')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
+              <Gift className="w-8 h-8 text-white" />
+              <span className="text-white font-bold text-sm">CANJES</span>
+            </button>
             <button onClick={() => setScreen('roulette')} className="neon-btn-amber aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
               <Disc className="w-8 h-8 text-white" />
               <span className="text-white font-bold text-sm">RULETA</span>
