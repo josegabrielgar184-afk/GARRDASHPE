@@ -355,6 +355,9 @@ export function ZombieGameScreen() {
     spawnMuzzleFlash(muzzleFlashesRef.current, tx, turretY - 30, -Math.PI / 2, color, 22 * SPRITE_SCALE);
     playShoot();
   }, []);
+  if (shootCooldownRef.current > 0) {
+    shootCooldownRef.current = Math.max(0, shootCooldownRef.current - 1);
+  }
 
   const spawnZombie = useCallback(() => {
     const lane = Math.floor(Math.random() * LANE_COUNT);
