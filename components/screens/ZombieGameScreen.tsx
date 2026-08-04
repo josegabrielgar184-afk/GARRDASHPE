@@ -351,12 +351,6 @@ if (weapon === 'shotgun' || doubleShotRef.current) {
   fire(0, 0);
 }
   fire(0, 0);
-  shootCooldownRef.current = 8;  // Más rápido por ser minigun
-} else {
-  fire(0, 0);
-  shootCooldownRef.current = 20; // Velocidad normal
-}
-  fire(0, 0);
   shootCooldownRef.current = 10; // Dispara más rápido
 } else {
   fire(0, 0);
