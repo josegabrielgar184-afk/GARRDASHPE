@@ -13,7 +13,7 @@ export function CanjesScreen() {
     refreshCanjes, submitCanje, correctCanjeId, cancelCanje,
   } = useGame();
   const [selectedReward, setSelectedReward] = useState(CANJE_REWARDS[0].id);
-  const [selectedGame, setSelectedGame] = useState<CanjeGameId>('battle_royale');
+  const [selectedGame, setSelectedGame] = useState<CanjeGameId>('free_fire');
   const [playerId, setPlayerId] = useState('');
   const [nick, setNick] = useState('');
   const [error, setError] = useState('');
