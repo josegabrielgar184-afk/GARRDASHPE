@@ -5,6 +5,7 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { ArrowLeft, Coins, Calendar, CheckCircle2, Crown, Gift, Video, Sparkles } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
@@ -14,18 +15,18 @@ interface Prize { coins: number; label: string; color: string; glow: string; tie
 interface ConfettiPiece { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; rot: number; rotVel: number; life: number; }
 
 const PRIZES: Prize[] = [
-  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-  { coins: 10, label: '10 Monedas', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-  { coins: 20, label: '20 Monedas', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-  { coins: 50, label: '50 Monedas', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-  { coins: 130, label: '130 Monedas', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-  { coins: 30, label: '30 Monedas', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
-  { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-  { coins: 200, label: '200 Monedas', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 2, label: '2 Monedas', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 3, label: '3 Monedas', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 5, label: '5 Monedas', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 15, label: '15 Monedas', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 4, label: '4 Monedas', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 25, label: '25 Monedas', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
 ];
 
 const PROB_HIGH = 0.009;
@@ -348,14 +349,7 @@ export function RouletteScreen() {
       </div>
 
       {showInterstitial && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 animate-fade-in">
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-amber-500/30 p-8 text-center" style={{ boxShadow: '0 0 30px rgba(245,158,11,0.2)' }}>
-            <Video className="w-16 h-16 text-amber-400 animate-pulse mx-auto mb-4" />
-            <p className="text-white font-bold text-lg mb-2">Anuncio Interstitial</p>
-            <p className="text-white/50 text-sm mb-6">Anuncio publicitario - Cierra en 3 segundos...</p>
-            <button onClick={() => setShowInterstitial(false)} className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:opacity-90" style={{ border: '2px solid rgba(255,255,255,0.15)' }}>Cerrar ahora</button>
-          </div>
-        </div>
+        <InterstitialAd onDone={() => setShowInterstitial(false)} />
       )}
 
       <RewardAdModal

@@ -137,7 +137,7 @@ export function SpaceGameScreen() {
 
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
-  const MAX_GAME_COINS = vip ? 15 : 10;
+  const MAX_GAME_COINS = vip ? 5 : 3;
 
   const safeAddCoins = useCallback((amount: number) => {
     if (gameCoinsRef.current >= MAX_GAME_COINS) return;

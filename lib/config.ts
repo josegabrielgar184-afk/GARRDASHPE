@@ -48,7 +48,7 @@ export const URL_OFFERWALL_REAL = '';
 export const MIN_CLAIM_COINS = 10000;
 export const DIAMOND_CLAIM_KEYS_REQUIRED = 5;
 export const CAMPAIGN_KEYS_PER_10_LEVELS = 1;
-export const WELCOME_BONUS_COINS = 500;
+export const WELCOME_BONUS_COINS = 30;
 
 export const SPECIAL_LEVELS: Record<number, { theme: string; color: string; message: string }> = {
   4: { theme: 'love', color: '#ef4444', message: '¡4 AÑOS DE AMOR ETERNO!' },
@@ -57,13 +57,13 @@ export const SPECIAL_LEVELS: Record<number, { theme: string; color: string; mess
 };
 
 export const TOTAL_CAMPAIGN_LEVELS = 999;
-// Level 1: 10 coins. Level 30: 100-150 coins. Proportional increase per level.
-// Beyond level 30, capped at 100-150 to keep resource acquisition slow and challenging.
+// Level 1: 2-3 coins. Level 30: 10-15 coins. Slow, grinding progression.
+// Beyond level 30, capped at 10-15 to keep resource acquisition very difficult.
 export function getCampaignCoinReward(level: number): { min: number; max: number } {
   if (level <= 0) level = 1;
-  if (level >= 30) return { min: 100, max: 150 };
-  const min = Math.round(10 + (level - 1) * 3.1);
-  const max = Math.round(10 + (level - 1) * 4.83);
+  if (level >= 30) return { min: 10, max: 15 };
+  const min = Math.round(2 + (level - 1) * 0.28);
+  const max = Math.round(2 + (level - 1) * 0.45);
   return { min, max };
 }
 

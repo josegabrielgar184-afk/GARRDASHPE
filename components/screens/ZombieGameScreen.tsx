@@ -67,7 +67,7 @@ const COLOR_THEMES = [
 ];
 
 const MILESTONES: Record<number, { title: string; coins?: number; shield?: boolean; scoreBoost?: boolean; color: string }> = {
-  4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 400, color: '#ec4899' },
+  4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 15, color: '#ec4899' },
   10: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true, color: '#60a5fa' },
   30: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true, color: '#60a5fa' },
 };
@@ -147,7 +147,7 @@ export function ZombieGameScreen() {
   const bloodEnabledRef = useRef(true);
   const whiteFlashRef = useRef(0);
   const gameCoinsRef = useRef(0);
-  const coinCapRef = useRef(80);
+  const coinCapRef = useRef(15);
   const interstitialCheckedRef = useRef(false);
   const fpsMonitorRef = useRef<FPSMonitor>(new FPSMonitor());
   const playTimeRef = useRef(0);
@@ -1196,7 +1196,7 @@ export function ZombieGameScreen() {
           if (c.life <= 0 || c.y > h + 20) { coinPoolRef.current.release(c); continue; }
           if (dist(c.x, c.y, turretXRef.current, turretY) < 30) {
             coinPoolRef.current.release(c);
-            safeAddCoins(1); playCoin(); hapticFeedback(15);
+            safeAddCoins(1); playCoin(); hapticFeedback(15); // 1 coin per pickup - but cap is very low
           }
         }
 
@@ -1542,7 +1542,7 @@ export function ZombieGameScreen() {
           gameOverRef.current = false; setGameOver(false);
           hasRevivedRef.current = true; setHasRevived(true);
           reviveShieldTimerRef.current = 120; setReviveShieldTimer(2);
-          safeAddCoins(3);
+          safeAddCoins(1); // revive gives 1 coin instead of 3
           const { w, h } = canvasSizeRef.current;
           for (const z of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(z);
           addFloatText('¡ESCUDO DE INMUNIDAD 2s!', w / 2, h / 2, '#22d3ee', 18);

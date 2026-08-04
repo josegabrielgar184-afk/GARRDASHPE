@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Video, Loader2, CheckCircle2 } from 'lucide-react';
+import { Video, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
+import { ADMOB_CONFIG } from '@/lib/config';
 
 interface RewardAdModalProps {
   open: boolean;
@@ -12,49 +14,86 @@ interface RewardAdModalProps {
 }
 
 export function RewardAdModal({ open, onClose, onReward, title, rewardText }: RewardAdModalProps) {
-  const [phase, setPhase] = useState<'loading' | 'ad' | 'reward'>('loading');
-  const [progress, setProgress] = useState(0);
-  const [countdown, setCountdown] = useState(5);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [phase, setPhase] = useState<'loading' | 'ad' | 'reward' | 'error'>('loading');
+  const [errorMsg, setErrorMsg] = useState('');
+  const rewardedRef = useRef(false);
+  const closedRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
       setPhase('loading');
-      setProgress(0);
-      setCountdown(5);
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setErrorMsg('');
+      rewardedRef.current = false;
+      closedRef.current = false;
       return;
     }
 
     setPhase('loading');
-    setProgress(0);
-    setCountdown(5);
+    setErrorMsg('');
+    rewardedRef.current = false;
+    closedRef.current = false;
 
-    const loadDelay = 1500 + Math.random() * 1500;
-    const loadTimer = setTimeout(() => {
-      setPhase('ad');
-      const startTime = Date.now();
-      const duration = 5000;
+    let cancelled = false;
 
-      timerRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const pct = Math.min((elapsed / duration) * 100, 100);
-        setProgress(pct);
-        const remaining = Math.ceil((duration - elapsed) / 1000);
-        setCountdown(remaining > 0 ? remaining : 0);
+    (async () => {
+      const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+      const isNative = Capacitor?.isNativePlatform?.() ?? false;
 
-        if (elapsed >= duration) {
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-          setPhase('reward');
+      if (!isNative) {
+        // Web fallback: no real AdMob on web, show error
+        if (!cancelled) {
+          setErrorMsg('Los anuncios solo estan disponibles en la app movil.');
+          setPhase('error');
         }
-      }, 100);
-    }, loadDelay);
+        return;
+      }
+
+      try {
+        // Listen for reward earned
+        const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+          rewardedRef.current = true;
+        });
+
+        // Listen for dismiss
+        const dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+          if (cancelled) return;
+          if (rewardedRef.current) {
+            setPhase('reward');
+          } else {
+            closedRef.current = true;
+            onClose();
+          }
+        });
+
+        // Prepare the rewarded ad
+        await AdMob.prepareRewardVideoAd({
+          adId: ADMOB_CONFIG.revivirId,
+        });
+
+        if (cancelled) {
+          rewardListener.remove();
+          dismissListener.remove();
+          return;
+        }
+
+        // Show the ad
+        setPhase('ad');
+        await AdMob.showRewardVideoAd();
+
+        rewardListener.remove();
+        dismissListener.remove();
+      } catch {
+        if (!cancelled) {
+          setErrorMsg('No se pudo cargar el anuncio. Intenta de nuevo.');
+          setPhase('error');
+        }
+      }
+    })();
 
     return () => {
-      clearTimeout(loadTimer);
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      cancelled = true;
     };
-  }, [open]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -71,19 +110,24 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText }: Re
       ) : phase === 'ad' ? (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
           <div className="flex items-center justify-center mb-4">
-            <div className="relative">
-              <Video className="w-16 h-16 text-primary animate-pulse" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                {countdown}
-              </span>
-            </div>
+            <Video className="w-16 h-16 text-primary animate-pulse" />
           </div>
-          <p className="text-white font-bold text-lg mb-1">Anuncio de Video</p>
-          <p className="text-white/50 text-sm mb-4">Recompensa en {countdown} segundo{countdown !== 1 ? 's' : ''}...</p>
-          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-100" style={{ width: `${progress}%` }} />
+          <p className="text-white font-bold text-lg mb-1">Anuncio en reproduccion</p>
+          <p className="text-white/50 text-sm">Espera a que termine para recibir tu recompensa</p>
+        </div>
+      ) : phase === 'error' ? (
+        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-red-900/40 to-gray-900 border border-red-500/40 p-8 text-center animate-scale-in">
+          <div className="flex items-center justify-center mb-3">
+            <XCircle className="w-16 h-16 text-red-400" />
           </div>
-          <p className="text-white/30 text-xs mt-3">Simulacion de anuncio (Web Preview)</p>
+          <p className="text-white font-bold text-xl mb-2">Anuncio no disponible</p>
+          <p className="text-red-300/70 text-sm mb-6">{errorMsg}</p>
+          <button
+            onClick={() => { onClose(); }}
+            className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 font-bold hover:bg-red-500/30 transition-colors"
+          >
+            Cerrar
+          </button>
         </div>
       ) : (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-gray-900 border border-green-500/40 p-8 text-center animate-scale-in">

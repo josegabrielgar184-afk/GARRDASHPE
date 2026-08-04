@@ -18,6 +18,7 @@ import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
 import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
+import { setupDailyNotifications } from '@/lib/notifications';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
@@ -525,6 +526,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         if (role === 'admin') setScreenState('admin');
         else if (role === 'operador') setScreenState('operator');
         else setScreenState('menu');
+
+        // Schedule 3 daily push notifications to remind user to play
+        setupDailyNotifications();
 
         userDocUnsubRef.current = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
           if (!snap.exists()) return;
@@ -1371,7 +1375,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setOfferwallConfig({
           active: data.active ?? false,
           link: data.link ?? '',
-          rewardPerDownload: data.rewardPerDownload ?? 1000,
+          rewardPerDownload: data.rewardPerDownload ?? 20,
           dailyLimit: data.dailyLimit ?? 2,
         });
       }
@@ -2291,14 +2295,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const userUid = auth.currentUser.uid;
     const checkRank = () => {
       const rankings = [spaceRanking, zombieRanking, weeklyRanking];
+      let bestRank: number | null = null;
       for (const ranking of rankings) {
         const idx = ranking.findIndex((e) => e.uid === userUid || e.name === playerName);
         if (idx >= 0) {
-          setCurrentUserRank(idx + 1);
-          return;
+          if (bestRank === null || idx + 1 < bestRank) bestRank = idx + 1;
         }
       }
-      setCurrentUserRank(null);
+      setCurrentUserRank(bestRank);
     };
     checkRank();
 
@@ -2310,16 +2314,41 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         const userData = userDoc.data();
-        const userPoints = userData.puntos ?? 0;
-        if (userPoints <= 0) {
+        const userSpace = userData.puntos_espacio ?? 0;
+        const userZombie = userData.puntos_zombies ?? 0;
+        const userWeekly = userData.puntos_semanales ?? 0;
+
+        // If user has no points at all, they can't be ranked
+        if (userSpace <= 0 && userZombie <= 0 && userWeekly <= 0) {
           setCurrentUserRank(null);
           return;
         }
-        const countQ = query(collection(db, 'usuarios'), where('puntos', '>', userPoints));
-        const countSnap = await getDocs(countQ);
-        setCurrentUserRank(countSnap.size + 1);
+
+        // Compute rank for each category: count users with higher score
+        let bestRank: number | null = null;
+
+        if (userSpace > 0) {
+          const spaceQ = query(collection(db, 'usuarios'), where('puntos_espacio', '>', userSpace));
+          const spaceSnap = await getDocs(spaceQ);
+          const rank = spaceSnap.size + 1;
+          if (bestRank === null || rank < bestRank) bestRank = rank;
+        }
+        if (userZombie > 0) {
+          const zombieQ = query(collection(db, 'usuarios'), where('puntos_zombies', '>', userZombie));
+          const zombieSnap = await getDocs(zombieQ);
+          const rank = zombieSnap.size + 1;
+          if (bestRank === null || rank < bestRank) bestRank = rank;
+        }
+        if (userWeekly > 0) {
+          const weeklyQ = query(collection(db, 'usuarios'), where('puntos_semanales', '>', userWeekly));
+          const weeklySnap = await getDocs(weeklyQ);
+          const rank = weeklySnap.size + 1;
+          if (bestRank === null || rank < bestRank) bestRank = rank;
+        }
+
+        setCurrentUserRank(bestRank);
       } catch {
-        setCurrentUserRank(null);
+        // Keep the rank from checkRank if dynamic computation fails
       }
     };
     computeDynamicRank();
