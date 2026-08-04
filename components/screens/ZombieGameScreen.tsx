@@ -338,26 +338,30 @@ export function ZombieGameScreen() {
       b.vx = vxMod; b.vy = -speed;
       b.life = 80; b.damage = dmg; b.color = color;
     };
+const weapon = weaponRef.current;
 
-    const weapon = weaponRef.current;
-    if (weapon === 'shotgun' || doubleShotRef.current) {
-      shootCooldownRef.current = getFireRate() * 2;
-      fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
-    } else if (weapon === 'minigun') {
-      fire(rand(-4, 4), rand(-1, 1));
-      fire(0, 0);
-      shootCooldownRef.current = getFireRate() * 2;
-    } else {
-      fire(0, 0);
-      shootCooldownRef.current = getFireRate() * 2;
-    }
+// Si aún está en enfriamiento, salimos para que no dispare como loco
+if (shootCooldownRef.current > 0) {
+  shootCooldownRef.current -= 1;
+  return;
+}
+
+if (weapon === 'shotgun' || doubleShotRef.current) {
+  fire(-12, -1.5); fire(0, 0); fire(12, 1.5);
+  shootCooldownRef.current = 15; // Velocidad controlada
+} else if (weapon === 'minigun') {
+  fire(rand(-4, 4), rand(-1, 1));
+  fire(0, 0);
+  shootCooldownRef.current = 8;  // Más rápido por ser minigun
+} else {
+  fire(0, 0);
+  shootCooldownRef.current = 20; // Velocidad normal
+}
 
     spawnMuzzleFlash(muzzleFlashesRef.current, tx, turretY - 30, -Math.PI / 2, color, 22 * SPRITE_SCALE);
     playShoot();
   }, []);
-  if (shootCooldownRef.current > 0) {
-    shootCooldownRef.current = Math.max(0, shootCooldownRef.current - 1);
-  }
+ 
 
   const spawnZombie = useCallback(() => {
     const lane = Math.floor(Math.random() * LANE_COUNT);
