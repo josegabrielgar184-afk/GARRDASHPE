@@ -13,7 +13,6 @@ import { ZombieGameScreen } from '@/components/screens/ZombieGameScreen';
 import { SurvivalScreen } from '@/components/screens/SurvivalScreen';
 import { ShopScreen } from '@/components/screens/ShopScreen';
 import { RouletteScreen } from '@/components/screens/RouletteScreen';
-import { CanjesScreen } from '@/components/screens/CanjesScreen';
 import { CharactersScreen } from '@/components/screens/CharactersScreen';
 import { RankingScreen } from '@/components/screens/RankingScreen';
 import { OfferwallScreen } from '@/components/screens/OfferwallScreen';
