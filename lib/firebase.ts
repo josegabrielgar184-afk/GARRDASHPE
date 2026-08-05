@@ -2,14 +2,13 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
-// Inicialización segura de Firebase para evitar errores de app predeterminada
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyD-placeholder",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
+  apiKey: "AIzaSyCUk2GWPm_AcBOFvzCpw1K5E-P5FdfeBho",
+  authDomain: "garrdash.firebaseapp.com",
+  projectId: "garrdash",
+  storageBucket: "garrdash.firebasestorage.app",
+  messagingSenderId: "913250323167",
+  appId: "1:913250323167:web:9a04296cfb1566de51f76a"
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
