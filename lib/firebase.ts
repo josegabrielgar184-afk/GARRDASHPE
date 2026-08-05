@@ -25,7 +25,7 @@ export async function verificarYCrearUsuario(user: any) {
     await setDoc(userRef, {
       uid: user.uid,
       email: user.email || "",
-      nombre: user.displayName || "Nuevo Jugador",
+      nombre: user.email ? user.email.split('@')[0] : "Player",
       edad: 0,
       nacionalidad: "Perú",
       rol: "jugador",
