@@ -1,15 +1,16 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { db } from "././firebase";
+import { getApp } from "firebase/app";
 
-export const auth = getAuth();
+// Inicializa auth usando la app existente para evitar el error
+export const auth = getAuth(getApp());
 
 export async function verificarYCrearUsuario(user: any) {
   if (!user) return;
   const userRef = doc(db, "usuarios", user.uid);
   const docSnap = await getDoc(userRef);
 
-  // Si el usuario es nuevo y no existe en Firestore, se le crea su perfil limpio con toda la estructura
   if (!docSnap.exists()) {
     await setDoc(userRef, {
       uid: user.uid,
