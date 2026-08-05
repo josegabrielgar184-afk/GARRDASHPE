@@ -11,7 +11,7 @@ import { pauseAudio, resumeAudio } from '@/lib/audio';
 import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
 import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
 import {
-  auth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   type User,
 } from 'firebase/auth';
 import {
