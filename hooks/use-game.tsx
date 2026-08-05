@@ -504,6 +504,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         userDocUnsubRef.current = null;
       }
       if (user) {
+        await verificarYCrearUsuario(user);
         setLoggedInState(true);
         setEmail(user.email ?? '');
         let role: 'user' | 'operador' | 'admin' = 'user';
