@@ -7,8 +7,6 @@ import {
   updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { getAuth } from 'firebase/auth';
-const auth = getAuth();
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
 import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
