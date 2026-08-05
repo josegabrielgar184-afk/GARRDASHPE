@@ -1,10 +1,9 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { db } from "././firebase";
-import { getApp } from "firebase/app";
+import { db, app } from "././firebase";
 
-// Inicializa auth usando la app existente para evitar el error
-export const auth = getAuth(getApp());
+// Usamos la app importada directamente para inicializar Auth sin errores
+export const auth = getAuth(app);
 
 export async function verificarYCrearUsuario(user: any) {
   if (!user) return;
