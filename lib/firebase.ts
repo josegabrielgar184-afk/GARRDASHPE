@@ -1,5 +1,8 @@
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "./firebase";
+import { getAuth } from "firebase/auth";
+import { db } from "././firebase";
+
+export const auth = getAuth();
 
 export async function verificarYCrearUsuario(user: any) {
   if (!user) return;
