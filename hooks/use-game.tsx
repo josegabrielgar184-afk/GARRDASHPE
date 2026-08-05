@@ -6,12 +6,12 @@ import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
   updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment,
 } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
 import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
 import {
-  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  auth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   type User,
 } from 'firebase/auth';
 import {
