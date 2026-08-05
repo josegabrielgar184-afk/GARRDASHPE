@@ -12,19 +12,19 @@ export async function verificarYCrearUsuario(user: any) {
       uid: user.uid,
       email: user.email || "",
       nombre: user.displayName || "Nuevo Jugador",
-      edad: 0, // O pedirselo en un registro
+      edad: 0,
       nacionalidad: "Perú",
       rol: "jugador",
-      coins: 200, // Tus monedas iniciales de bienvenida
+      coins: 200,
       diamantes: 0,
       puntos: 0,
       bestScore: 0,
       bestScoreApocalipsis: 0,
-      campaignLevel: 1, // Empieza desde el nivel 1
+      campaignLevel: 1,
       campaignKeys: 0,
-      campaignStars: {}, // Vacío para que las vaya ganando
+      campaignStars: {},
       towerLevels: {
-        drone: 1, // Torres base en nivel inicial
+        drone: 1,
         medic: 1,
         turret: 1
       },
