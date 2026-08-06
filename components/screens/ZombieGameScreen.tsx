@@ -1356,22 +1356,13 @@ particlesRef.current = particlesRef.current.slice(-20);
         whiteFlashRef.current = Math.max(0, whiteFlashRef.current - dt * 0.05);
       }
 
-      if (nuclearActiveRef.current) {
-        ctx.save();
-        ctx.globalAlpha = 0.1 + Math.sin(now * 0.02) * 0.05;
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(-20, -20, w + 40, h + 40);
+    if (nuclearActiveRef.current) {
         ctx.restore();
-      }
+    }
+    rafRef.current = requestAnimationFrame(render);
+};
 
-      ctx.restore();
-      rafRef.current = requestAnimationFrame(render);
-    };
-
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone, char, equipWeapon]);
-
-  useEffect(() => {
+useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onTouchStart = (e: TouchEvent) => { initAudio(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
