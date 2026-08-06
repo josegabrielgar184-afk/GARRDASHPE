@@ -1368,7 +1368,6 @@ particlesRef.current = particlesRef.current.slice(-20);
       rafRef.current = requestAnimationFrame(render);
     };
 
-    rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
   }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone, char, equipWeapon]);
 
