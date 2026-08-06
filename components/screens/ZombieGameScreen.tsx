@@ -1518,7 +1518,7 @@ export function ZombieGameScreen() {
               onClick={() => {
                 endGameBatch();
                 submitZombieScore(killCountRef.current);
-                completeLevel(campaignLevel, 3, coinsEarned);
+                completeLevel(campaignLevel, campaignLevel * 10, coinsEarned);
                 setVictory(false);
                 setScreen('campaign');
               }}
