@@ -1172,18 +1172,15 @@ export function ZombieGameScreen() {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
             spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
 particlesRef.current = particlesRef.current.slice(-20);
-              if (z.hp <= 0) {
-                zombiePoolRef.current.release(z);
-                const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
-                killCountRef.current++; setZombiesKilled(killCountRef.current);
-                scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
-               spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
-particlesRef.current = particlesRef.current.slice(-20);
-                spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
-              }
-              break;
-            }
-          }
+  if (z.hp <= 0) {
+    zombiePoolRef.current.release(z);
+    const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
+    killCountRef.current++; setZombiesKilled(killCountRef.current);
+    scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
+    if (Math.random() < 0.12) spawnFloatingCoins(z.x, z.y, 1);
+    spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
+    particlesRef.current = particlesRef.current.slice(-20);
+}
           if (hit) companionBulletPoolRef.current.release(b);
         }
 
@@ -1520,7 +1517,7 @@ particlesRef.current = particlesRef.current.slice(-20);
               onClick={() => {
                 endGameBatch();
                 submitZombieScore(killCountRef.current);
-              completeLevel(campaignLevel, campaignLevel * 6, Math.min(campaignLevel * 5, 100));
+              completeLevel(campaignLevel, campaignLevel * 6, Math.min(20 + (campaignLevel * 5), 100));
                 setVictory(false);
                 setScreen('campaign');
               }}
