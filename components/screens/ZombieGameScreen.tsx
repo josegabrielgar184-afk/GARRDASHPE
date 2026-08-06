@@ -233,7 +233,7 @@ export function ZombieGameScreen() {
 
   const addFloatText = (text: string, x: number, y: number, color = '#fbbf24', size = 14) => {
     const id = Date.now() + Math.random();
-    setFloatTexts((prev) => [...prev, { id, text, x, y, color, size }]);
+   setFloatTexts((prev) => [...prev, { id, text, x, y, color, size }].slice(-12));
     setTimeout(() => setFloatTexts((prev) => prev.filter((f) => f.id !== id)), 1000);
   };
 
