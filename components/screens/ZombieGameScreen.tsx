@@ -1383,7 +1383,6 @@ useEffect(() => {
     canvas.removeEventListener('mousedown', onMouseDown);
     canvas.removeEventListener('mousemove', onMouseMove);
     canvas.removeEventListener('mouseup', onMouseUp);
-    }
    }, []);
 
   return (
