@@ -1388,8 +1388,8 @@ useEffect(() => {
     };
   }, []);
 
-  return (
-    <>
+ return (
+    <div className="absolute inset-0 bg-black flex flex-col">
       <OfflineBanner />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-3 pb-2">
