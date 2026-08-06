@@ -1384,7 +1384,6 @@ useEffect(() => {
       canvas.removeEventListener('mousedown', onMouseDown);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('mouseup', onMouseUp);
-    };
 
   return (
     <div className="absolute inset-0 bg-black flex flex-col">
