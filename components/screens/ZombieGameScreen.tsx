@@ -233,7 +233,7 @@ export function ZombieGameScreen() {
 
   const addFloatText = (text: string, x: number, y: number, color = '#fbbf24', size = 14) => {
     const id = Date.now() + Math.random();
-   setFloatTexts((prev) => [...prev, { id, text, x, y, color, size }].slice(-12));
+    setFloatTexts((prev) => [...prev, { id, text, x, y, color, size }]);
     setTimeout(() => setFloatTexts((prev) => prev.filter((f) => f.id !== id)), 1000);
   };
 
@@ -1170,17 +1170,18 @@ export function ZombieGameScreen() {
           for (const z of zombiePoolRef.current.getActive()) {
             if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
-            spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
-particlesRef.current = particlesRef.current.slice(-20);
-  if (z.hp <= 0) {
-    zombiePoolRef.current.release(z);
-    const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
-    killCountRef.current++; setZombiesKilled(killCountRef.current);
-    scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
-    if (Math.random() < 0.12) spawnFloatingCoins(z.x, z.y, 1);
-    spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
-    particlesRef.current = particlesRef.current.slice(-20);
-}
+              spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
+              if (z.hp <= 0) {
+                zombiePoolRef.current.release(z);
+                const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
+                killCountRef.current++; setZombiesKilled(killCountRef.current);
+                scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
+                if (Math.random() < 0.12) spawnFloatingCoins(z.x, z.y, 1);
+                spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
+              }
+              break;
+            }
+          }
           if (hit) companionBulletPoolRef.current.release(b);
         }
 
@@ -1211,7 +1212,7 @@ particlesRef.current = particlesRef.current.slice(-20);
       }
 
       // Blood splats
-      const splats = bloodSplatsRef.current.slice(-20);
+      const splats = bloodSplatsRef.current;
       for (let i = splats.length - 1; i >= 0; i--) {
         const bs = splats[i];
         ctx.save();
@@ -1356,13 +1357,23 @@ particlesRef.current = particlesRef.current.slice(-20);
         whiteFlashRef.current = Math.max(0, whiteFlashRef.current - dt * 0.05);
       }
 
-    if (nuclearActiveRef.current) {
+      if (nuclearActiveRef.current) {
+        ctx.save();
+        ctx.globalAlpha = 0.1 + Math.sin(now * 0.02) * 0.05;
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(-20, -20, w + 40, h + 40);
         ctx.restore();
-    }
-    rafRef.current = requestAnimationFrame(render);
-};
+      }
 
-useEffect(() => {
+      ctx.restore();
+      rafRef.current = requestAnimationFrame(render);
+    };
+
+    rafRef.current = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone, char, equipWeapon]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onTouchStart = (e: TouchEvent) => { initAudio(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
@@ -1377,7 +1388,6 @@ useEffect(() => {
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
-
     return () => {
       canvas.removeEventListener('touchstart', onTouchStart);
       canvas.removeEventListener('touchmove', onTouchMove);
@@ -1387,8 +1397,7 @@ useEffect(() => {
       canvas.removeEventListener('mouseup', onMouseUp);
     };
   }, []);
-}
-      
+
   return (
     <div className="absolute inset-0 bg-black flex flex-col">
       <OfflineBanner />
@@ -1398,6 +1407,15 @@ useEffect(() => {
           <button onClick={() => { if (!vip && canShowInterstitial()) { recordInterstitial(); pendingExitRef.current = true; setShowInterstitial(true); } else abandonGame(); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white"><ArrowLeft className="w-5 h-5" /></button>
           <button onClick={() => { pausedRef.current = true; setPaused(true); setShowPauseModal(true); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-black/70"><Pause className="w-5 h-5" /></button>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5">
+            {Array.from({ length: 3 }).map((_, i) => <Heart key={i} className={`w-4 h-4 ${i < lives ? 'text-red-500 fill-red-500' : 'text-white/20'}`} />)}
+          </div>
+          <div className="bg-black/50 backdrop-blur rounded-full px-3 py-1.5 text-sm font-bold transition-colors" style={{ color: scoreColor }}>{score} pts</div>
+          <div className="flex items-center gap-1 bg-black/50 backdrop-blur rounded-full px-3 py-1.5"><Coins className="w-4 h-4 text-amber-400" /><span className="text-amber-400 text-sm font-bold">{coinsEarned}</span></div>
+        </div>
+      </div>
+      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 w-56">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-white/60">BARRICADA</span>
           <div className="flex-1 h-3 rounded-full bg-black/50 border border-white/10 overflow-hidden">
@@ -1500,7 +1518,7 @@ useEffect(() => {
               onClick={() => {
                 endGameBatch();
                 submitZombieScore(killCountRef.current);
-              completeLevel(campaignLevel, campaignLevel * 6, Math.min(20 + (campaignLevel * 5), 100));
+                completeLevel(campaignLevel, 3, coinsEarned);
                 setVictory(false);
                 setScreen('campaign');
               }}
@@ -1552,5 +1570,6 @@ useEffect(() => {
           </div>
         </div>
       )}
-    );
+    </div>
+  );
 }

@@ -16,18 +16,18 @@ interface Prize { coins: number; label: string; color: string; glow: string; tie
 interface ConfettiPiece { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; rot: number; rotVel: number; life: number; }
 
 const PRIZES: Prize[] = [
-    { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 10, label: '10 Monedas', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
-    { coins: 15, label: '15 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 20, label: '20 Monedas', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
-    { coins: 10, label: '10 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 30, label: '30 Monedas', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
-    { coins: 15, label: '15 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 50, label: '50 Monedas', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
-    { coins: 10, label: '10 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 25, label: '25 Monedas', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
-    { coins: 20, label: '20 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 100, label: '100 Monedas', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 2, label: '2 Monedas', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 3, label: '3 Monedas', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 5, label: '5 Monedas', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 15, label: '15 Monedas', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 4, label: '4 Monedas', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
+  { coins: 1, label: '1 Moneda', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+  { coins: 25, label: '25 Monedas', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
 ];
 
 const PROB_HIGH = 0.009;
