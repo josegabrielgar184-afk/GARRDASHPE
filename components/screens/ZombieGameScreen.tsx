@@ -1388,7 +1388,7 @@ useEffect(() => {
     };
   }, []);
 
- return (
+  return (
     <div className="absolute inset-0 bg-black flex flex-col">
       <OfflineBanner />
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
