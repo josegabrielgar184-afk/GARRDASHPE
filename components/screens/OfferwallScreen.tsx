@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Lock, CheckCircle2, AlertCircle, ExternalLink, X } from 'lucide-react';
+import { ArrowLeft, Coins, Lock, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { auth } from '@/lib/firebase';
 
@@ -11,20 +11,17 @@ export function OfferwallScreen() {
   const { setScreen, isOnline } = useGame();
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showOfferwall, setShowOfferwall] = useState(false);
 
-  // Token y URL base de BitLabs con el ID del usuario actual de Firebase
-  const getBitLabsUrl = () => {
-    const uid = auth.currentUser?.uid ?? 'guest';
-    const appToken = '3da101f5-6ff1-4ce4-9406-4fb8c6744475';
-    return `https://web.bitlabs.ai/?appid=${appToken}&uid=${uid}`;
-  };
-
-  const handleOpenOfferwall = async () => {
+  const handleOpenOfferwall = () => {
     setResult(null);
     setLoading(true);
     try {
-      setShowOfferwall(true);
+      const uid = auth.currentUser?.uid ?? 'guest';
+      const appToken = '3da101f5-6ff1-4ce4-9406-4fb8c6744475';
+      const url = `https://web.bitlabs.ai/?appid=${appToken}&uid=${uid}`;
+      
+      // Abre el offerwall en una nueva pestaña para evitar bloqueos de iframe
+      window.open(url, '_blank');
       setResult({ ok: true });
     } catch {
       setResult({ ok: false, error: 'No se pudo abrir el offerwall de BitLabs' });
@@ -78,10 +75,10 @@ export function OfferwallScreen() {
                 {loading ? 'Abriendo...' : 'Abrir Offerwall'}
               </button>
 
-              {result?.ok && !showOfferwall && (
+              {result?.ok && (
                 <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-green-400 text-sm">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  Offerwall abierto correctamente.
+                  Pestaña del Offerwall abierta con éxito.
                 </div>
               )}
               {result && !result.ok && (
@@ -93,7 +90,7 @@ export function OfferwallScreen() {
 
               <div className="mt-6 rounded-xl bg-card border border-border p-4 text-xs space-y-2">
                 <p className="text-white/50 font-bold mb-1">Como funciona:</p>
-                <p className="text-white/40">1. Presiona &quot;Abrir Offerwall&quot; para ver las ofertas disponibles.</p>
+                <p className="text-white/40">1. Presiona &quot;Abrir Offerwall&quot; para abrir las ofertas.</p>
                 <p className="text-white/40">2. Completa encuestas o juegos de tu interes.</p>
                 <p className="text-white/40">3. Las monedas se acreditan a tu cuenta automaticamente.</p>
               </div>
@@ -101,26 +98,6 @@ export function OfferwallScreen() {
           )}
         </div>
       </div>
-
-      {showOfferwall && (
-        <div className="fixed inset-0 z-[200] flex flex-col bg-black/95">
-          <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
-            <h2 className="text-white font-bold text-sm">BitLabs Offerwall</h2>
-            <button
-              onClick={() => setShowOfferwall(false)}
-              className="w-8 h-8 rounded-full bg-background flex items-center justify-center text-white/50 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <iframe
-            src={getBitLabsUrl()}
-            className="flex-1 w-full border-0"
-            title="BitLabs Offerwall"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-          />
-        </div>
-      )}
     </div>
   );
 }
