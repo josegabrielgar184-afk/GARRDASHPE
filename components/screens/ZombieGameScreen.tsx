@@ -1170,13 +1170,15 @@ export function ZombieGameScreen() {
           for (const z of zombiePoolRef.current.getActive()) {
             if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
-              spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
+            spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
+particlesRef.current = particlesRef.current.slice(-20);
               if (z.hp <= 0) {
                 zombiePoolRef.current.release(z);
                 const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
                 killCountRef.current++; setZombiesKilled(killCountRef.current);
                 scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
-                if (Math.random() < 0.12) spawnFloatingCoins(z.x, z.y, 1);
+               spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
+particlesRef.current = particlesRef.current.slice(-20);
                 spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
               }
               break;
