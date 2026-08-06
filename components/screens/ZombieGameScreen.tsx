@@ -1212,7 +1212,7 @@ export function ZombieGameScreen() {
       }
 
       // Blood splats
-      const splats = bloodSplatsRef.current;
+      const splats = bloodSplatsRef.current.slice(-20);
       for (let i = splats.length - 1; i >= 0; i--) {
         const bs = splats[i];
         ctx.save();
