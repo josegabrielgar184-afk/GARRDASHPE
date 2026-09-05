@@ -5,7 +5,8 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { CANJE_GAMES, CANJE_REWARDS, formatElapsed, formatCountdown, getDayLabel } from '@/lib/canjes';
 import type { CanjeGameId } from '@/lib/canjes';
-import { ArrowLeft, Coins, Key, Clock, AlertCircle, CheckCircle2, XCircle, Loader2, RefreshCw, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Coins, Key, Clock, AlertCircle, CheckCircle2, XCircle, Loader2, RefreshCw, ChevronDown, ShieldCheck } from 'lucide-react';
+import { getPerformanceTier } from '@/lib/performance';
 
 export function CanjesScreen() {
   const {
@@ -23,6 +24,7 @@ export function CanjesScreen() {
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctPlayerId, setCorrectPlayerId] = useState('');
   const [showApproved, setShowApproved] = useState(false);
+  const renderGlow = getPerformanceTier() === 'high';
 
   useEffect(() => {
     refreshCanjes();
@@ -44,7 +46,7 @@ export function CanjesScreen() {
     const result = await submitCanje(selectedReward, selectedGame, playerId.trim(), nick.trim());
     setSubmitting(false);
     if (result.ok) {
-      setSuccess('¡Canje enviado! Tu solicitud está en cola.');
+      setSuccess('¡Canje exitoso! Los diamantes están en camino a tu cuenta');
       setPlayerId(''); setNick('');
     } else {
       setError(result.error || 'Error al enviar canje');
@@ -58,7 +60,7 @@ export function CanjesScreen() {
     if (result.ok) {
       setCorrectingId(null);
       setCorrectPlayerId('');
-      setSuccess('ID corregido. Volves a la cola de revisión.');
+      setSuccess('ID corregido. Vuelves a la cola de revisión.');
     } else {
       setError(result.error || 'Error al corregir');
     }
@@ -74,30 +76,30 @@ export function CanjesScreen() {
   const reward = CANJE_REWARDS.find((r) => r.id === selectedReward)!;
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
+    <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
       <MuteButton />
 
-      <div className="pt-16 px-4 pb-28 flex-1 overflow-y-auto no-scrollbar">
+      <div className="pt-16 px-4 pb-32 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-white font-bold text-xl" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>CANJES Y RETIROS</h1>
+          <h1 className="text-white font-black text-xl uppercase tracking-widest" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 10px rgba(34,211,238,0.5)' : 'none' }}>CANJES Y RETIROS</h1>
           <button onClick={() => refreshCanjes()} className="ml-auto text-white/50 hover:text-white">
             <RefreshCw className="w-5 h-5" />
           </button>
         </div>
 
         <div className="max-w-md mx-auto">
-          {/* Balance */}
+          {/* Balance - stencil style */}
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="rounded-xl bg-card border border-amber-500/30 p-3 flex items-center gap-2">
+            <div className="rounded-none bg-[#1a1a28] border-l-4 border-amber-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
               <Coins className="w-5 h-5 text-amber-400" />
-              <div><p className="text-white/40 text-[10px]">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
+              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
             </div>
-            <div className="rounded-xl bg-card border border-purple-500/30 p-3 flex items-center gap-2">
-              <Key className="w-5 h-5 text-purple-400" />
-              <div><p className="text-white/40 text-[10px]">Llaves</p><p className="text-purple-400 font-bold">{campaignProgress.keys}</p></div>
+            <div className="rounded-none bg-[#1a1a28] border-l-4 border-cyan-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
+              <Key className="w-5 h-5 text-cyan-400" />
+              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Llaves</p><p className="text-cyan-400 font-bold">{campaignProgress.keys}</p></div>
             </div>
           </div>
 
@@ -112,53 +114,53 @@ export function CanjesScreen() {
                 const remaining = deadline - now;
                 const expired = isCorrection && remaining <= 0;
                 return (
-                  <div key={c.id} className={`rounded-2xl border p-4 shadow-lg ${isCorrection ? 'bg-red-950/30 border-red-500/50' : 'bg-card border-cyan-500/30'}`}>
+                  <div key={c.id} className={`rounded-none border-l-4 p-4 ${isCorrection ? 'bg-red-950/30 border-red-500' : 'bg-[#1a1a28] border-cyan-500/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-sm ${isCorrection ? 'bg-red-500/20 text-red-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
+                        <span className={`w-8 h-8 rounded-none flex items-center justify-center font-black text-sm ${isCorrection ? 'bg-red-500/20 text-red-400' : 'bg-cyan-500/20 text-cyan-400'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
                           #{idx + 1}
                         </span>
                         <div>
-                          <p className="text-white font-bold text-sm">{c.selectedReward}</p>
+                          <p className="text-white font-bold text-sm uppercase tracking-wide">{c.selectedReward}</p>
                           <p className="text-white/40 text-[10px]">{CANJE_GAMES.find((g) => g.id === c.gameId)?.label}</p>
                         </div>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isCorrection ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}`}>
+                      <span className={`px-2 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wide ${isCorrection ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
                         {isCorrection ? 'CORREGIR ID' : 'EN COLA'}
                       </span>
                     </div>
 
                     {/* Progress card */}
                     <div className="grid grid-cols-3 gap-2 mb-3 text-[10px]">
-                      <div className="rounded-lg bg-background/50 p-2 text-center">
-                        <p className="text-white/40">Espera</p>
+                      <div className="rounded-none bg-background/50 p-2 text-center" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>
+                        <p className="text-white/40 uppercase">Espera</p>
                         <p className="text-white font-bold">{formatElapsed(elapsed)}</p>
                       </div>
-                      <div className="rounded-lg bg-background/50 p-2 text-center">
-                        <p className="text-white/40">Player ID</p>
+                      <div className="rounded-none bg-background/50 p-2 text-center" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>
+                        <p className="text-white/40 uppercase">Player ID</p>
                         <p className="text-white font-mono truncate">{c.playerID}</p>
                       </div>
                     </div>
 
                     {/* Correction countdown */}
                     {isCorrection && (
-                      <div className={`rounded-xl p-3 mb-3 ${expired ? 'bg-red-500/20 border border-red-500/50' : 'bg-red-500/10 border border-red-500/30'}`}>
+                      <div className={`rounded-none p-3 mb-3 ${expired ? 'bg-red-500/20 border-l-4 border-red-500' : 'bg-red-500/10 border-l-4 border-red-500/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
                         <div className="flex items-center gap-2 mb-1">
                           <AlertCircle className="w-4 h-4 text-red-400" />
-                          <p className="text-red-400 font-bold text-xs">{expired ? 'TIEMPO EXPIRADO' : 'CORRIGE TU ID'}</p>
+                          <p className="text-red-400 font-bold text-xs uppercase tracking-wide">{expired ? 'TIEMPO EXPIRADO' : 'CORRIGE TU ID'}</p>
                         </div>
                         <p className="text-white/60 text-[10px] mb-2">El operador indicó que tu ID es incorrecto. Tienes 2 horas para corregirlo o se cancelará.</p>
                         <p className="text-red-400 font-black text-lg text-center font-mono">{formatCountdown(Math.max(0, remaining))}</p>
                         {correctingId === c.id ? (
                           <div className="mt-2 space-y-2">
-                            <input type="text" value={correctPlayerId} onChange={(e) => setCorrectPlayerId(e.target.value)} placeholder="Nuevo Player ID" className="w-full px-3 py-2 rounded-lg bg-background/60 border border-red-500/40 text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+                            <input type="text" value={correctPlayerId} onChange={(e) => setCorrectPlayerId(e.target.value)} placeholder="Nuevo Player ID" className="w-full px-3 py-2 rounded-none bg-background/60 border-2 border-red-500/40 text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-400" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
                             <div className="flex gap-2">
-                              <button onClick={() => handleCorrect(c.id)} className="flex-1 py-2 rounded-lg bg-green-500 text-white font-bold text-xs">Corregir</button>
-                              <button onClick={() => { setCorrectingId(null); setCorrectPlayerId(''); }} className="px-3 py-2 rounded-lg bg-card border border-border text-white/60 text-xs">Cancelar</button>
+                              <button onClick={() => handleCorrect(c.id)} className="flex-1 py-2 rounded-none bg-green-600 text-white font-bold text-xs" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>Corregir</button>
+                              <button onClick={() => { setCorrectingId(null); setCorrectPlayerId(''); }} className="px-3 py-2 rounded-none bg-card border border-border text-white/60 text-xs" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>Cancelar</button>
                             </div>
                           </div>
                         ) : (
-                          <button onClick={() => { setCorrectingId(c.id); setCorrectPlayerId(''); }} className="w-full mt-1 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-xs hover:bg-red-500/30">
+                          <button onClick={() => { setCorrectingId(c.id); setCorrectPlayerId(''); }} className="w-full mt-1 py-2 rounded-none bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-xs uppercase tracking-wide hover:bg-red-500/30" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>
                             Corregir mi ID
                           </button>
                         )}
@@ -167,7 +169,7 @@ export function CanjesScreen() {
 
                     {/* Action buttons */}
                     {!isCorrection && (
-                      <button onClick={() => handleCancel(c.id)} className="w-full py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-xs hover:bg-red-500/20 flex items-center justify-center gap-1">
+                      <button onClick={() => handleCancel(c.id)} className="w-full py-2 rounded-none bg-red-500/10 text-red-400 border-l-4 border-red-500/40 font-bold text-xs uppercase tracking-wide hover:bg-red-500/20 flex items-center justify-center gap-1" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>
                         <XCircle className="w-3.5 h-3.5" /> Cancelar Canje
                       </button>
                     )}
@@ -180,17 +182,17 @@ export function CanjesScreen() {
           {/* Approved canjes collapsible */}
           {approvedCanjes.length > 0 && (
             <div className="mb-4">
-              <button onClick={() => setShowApproved(!showApproved)} className="w-full flex items-center justify-between rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-green-400 font-bold text-sm">
+              <button onClick={() => setShowApproved(!showApproved)} className="w-full flex items-center justify-between rounded-none bg-green-500/10 border-l-4 border-green-500 p-3 text-green-400 font-bold text-sm uppercase tracking-wide" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
                 <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Canjes Aprobados ({approvedCanjes.length})</span>
                 <ChevronDown className={`w-4 h-4 transition-transform ${showApproved ? 'rotate-180' : ''}`} />
               </button>
               {showApproved && (
                 <div className="mt-2 space-y-2">
                   {approvedCanjes.map((c) => (
-                    <div key={c.id} className="rounded-xl bg-card border border-green-500/20 p-3">
+                    <div key={c.id} className="rounded-none bg-[#1a1a28] border-l-4 border-green-500/30 p-3" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-white font-bold text-xs">{c.selectedReward}</p>
+                          <p className="text-white font-bold text-xs uppercase tracking-wide">{c.selectedReward}</p>
                           <p className="text-white/40 text-[10px]">{c.playerID}</p>
                         </div>
                         <div className="text-right">
@@ -205,56 +207,55 @@ export function CanjesScreen() {
             </div>
           )}
 
-          {/* New canje form */}
-          <div className="rounded-2xl bg-card border border-cyan-500/30 p-5 shadow-lg">
-            <h2 className="text-white font-bold mb-4">Solicitar Canje</h2>
+          {/* New canje form - stencil style */}
+          <div className="rounded-none bg-[#1a1a28] border-l-4 border-cyan-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+            <h2 className="text-white font-black mb-4 uppercase tracking-widest flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400" /> Solicitar Canje</h2>
 
-            {/* Game badge - Generic */}
-            <div className="mb-3 flex items-center gap-2 rounded-xl bg-card border border-orange-500/30 p-3">
+            {/* Game badge */}
+            <div className="mb-3 flex items-center gap-2 rounded-none bg-[#0f1520] border-l-4 border-orange-500/60 p-3" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
               <span className="text-2xl">🔥</span>
-              <span className="text-white font-bold text-sm">Canje de Diamantes</span>
+              <span className="text-white font-bold text-sm uppercase tracking-wide">Canje de Diamantes</span>
             </div>
 
             {/* Reward select */}
-            <label className="text-white/60 text-xs font-medium mb-1 block">Recompensa</label>
+            <label className="text-white/60 text-xs font-medium mb-1 block uppercase tracking-wider">Recompensa</label>
             <div className="space-y-2 mb-3">
               {CANJE_REWARDS.map((r) => {
                 const canAfford = coins >= r.coinCost && campaignProgress.keys >= r.keyCost;
                 return (
-                  <button key={r.id} onClick={() => setSelectedReward(r.id)} disabled={!canAfford} className={`w-full p-3 rounded-xl text-left transition-colors border ${selectedReward === r.id ? 'bg-cyan-500/20 border-cyan-500/50' : 'bg-background/40 border-border'} ${!canAfford ? 'opacity-40' : ''}`}>
+                  <button key={r.id} onClick={() => setSelectedReward(r.id)} disabled={!canAfford} className={`w-full p-3 rounded-none text-left transition-colors border-l-4 ${selectedReward === r.id ? 'bg-cyan-500/20 border-cyan-500' : 'bg-background/40 border-border'} ${!canAfford ? 'opacity-40' : ''}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
                     <div className="flex items-center justify-between">
-                      <span className="text-white font-bold text-sm">{r.label}</span>
-
+                      <span className="text-white font-bold text-sm uppercase tracking-wide">{r.label}</span>
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-[10px]">
                       <span className="text-amber-400 flex items-center gap-1"><Coins className="w-3 h-3" /> {r.coinCost.toLocaleString()}</span>
-                      <span className="text-purple-400 flex items-center gap-1"><Key className="w-3 h-3" /> {r.keyCost}</span>
+                      <span className="text-cyan-400 flex items-center gap-1"><Key className="w-3 h-3" /> {r.keyCost}</span>
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            {/* Player ID */}
+            {/* Player ID - beveled edges */}
             <div className="space-y-3 mb-3">
               <div>
-                <label className="text-white/60 text-xs font-medium mb-1 block">Player ID *</label>
-                <input type="text" value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="Ej: 1234567890" className="w-full px-4 py-2.5 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                <label className="text-white/60 text-xs font-medium mb-1 block uppercase tracking-wider">Player ID *</label>
+                <input type="text" value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="Ej: 1234567890" className="w-full px-4 py-2.5 rounded-none bg-[#0f1520] border-2 border-cyan-500/30 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all" style={{ clipPath: 'polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }} />
               </div>
               <div>
-                <label className="text-white/60 text-xs font-medium mb-1 block">In-Game Nickname *</label>
-                <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-2.5 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                <label className="text-white/60 text-xs font-medium mb-1 block uppercase tracking-wider">In-Game Nickname *</label>
+                <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-2.5 rounded-none bg-[#0f1520] border-2 border-cyan-500/30 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all" style={{ clipPath: 'polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }} />
               </div>
             </div>
 
-            <button onClick={handleSubmit} disabled={submitting} className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 disabled:opacity-50">
+            <button onClick={handleSubmit} disabled={submitting} className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Coins className="w-5 h-5" />}
               {submitting ? 'Enviando...' : `Canjear ${reward.label}`}
             </button>
           </div>
 
-          {error && <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/30 p-3 text-red-400 text-sm"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
-          {success && <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-green-400 text-sm"><CheckCircle2 className="w-4 h-4 shrink-0" />{success}</div>}
+          {error && <div className="mt-4 flex items-center gap-2 rounded-none bg-red-500/10 border-l-4 border-red-500 p-3 text-red-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
+          {success && <div className="mt-4 flex items-center gap-2 rounded-none bg-green-500/10 border-l-4 border-green-500 p-3 text-green-400 text-sm animate-scale-in" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><CheckCircle2 className="w-4 h-4 shrink-0" />{success}</div>}
         </div>
       </div>
     </div>

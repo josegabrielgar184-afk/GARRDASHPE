@@ -1117,12 +1117,12 @@ export function ZombieGameScreen() {
                 } else if (z.type === 'fast') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 150 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
-                  if (Math.random() < 0.18) spawnFloatingCoins(z.x, z.y, 1);
+                  if (Math.random() < 0.20) spawnFloatingCoins(z.x, z.y, 1);
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(12), bloodColor, 5);
                 } else {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
                   scoreRef.current += 100 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
-                  if (Math.random() < (0.15 + Math.random() * 0.05)) spawnFloatingCoins(z.x, z.y, 1);
+                  if (Math.random() < 0.20) spawnFloatingCoins(z.x, z.y, 1);
                   spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(10), bloodColor, 4);
                 }
 
@@ -1176,7 +1176,7 @@ export function ZombieGameScreen() {
                 const bloodColor = bloodEnabledRef.current ? z.color : '#64748b';
                 killCountRef.current++; setZombiesKilled(killCountRef.current);
                 scoreRef.current += 80 * getScoreMult(); setScore(Math.floor(scoreRef.current));
-                if (Math.random() < 0.12) spawnFloatingCoins(z.x, z.y, 1);
+                if (Math.random() < 0.20) spawnFloatingCoins(z.x, z.y, 1);
                 spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(8), bloodColor, 4);
               }
               break;

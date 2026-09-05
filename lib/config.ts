@@ -74,6 +74,8 @@ export const SOLES_PER_USD = 3.80;
 export const COINS_PER_SOLES = COINS_PER_USD / SOLES_PER_USD;
 
 export const INACTIVITY_THRESHOLD_DAYS = 7;
+export const RETURN_REWARD_COINS = 200;
+export const RETURN_REWARD_THRESHOLD_DAYS = 7;
 export const NEAR_CLAIM_THRESHOLD = 8000;
 export const DIAMOND_CLAIM_COST_POINTS = 10;
 export const INFLUENCER_MIN_RUNS = 30;

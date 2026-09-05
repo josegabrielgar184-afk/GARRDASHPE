@@ -17,7 +17,7 @@ import {
 import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
-import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
+import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
 import { setupDailyNotifications } from '@/lib/notifications';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
@@ -326,6 +326,8 @@ interface GameState {
   endGameBatch: () => void;
   showWelcomeBonus: boolean;
   dismissWelcomeBonus: () => void;
+  showReturnReward: boolean;
+  dismissReturnReward: () => void;
   campaignLevelStats: CampaignLevelStat[];
   refreshCampaignLevelStats: () => Promise<void>;
   addCampaignKeyFromAd: () => void;
@@ -431,6 +433,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [towerLevels, setTowerLevels] = useState<TowerLevel>({ turret: 0, drone: 0, medic: 0 });
   const [survivalBestTime, setSurvivalBestTime] = useState(0);
   const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
+  const [showReturnReward, setShowReturnReward] = useState(false);
   const [campaignLevelStats, setCampaignLevelStats] = useState<CampaignLevelStat[]>([]);
   const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(EMPTY_RANKING);
@@ -529,7 +532,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             if (data.rol === 'admin') role = 'admin';
             else if (data.rol === 'operador') role = 'operador';
             if (data.lastLogin) {
-              await updateDoc(doc(db, 'usuarios', user.uid), { lastLogin: serverTimestamp() });
+              const lastLoginDate = data.lastLogin instanceof Timestamp ? data.lastLogin.toDate() : new Date(data.lastLogin);
+              const daysSince = Math.floor((Date.now() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24));
+              if (daysSince >= RETURN_REWARD_THRESHOLD_DAYS && !data.returnRewardClaimed) {
+                try {
+                  await updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(RETURN_REWARD_COINS), returnRewardClaimed: true, lastLogin: serverTimestamp() });
+                  setShowReturnReward(true);
+                } catch {}
+              } else {
+                await updateDoc(doc(db, 'usuarios', user.uid), { lastLogin: serverTimestamp() });
+              }
             }
           } else {
             // Document doesn't exist - create it immediately to prevent ghost registrations
@@ -1159,6 +1171,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline, survivalBestTime, playerName, email]);
 
   const dismissWelcomeBonus = useCallback(() => setShowWelcomeBonus(false), []);
+  const dismissReturnReward = useCallback(() => setShowReturnReward(false), []);
 
   const refreshCampaignLevelStats = useCallback(async () => {
     try {
@@ -2545,6 +2558,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     buyCampaignKey, getCampaignKeyPrice,
     addCampaignKeyFromAd,
     showWelcomeBonus, dismissWelcomeBonus,
+    showReturnReward, dismissReturnReward,
     campaignLevelStats, refreshCampaignLevelStats,
     logOperatorAction, operatorLogs, refreshOperatorLogs,
   };

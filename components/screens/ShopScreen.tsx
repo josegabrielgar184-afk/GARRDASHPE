@@ -1,24 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key } from 'lucide-react';
-import { VIP_DISPONIBLE_PLAYSTORE, getCampaignKeyPrice } from '@/lib/config';
+import { RewardAdModal } from '@/components/game/RewardAdModal';
+import { ADMOB_CONFIG } from '@/lib/config';
+import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video, TrendingUp } from 'lucide-react';
+import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
+import { getCoinAdStatus, recordCoinAd, getCoinAdReward, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
+import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/lib/performance';
 
 export function ShopScreen() {
   const {
-    coins, spendCoins, vip, vipExpiry, buyVIP, setScreen,
+    coins, spendCoins, addCoins, vip, vipExpiry, buyVIP, setScreen,
     upgrades, buyUpgrade, selectedZombie, selectZombie,
     towerLevels, buyTower, getTowerLevel, campaignProgress,
     buyCampaignKey, getCampaignKeyPrice: getGameCampaignKeyPrice,
+    addCampaignKeyFromAd, userRole,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [tab, setTab] = useState<'companions' | 'keys' | 'heroes'>('companions');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showCoinAd, setShowCoinAd] = useState(false);
+  const [showKeyAd, setShowKeyAd] = useState(false);
+  const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
+  const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
+  const [perfTier, setPerfTierState] = useState<PerformanceTier>(getPerformanceTier());
+
+  useEffect(() => {
+    setCoinAdStatus(getCoinAdStatus());
+    setKeyProgress(getKeyAdProgress());
+  }, []);
 
   const upgradeCost = (key: keyof typeof UPGRADE_COSTS) =>
     UPGRADE_COSTS[key] * Math.pow(2, upgrades[key]);
@@ -30,8 +45,33 @@ export function ShopScreen() {
   ];
   const companionCost = (key: 'turret' | 'drone' | 'medic') => companionDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
 
+  const handleCoinAdReward = () => {
+    const ok = recordCoinAd();
+    if (ok) {
+      const reward = getCoinAdReward();
+      addCoins(reward);
+      setSuccess(`¡+${reward} monedas ganadas!`);
+      setCoinAdStatus(getCoinAdStatus());
+    } else {
+      setError('Has alcanzado el límite diario de anuncios.');
+    }
+  };
+
+  const handleKeyAdReward = () => {
+    const result = recordKeyAd();
+    if (result.earnedKey) {
+      addCampaignKeyFromAd();
+      setSuccess('¡Llave de Campaña ganada!');
+    } else {
+      setSuccess(`Progreso: ${result.newProgress}/${result.adsNeeded} anuncios vistos`);
+    }
+    setKeyProgress(getKeyAdProgress());
+  };
+
+  const renderGlow = perfTier === 'high';
+
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
+    <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
@@ -40,18 +80,20 @@ export function ShopScreen() {
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-white font-bold text-xl" style={{ textShadow: '0 0 10px rgba(34,211,238,0.5)' }}>TIENDA</h1>
+          <h1 className="text-white font-black text-xl tracking-widest uppercase" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 10px rgba(34,211,238,0.5)' : 'none', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px))' }}>TIENDA</h1>
         </div>
 
         <div className="max-w-md mx-auto">
+          {/* Balance card - stencil style */}
           <div className="mb-4">
-            <div className="rounded-xl bg-card border border-amber-500/30 p-3 flex items-center gap-2 shadow-lg shadow-amber-500/10">
-              <Coins className="w-5 h-5 text-amber-400" />
-              <div><p className="text-white/40 text-[10px]">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
+            <div className="rounded-none bg-gradient-to-r from-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+              <div className="w-9 h-9 rounded-none bg-amber-500/20 flex items-center justify-center" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 4px 100%, 0 calc(100% - 4px))' }}><Coins className="w-4 h-4 text-amber-400" /></div>
+              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-gradient-to-r from-amber-900/40 via-amber-800/20 to-card border border-amber-500/30 p-3 mb-4 shadow-lg shadow-amber-500/10">
+          {/* VIP card - stencil style */}
+          <div className="rounded-none bg-gradient-to-r from-amber-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500/60 p-3 mb-4" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
             {vip ? (
               <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
                 <Crown className="w-5 h-5 text-amber-400" />
@@ -66,26 +108,45 @@ export function ShopScreen() {
               <div className="flex items-center gap-3">
                 <Crown className="w-6 h-6 text-amber-400 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-white font-bold text-sm">Pase VIP (60 días)</h2>
-                  <p className="text-white/40 text-[11px] leading-tight">Sin anuncios · 2x monedas en partida · 3 ruletas gratis diarias</p>
+                  <h2 className="text-white font-bold text-sm uppercase tracking-wide">Pase VIP (60 días)</h2>
+                  <p className="text-white/40 text-[11px] leading-tight">Sin anuncios · 2x monedas · 3 ruletas gratis</p>
                 </div>
-                <button onClick={buyVIP} className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20 shrink-0">Comprar</button>
+                <button onClick={buyVIP} className="px-4 py-2 rounded-none bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm hover:opacity-90 transition-opacity shrink-0" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>Comprar</button>
               </div>
             ) : (
               <div className="flex items-center gap-3 opacity-60">
                 <Lock className="w-6 h-6 text-white/40 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-white/50 font-bold text-sm">Pase VIP Próximamente</h2>
-                  <p className="text-white/30 text-[11px] leading-tight">El pase VIP estará disponible muy pronto en la Play Store</p>
+                  <h2 className="text-white/50 font-bold text-sm uppercase tracking-wide">Pase VIP Próximamente</h2>
+                  <p className="text-white/30 text-[11px] leading-tight">Disponible muy pronto en la Play Store</p>
                 </div>
               </div>
             )}
           </div>
 
+          {/* Tabs - stencil style */}
           <div className="flex gap-2 mb-4">
-            <button onClick={() => setTab('companions')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'companions' ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-card border border-border text-white/60'}`}>Compañeros</button>
-            <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'keys' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20' : 'bg-card border border-border text-white/60'}`}>Llaves</button>
-            <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-card border border-border text-white/60'}`}>Héroes</button>
+            <button onClick={() => setTab('companions')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'companions' ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Compañeros</button>
+            <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'keys' ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Llaves</button>
+            <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Héroes</button>
+          </div>
+
+          {/* Performance tier selector */}
+          <div className="mb-4 rounded-none bg-[#1a1a28] border-l-4 border-cyan-500/60 p-3" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-4 h-4 text-cyan-400" />
+              <p className="text-white font-bold text-xs uppercase tracking-wide">Rendimiento</p>
+            </div>
+            <div className="flex gap-2">
+              {(['low', 'medium', 'high'] as PerformanceTier[]).map((t) => (
+                <button key={t} onClick={() => { setPerformanceTier(t); setPerfTierState(t); }} className={`flex-1 py-2 rounded-none font-bold text-xs uppercase transition-colors ${perfTier === t ? 'bg-cyan-600/30 text-cyan-400 border border-cyan-500/50' : 'bg-[#0f1520] border border-white/10 text-white/40'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
+                  {t === 'low' ? 'Baja' : t === 'medium' ? 'Media' : 'Alta'}
+                </button>
+              ))}
+            </div>
+            <p className="text-white/30 text-[10px] mt-2">
+              {perfTier === 'low' ? 'Sin partículas ni efectos. Ideal para celulares lentos.' : perfTier === 'medium' ? 'Partículas limitadas. Balance óptimo.' : 'Máxima calidad visual con todos los efectos.'}
+            </p>
           </div>
 
           {tab === 'companions' && (
@@ -95,12 +156,12 @@ export function ShopScreen() {
                 const cost = companionCost(t.key);
                 const level = getTowerLevel(t.key);
                 return (
-                  <div key={t.key} className="rounded-2xl bg-card border p-4 shadow-lg flex items-center gap-4" style={{ borderColor: `${t.color}55` }}>
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${t.color}20`, boxShadow: `0 0 12px ${t.color}33` }}>
+                  <div key={t.key} className="rounded-none bg-[#1a1a28] border-l-4 p-4 flex items-center gap-4" style={{ borderColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                    <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${t.color}20` }}>
                       <Icon className="w-6 h-6" style={{ color: t.color }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-bold text-sm">{t.name}</h3>
+                      <h3 className="text-white font-bold text-sm uppercase tracking-wide">{t.name}</h3>
                       <p className="text-white/40 text-xs">{t.desc}</p>
                       <span className="font-black text-lg" style={{ color: t.color }}>Nv.{level}</span>
                     </div>
@@ -110,8 +171,8 @@ export function ShopScreen() {
                         if (!buyTower(t.key, cost)) setError('No tienes suficientes monedas.');
                         else setSuccess(`¡${t.name} subido a Nv.${level + 1}!`);
                       }}
-                      className="px-4 py-3 rounded-xl text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shadow-lg shrink-0"
-                      style={{ backgroundColor: t.color, boxShadow: `0 0 12px ${t.color}40` }}
+                      className="px-4 py-3 rounded-none text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shrink-0"
+                      style={{ backgroundColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}
                     >
                       <Coins className="w-4 h-4" />{cost.toLocaleString()}
                     </button>
@@ -128,21 +189,21 @@ export function ShopScreen() {
                 const isEquipped = selectedZombie === hero.id;
                 const canAfford = coins >= hero.price;
                 return (
-                  <div key={hero.id} className="rounded-2xl bg-card border p-3 shadow-lg flex flex-col" style={{ borderColor: isEquipped ? hero.color : `${hero.color}33` }}>
+                  <div key={hero.id} className="rounded-none bg-[#1a1a28] border-l-4 p-3 flex flex-col" style={{ borderColor: isEquipped ? hero.color : `${hero.color}44`, clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${hero.color}20`, boxShadow: `0 0 10px ${hero.glow}` }}>
-                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: hero.color, boxShadow: `0 0 8px ${hero.glow}` }} />
+                      <div className="w-10 h-10 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${hero.color}20` }}>
+                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: hero.color }} />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="text-white font-bold text-xs truncate" style={{ color: isEquipped ? hero.color : undefined }}>{hero.name}</h3>
+                        <h3 className="text-white font-bold text-xs truncate uppercase tracking-wide" style={{ color: isEquipped ? hero.color : undefined }}>{hero.name}</h3>
                         <p className="text-white/40 text-[9px] truncate">{hero.skill}</p>
                       </div>
                     </div>
                     <div className="text-[10px] text-white/50 mb-2 leading-tight">{hero.skillDesc}</div>
                     {isEquipped ? (
-                      <div className="w-full py-2 rounded-lg text-white font-bold text-xs text-center" style={{ backgroundColor: hero.color, boxShadow: `0 0 12px ${hero.glow}` }}>EQUIPADO</div>
+                      <div className="w-full py-2 rounded-none text-white font-bold text-xs text-center" style={{ backgroundColor: hero.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>EQUIPADO</div>
                     ) : isOwned ? (
-                      <button onClick={() => selectZombie(hero.id)} className="w-full py-2 rounded-lg text-white font-bold text-xs transition-colors" style={{ backgroundColor: `${hero.color}88` }}>Equipar</button>
+                      <button onClick={() => selectZombie(hero.id)} className="w-full py-2 rounded-none text-white font-bold text-xs transition-colors" style={{ backgroundColor: `${hero.color}88`, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>Equipar</button>
                     ) : (
                       <button
                         onClick={() => {
@@ -153,8 +214,8 @@ export function ShopScreen() {
                           } else { setError('No tienes suficientes monedas.'); }
                         }}
                         disabled={!canAfford}
-                        className="w-full py-2 rounded-lg text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
-                        style={{ backgroundColor: hero.color, boxShadow: `0 0 12px ${hero.glow}` }}
+                        className="w-full py-2 rounded-none text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
+                        style={{ backgroundColor: hero.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}
                       >
                         <Coins className="w-3 h-3" />{hero.price.toLocaleString()}
                       </button>
@@ -167,16 +228,17 @@ export function ShopScreen() {
 
           {tab === 'keys' && (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-gradient-to-br from-amber-900/40 via-card to-card border border-amber-500/30 p-5 shadow-lg shadow-amber-500/10">
+              {/* Buy key with coins */}
+              <div className="rounded-none bg-gradient-to-br from-amber-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#f59e0b20', boxShadow: '0 0 12px #f59e0b33' }}>
+                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#f59e0b20' }}>
                     <Key className="w-7 h-7 text-amber-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="text-white font-bold">Llaves de Campaña</h2>
+                    <h2 className="text-white font-bold uppercase tracking-wide">Llaves de Campaña</h2>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-white/40 text-[10px]">Tienes</p>
+                    <p className="text-white/40 text-[10px] uppercase">Tienes</p>
                     <p className="text-amber-400 font-bold text-lg flex items-center gap-1 justify-end"><Key className="w-4 h-4" />{campaignProgress.keys}</p>
                   </div>
                 </div>
@@ -189,23 +251,109 @@ export function ShopScreen() {
                     else setError(result.error || 'No se pudo completar la compra.');
                   }}
                   disabled={coins < getGameCampaignKeyPrice()}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                  className="w-full py-3 rounded-none bg-gradient-to-r from-amber-600 to-orange-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
                 >
-                  <Key className="w-5 h-5" />Comprar 1 Llave
+                  <Key className="w-5 h-5" />Comprar 1 Llave ({getGameCampaignKeyPrice().toLocaleString()})
+                </button>
+              </div>
+
+              {/* Earn key by watching ads */}
+              <div className="rounded-none bg-gradient-to-br from-cyan-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-cyan-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#22d3ee20' }}>
+                    <Video className="w-7 h-7 text-cyan-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold uppercase tracking-wide">Llave por Anuncios</h2>
+                    <p className="text-white/40 text-xs">Ve {getAdsPerKey()} anuncios para ganar 1 llave</p>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-cyan-400 text-xs font-bold uppercase">Progreso</span>
+                    <span className="text-white/60 text-xs">{keyProgress.adsWatched}/{keyProgress.adsNeeded}</span>
+                  </div>
+                  <div className="h-3 bg-[#0f1520] border border-cyan-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
+                    <div className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all" style={{ width: `${(keyProgress.adsWatched / keyProgress.adsNeeded) * 100}%` }} />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowKeyAd(true)}
+                  className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+                >
+                  <Video className="w-5 h-5" />Ver Anuncio ({keyProgress.adsWatched}/{keyProgress.adsNeeded})
+                </button>
+              </div>
+
+              {/* Coins by watching ads */}
+              <div className="rounded-none bg-gradient-to-br from-green-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-green-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#10b98120' }}>
+                    <Coins className="w-7 h-7 text-green-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold uppercase tracking-wide">Monedas por Anuncio</h2>
+                    <p className="text-white/40 text-xs">+{getCoinAdReward()} monedas por anuncio · Máx {getMaxCoinAdsPerDay()}/día</p>
+                  </div>
+                </div>
+
+                {/* Daily limit bar */}
+                <div className="mb-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-green-400 text-xs font-bold uppercase">Hoy</span>
+                    <span className="text-white/60 text-xs">{coinAdStatus.count}/{getMaxCoinAdsPerDay()}</span>
+                  </div>
+                  <div className="h-3 bg-[#0f1520] border border-green-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
+                    <div className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all" style={{ width: `${(coinAdStatus.count / getMaxCoinAdsPerDay()) * 100}%` }} />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => { setError(''); setSuccess(''); setShowCoinAd(true); }}
+                  disabled={coinAdStatus.remaining <= 0}
+                  className="w-full py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+                >
+                  <Video className="w-5 h-5" />{coinAdStatus.remaining > 0 ? `Ver Anuncio (${coinAdStatus.remaining} restantes)` : 'Límite diario alcanzado'}
                 </button>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/30 p-3 text-red-400 text-sm"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>
+            <div className="mt-4 flex items-center gap-2 rounded-none bg-red-500/10 border-l-4 border-red-500 p-3 text-red-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>
           )}
           {success && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-green-400 text-sm"><CheckCircle2 className="w-4 h-4 shrink-0" />{success}</div>
+            <div className="mt-4 flex items-center gap-2 rounded-none bg-green-500/10 border-l-4 border-green-500 p-3 text-green-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><CheckCircle2 className="w-4 h-4 shrink-0" />{success}</div>
           )}
         </div>
       </div>
 
+      <RewardAdModal
+        open={showCoinAd}
+        onClose={() => setShowCoinAd(false)}
+        onReward={handleCoinAdReward}
+        title="Monedas por Anuncio"
+        rewardText={`¡+${getCoinAdReward()} monedas!`}
+        adId={ADMOB_CONFIG.ruletaId}
+        userRole={userRole}
+        vip={vip}
+      />
+      <RewardAdModal
+        open={showKeyAd}
+        onClose={() => setShowKeyAd(false)}
+        onReward={handleKeyAdReward}
+        title="Llave por Anuncio"
+        rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
+        adId={ADMOB_CONFIG.ruletaId}
+        userRole={userRole}
+        vip={vip}
+      />
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
   );

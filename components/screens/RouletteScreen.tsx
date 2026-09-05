@@ -7,10 +7,11 @@ import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionM
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { ADMOB_CONFIG } from '@/lib/config';
-import { ArrowLeft, Coins, Calendar, CheckCircle2, Crown, Gift, Video, Sparkles } from 'lucide-react';
+import { ArrowLeft, Coins, Calendar, CheckCircle2, Crown, Gift, Video, Sparkles, Zap } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
 import { hapticFeedback, hapticPattern } from '@/lib/engine2d';
+import { getPerformanceTier } from '@/lib/performance';
 
 interface Prize { coins: number; label: string; color: string; glow: string; tier: 'high' | 'medium' | 'consolation'; }
 interface ConfettiPiece { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; rot: number; rotVel: number; life: number; }
@@ -45,12 +46,14 @@ export function RouletteScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
   const [showInterstitial, setShowInterstitial] = useState(false);
+  const [adSpins, setAdSpins] = useState(0);
   const rotationRef = useRef(0);
   const confettiIdRef = useRef(0);
+  const renderGlow = getPerformanceTier() === 'high';
 
   const freeSpinsRemaining = getFreeSpinsRemaining();
   const maxFree = vip ? 3 : 1;
-  const canSpin = freeSpinsRemaining > 0 || extraSpins > 0;
+  const canSpin = freeSpinsRemaining > 0 || extraSpins > 0 || adSpins > 0;
   const isFreeSpin = freeSpinsRemaining > 0;
 
   useEffect(() => {
@@ -141,8 +144,10 @@ export function RouletteScreen() {
         }
         if (isFreeSpin) {
           recordRouletteSpin();
-        } else {
+        } else if (extraSpins > 0) {
           setExtraSpins((e) => e - 1);
+        } else {
+          setAdSpins((e) => e - 1);
         }
         setRefreshKey((k) => k + 1);
       }
@@ -151,19 +156,23 @@ export function RouletteScreen() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e27] via-[#0f1535] to-[#1a1040]">
+    <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
       <OfflineBanner />
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      {/* Ambient glow orbs */}
-      <div className="absolute top-10 left-5 w-40 h-40 rounded-full opacity-20 pointer-events-none" style={{ background: 'radial-gradient(circle, #22d3ee, transparent)', filter: 'blur(40px)' }} />
-      <div className="absolute bottom-20 right-5 w-48 h-48 rounded-full opacity-15 pointer-events-none" style={{ background: 'radial-gradient(circle, #f59e0b, transparent)', filter: 'blur(50px)' }} />
+      {/* Ambient glow orbs - only on high perf */}
+      {renderGlow && (
+        <>
+          <div className="absolute top-10 left-5 w-40 h-40 rounded-full opacity-20 pointer-events-none" style={{ background: 'radial-gradient(circle, #22d3ee, transparent)', filter: 'blur(40px)' }} />
+          <div className="absolute bottom-20 right-5 w-48 h-48 rounded-full opacity-15 pointer-events-none" style={{ background: 'radial-gradient(circle, #f59e0b, transparent)', filter: 'blur(50px)' }} />
+        </>
+      )}
 
       <div className="pt-16 px-6 pb-28 flex-1 flex flex-col items-center relative z-10">
         <div className="flex items-center gap-3 mb-6 w-full max-w-sm">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white"><ArrowLeft className="w-6 h-6" /></button>
-          <h1 className="text-white font-bold text-xl flex items-center gap-2" style={{ textShadow: '0 0 20px rgba(245,158,11,0.6)' }}>
+          <h1 className="text-white font-black text-xl uppercase tracking-widest flex items-center gap-2" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 20px rgba(245,158,11,0.6)' : 'none' }}>
             <Sparkles className="w-5 h-5 text-amber-400" /> Ruleta
           </h1>
         </div>
@@ -177,21 +186,23 @@ export function RouletteScreen() {
           </div>
 
           {vip && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/40 mb-4" style={{ boxShadow: '0 0 15px rgba(245,158,11,0.3)' }}>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-none bg-amber-500/10 border-l-4 border-amber-500/60 mb-4" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
               <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-amber-400 text-xs font-bold">VIP: 3 giros gratis diarios</span>
+              <span className="text-amber-400 text-xs font-bold uppercase tracking-wide">VIP: 3 giros gratis diarios</span>
             </div>
           )}
 
-          {/* Wheel container - GamePass style */}
+          {/* Wheel container - stencil style */}
           <div className="relative w-72 h-72 mb-6">
-            {/* Outer glow ring */}
-            <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
+            {/* Outer glow ring - only on high */}
+            {renderGlow && (
+              <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
+            )}
 
-            {/* Outer ring with studs */}
+            {/* Outer ring - angular stencil */}
             <div className="absolute inset-0 rounded-full" style={{
               background: 'linear-gradient(135deg, #1a1a2e, #16213e, #1a1a2e)',
-              boxShadow: '0 0 30px rgba(245,158,11,0.3), inset 0 0 20px rgba(0,0,0,0.8)',
+              boxShadow: renderGlow ? '0 0 30px rgba(245,158,11,0.3), inset 0 0 20px rgba(0,0,0,0.8)' : 'inset 0 0 20px rgba(0,0,0,0.8)',
               border: '4px solid rgba(245,158,11,0.4)',
             }}>
               {/* Stud decorations around the rim */}
@@ -202,7 +213,7 @@ export function RouletteScreen() {
                     top: '50%', left: '50%',
                     transform: `rotate(${angle}deg) translateY(-136px) translate(-50%, -50%)`,
                     background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-                    boxShadow: '0 0 6px rgba(251,191,36,0.6)',
+                    boxShadow: renderGlow ? '0 0 6px rgba(251,191,36,0.6)' : 'none',
                   }} />
                 );
               })}
@@ -210,7 +221,7 @@ export function RouletteScreen() {
 
             {/* Pointer */}
             <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 z-30">
-              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-amber-400" style={{ filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' }} />
+              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-amber-400" style={{ filter: renderGlow ? 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' : 'none' }} />
             </div>
 
             {/* Spinning wheel */}
@@ -257,15 +268,15 @@ export function RouletteScreen() {
               })}
             </div>
 
-            {/* Center hub */}
+            {/* Center hub - stencil */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex items-center justify-center z-20" style={{
               background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
               border: '3px solid rgba(245,158,11,0.5)',
-              boxShadow: '0 0 20px rgba(245,158,11,0.4), inset 0 0 10px rgba(0,0,0,0.5)',
+              boxShadow: renderGlow ? '0 0 20px rgba(245,158,11,0.4), inset 0 0 10px rgba(0,0,0,0.5)' : 'inset 0 0 10px rgba(0,0,0,0.5)',
             }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{
                 background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-                boxShadow: '0 0 15px rgba(251,191,36,0.6)',
+                boxShadow: renderGlow ? '0 0 15px rgba(251,191,36,0.6)' : 'none',
               }}>
                 <Coins className="w-4 h-4 text-amber-900" />
               </div>
@@ -282,27 +293,27 @@ export function RouletteScreen() {
                   transform: `rotate(${c.rot}rad)`,
                   opacity: c.life / 150,
                   borderRadius: '2px',
-                  boxShadow: `0 0 6px ${c.color}`,
+                  boxShadow: renderGlow ? `0 0 6px ${c.color}` : 'none',
                 }}
               />
             ))}
           </div>
 
-          {/* Spin button - GamePass style */}
+          {/* Spin button - stencil style */}
           <button
             onClick={spin}
             disabled={spinning || !canSpin}
-            className="w-full max-w-xs py-4 rounded-2xl font-black text-lg transition-all relative overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full max-w-xs py-4 rounded-none font-black text-lg uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               background: canSpin && !spinning
                 ? 'linear-gradient(135deg, #f59e0b, #ef4444, #f59e0b)'
                 : 'linear-gradient(135deg, #374151, #1f2937)',
               color: '#fff',
-              boxShadow: canSpin && !spinning
+              boxShadow: canSpin && !spinning && renderGlow
                 ? '0 0 25px rgba(245,158,11,0.5), 0 4px 15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)'
                 : '0 4px 10px rgba(0,0,0,0.3)',
               border: '2px solid rgba(255,255,255,0.2)',
-              textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+              clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)',
             }}
           >
             {spinning ? (
@@ -310,26 +321,37 @@ export function RouletteScreen() {
                 <Sparkles className="w-5 h-5 animate-spin" /> Girando...
               </span>
             ) : canSpin ? (
-              isFreeSpin ? `GIRAR GRATIS (${freeSpinsRemaining})` : `GIRAR (Extra: ${extraSpins})`
+              isFreeSpin ? `GIRAR GRATIS (${freeSpinsRemaining})` : adSpins > 0 ? `GIRAR (Anuncio: ${adSpins})` : `GIRAR (Extra: ${extraSpins})`
             ) : 'Sin giros disponibles'}
           </button>
 
-          {freeSpinsRemaining === 0 && extraSpins === 0 && !spinning && (
+          {/* Infinite ad-based spin button - always available when no free/extra spins */}
+          {freeSpinsRemaining === 0 && extraSpins === 0 && adSpins === 0 && !spinning && (
             <button
               onClick={() => setShowReward(true)}
               disabled={!isOnline}
-              className="w-full max-w-xs mt-3 py-3 rounded-2xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-green-500/20"
-              style={{ border: '2px solid rgba(255,255,255,0.15)' }}
+              className="w-full max-w-xs mt-3 py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold uppercase tracking-wide hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ border: '2px solid rgba(255,255,255,0.15)', clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}
             >
-              <Gift className="w-4 h-4" />{isOnline ? 'Ver video para girar extra' : 'Requiere conexión'}
+              <Video className="w-4 h-4" />{isOnline ? 'Ver video para girar (ILIMITADO)' : 'Requiere conexión'}
             </button>
           )}
 
+          {/* Show ad spins counter when active */}
+          {adSpins > 0 && !spinning && (
+            <div className="mt-2 flex items-center gap-1.5 text-green-400 text-xs font-bold uppercase tracking-wide">
+              <Zap className="w-3.5 h-3.5" />
+              Giros por anuncio: {adSpins}
+            </div>
+          )}
+
           {result && !spinning && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl p-3 text-sm animate-scale-in" style={{
+            <div className="mt-4 flex items-center gap-2 rounded-none p-3 text-sm animate-scale-in" style={{
               background: `${result.color}15`,
               border: `2px solid ${result.color}`,
-              boxShadow: `0 0 20px ${result.glow}`,
+              borderLeftWidth: '4px',
+              clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)',
+              boxShadow: renderGlow ? `0 0 20px ${result.glow}` : 'none',
             }}>
               <CheckCircle2 className="w-5 h-5" style={{ color: result.color }} />
               <span className="font-bold" style={{ color: result.color }}>¡Ganaste {result.label}!</span>
@@ -342,7 +364,7 @@ export function RouletteScreen() {
           </div>
 
           {!vip && (
-            <p className="mt-4 text-white/30 text-xs text-center">
+            <p className="mt-4 text-white/30 text-xs text-center uppercase tracking-wide">
               Con VIP obtienes {maxFree} giros gratis diarios en lugar de 1
             </p>
           )}
@@ -356,9 +378,9 @@ export function RouletteScreen() {
       <RewardAdModal
         open={showReward}
         onClose={() => setShowReward(false)}
-        onReward={() => setExtraSpins((e) => e + 1)}
-        title="Giro Extra"
-        rewardText="¡Has ganado un giro extra en la ruleta!"
+        onReward={() => setAdSpins((e) => e + 1)}
+        title="Giro por Anuncio"
+        rewardText="¡Giro ilimitado desbloqueado!"
         adId={ADMOB_CONFIG.ruletaId}
         userRole={userRole}
         vip={vip}

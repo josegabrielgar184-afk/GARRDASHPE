@@ -13,6 +13,7 @@ import {
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
 } from '@/lib/config';
+import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/lib/performance';
 
 export function MenuScreen() {
   const {
@@ -20,15 +21,17 @@ export function MenuScreen() {
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
     bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
     influencerInfo, refreshInfluencerInfo,
-    showWelcomeBonus, dismissWelcomeBonus, campaignProgress,
+    showWelcomeBonus, dismissWelcomeBonus, showReturnReward, dismissReturnReward, campaignProgress,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [canScrollUp, setCanScrollUp] = useState(false);
   useEffect(() => {
+    setPerfTierState(getPerformanceTier());
     refreshInfluencerInfo();
   }, [refreshInfluencerInfo]);
 
@@ -135,7 +138,7 @@ export function MenuScreen() {
         <Settings className="w-5 h-5" />
       </button>
 
-      <div ref={scrollRef} className="flex-1 flex flex-col items-center px-4 pb-28 relative z-10 overflow-y-auto no-scrollbar pt-16">
+      <div ref={scrollRef} className="flex-1 flex flex-col items-center px-4 pb-32 relative z-10 overflow-y-auto no-scrollbar pt-16">
         <div className="w-full max-w-sm">
           <div className="text-center mb-4">
             <h1 className="neon-title text-5xl font-black tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -297,6 +300,18 @@ export function MenuScreen() {
         </div>
       )}
 
+      {showReturnReward && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-xs mx-4 rounded-2xl bg-gradient-to-br from-cyan-900/40 to-card border-2 border-cyan-400/50 p-6 text-center animate-scale-in shadow-2xl shadow-cyan-500/30">
+            <Sparkles className="w-16 h-16 text-cyan-400 mx-auto mb-3 animate-bounce" />
+            <h2 className="text-cyan-300 font-black text-xl mb-2">¡Bono de Retorno!</h2>
+            <p className="text-white/70 text-sm mb-1">¡Te extrañamos! Gracias por volver a GarrDash</p>
+            <p className="text-cyan-400 font-bold text-lg mb-4">+200 Monedas</p>
+            <button onClick={dismissReturnReward} className="w-full py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-400">¡Genial!</button>
+          </div>
+        </div>
+      )
+
       {toast && (
         <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-xl bg-card border border-purple-500/40 shadow-2xl shadow-purple-500/20 animate-scale-in max-w-xs">
           <p className="text-white text-xs font-bold text-center">{toast}</p>
@@ -353,6 +368,24 @@ export function MenuScreen() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Performance tier selector */}
+              <div className="w-full p-3 rounded-xl bg-background/50 border border-border">
+                <div className="flex items-center gap-3 mb-3">
+                  <Settings className="w-5 h-5 text-green-400" />
+                  <div className="text-left"><p className="text-white font-bold text-sm">Rendimiento Grafico</p><p className="text-white/40 text-xs">Ajusta para tu dispositivo</p></div>
+                </div>
+                <div className="flex gap-2">
+                  {(['low', 'medium', 'high'] as PerformanceTier[]).map((t) => (
+                    <button key={t} onClick={() => { setPerformanceTier(t); setPerfTierState(t); }} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${perfTier === t ? 'bg-green-500/20 text-green-400 border border-green-500/40' : 'bg-card border border-border text-white/40'}`}>
+                      {t === 'low' ? 'Baja' : t === 'medium' ? 'Media' : 'Alta'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-white/30 text-[10px] mt-2">
+                  {perfTier === 'low' ? 'Sin partículas ni efectos de brillo. Ideal para celulares lentos.' : perfTier === 'medium' ? 'Partículas limitadas. Balance entre calidad y rendimiento.' : 'Maxima calidad visual con todos los efectos activos.'}
+                </p>
               </div>
             </div>
 
