@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
-import { ADMOB_CONFIG } from '@/lib/config';
+import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
 
 interface RewardAdModalProps {
   open: boolean;
@@ -12,9 +12,11 @@ interface RewardAdModalProps {
   title: string;
   rewardText: string;
   adId?: string;
+  userRole?: 'user' | 'operador' | 'admin';
+  vip?: boolean;
 }
 
-export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId }: RewardAdModalProps) {
+export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId, userRole = 'user', vip = false }: RewardAdModalProps) {
   const [phase, setPhase] = useState<'loading' | 'ad' | 'reward' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
   const rewardedRef = useRef(false);
@@ -26,6 +28,18 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
       setErrorMsg('');
       rewardedRef.current = false;
       closedRef.current = false;
+      return;
+    }
+
+    if (!shouldShowAds(userRole, vip)) {
+      setErrorMsg('Los anuncios no estan disponibles para esta cuenta.');
+      setPhase('error');
+      return;
+    }
+
+    if (!checkRateLimit()) {
+      setErrorMsg('Has alcanzado el limite de anuncios por minuto. Intenta de nuevo mas tarde.');
+      setPhase('error');
       return;
     }
 
@@ -41,7 +55,6 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
       const isNative = Capacitor?.isNativePlatform?.() ?? false;
 
       if (!isNative) {
-        // Web fallback: no real AdMob on web, show error
         if (!cancelled) {
           setErrorMsg('Los anuncios solo estan disponibles en la app movil.');
           setPhase('error');
@@ -50,12 +63,11 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
       }
 
       try {
-        // Listen for reward earned
+        const ids = getActiveAdIds();
         const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
           rewardedRef.current = true;
         });
 
-        // Listen for dismiss
         const dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
           if (cancelled) return;
           if (rewardedRef.current) {
@@ -66,10 +78,8 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
           }
         });
 
-        // Prepare the rewarded ad - use provided adId or fall back to revivirId
-        await AdMob.prepareRewardVideoAd({
-          adId: adId || ADMOB_CONFIG.revivirId,
-        });
+        const useAdId = adId || ids.ruletaId || ids.revivirId;
+        await AdMob.prepareRewardVideoAd({ adId: useAdId });
 
         if (cancelled) {
           rewardListener.remove();
@@ -77,7 +87,6 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
           return;
         }
 
-        // Show the ad
         setPhase('ad');
         await AdMob.showRewardVideoAd();
 
@@ -94,7 +103,7 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
     return () => {
       cancelled = true;
     };
-  }, [open, onClose]);
+  }, [open, onClose, adId, userRole, vip]);
 
   if (!open) return null;
 

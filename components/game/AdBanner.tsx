@@ -2,24 +2,28 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
-import { ADMOB_CONFIG } from '@/lib/config';
+import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
 import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
 
 const MAX_RETRIES = 10;
 const RETRY_BASE_MS = 2000;
 
 export function AdBanner() {
-  const { vip, isOnline } = useGame();
+  const { vip, isOnline, userRole } = useGame();
   const [adLoaded, setAdLoaded] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNativeRef = useRef(false);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
 
+  const adsAllowed = shouldShowAds(userRole, vip);
+
   const showBanner = useCallback(async () => {
+    if (!adsAllowed) return;
+    if (!checkRateLimit()) return;
     try {
-      await AdMob.initialize({ initializeForTesting: false });
-      // Listen for banner load events
+      const ids = getActiveAdIds();
+      await AdMob.initialize({ initializeForTesting: !isProduction() });
       const loadListener = await AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
         setAdLoaded(true);
         setRetryCount(0);
@@ -33,8 +37,8 @@ export function AdBanner() {
         failListener.remove();
       };
       await AdMob.showBanner({
-        adId: ADMOB_CONFIG.bannerId,
-        adSize: BannerAdSize.SMART_BANNER,
+        adId: ids.bannerId,
+        adSize: BannerAdSize.BANNER,
         position: BannerAdPosition.BOTTOM_CENTER,
         margin: 0,
       });
@@ -44,7 +48,7 @@ export function AdBanner() {
       setAdLoaded(false);
       scheduleRetry();
     }
-  }, []);
+  }, [adsAllowed]);
 
   const scheduleRetry = useCallback(() => {
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
@@ -62,7 +66,7 @@ export function AdBanner() {
   }, []);
 
   useEffect(() => {
-    if (vip || !isOnline) {
+    if (!adsAllowed || !isOnline) {
       setAdLoaded(false);
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       if (listenerCleanupRef.current) { listenerCleanupRef.current(); listenerCleanupRef.current = null; }
@@ -80,15 +84,13 @@ export function AdBanner() {
       if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       if (listenerCleanupRef.current) { listenerCleanupRef.current(); listenerCleanupRef.current = null; }
     };
-  }, [vip, isOnline, showBanner]);
+  }, [adsAllowed, isOnline, showBanner]);
 
-  // Listen for online/offline events to retry immediately on reconnect
   useEffect(() => {
     if (!isNativeRef.current) return;
     const handleOnline = () => {
-      if (vip) return;
+      if (!adsAllowed) return;
       setRetryCount(0);
-      // Force re-initialize and show banner on network recovery
       showBanner();
     };
     const handleOffline = () => {
@@ -101,20 +103,29 @@ export function AdBanner() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [vip, showBanner]);
+  }, [adsAllowed, showBanner]);
 
-  // Periodic health check: if banner not loaded and online, retry
   useEffect(() => {
-    if (!isNativeRef.current || vip || !isOnline) return;
+    if (!isNativeRef.current || !adsAllowed || !isOnline) return;
     const healthCheck = setInterval(() => {
       if (!adLoaded && retryCount < MAX_RETRIES) {
         showBanner();
       }
-    }, 30000); // Check every 30 seconds
+    }, 30000);
     return () => clearInterval(healthCheck);
-  }, [adLoaded, retryCount, vip, isOnline, showBanner]);
+  }, [adLoaded, retryCount, adsAllowed, isOnline, showBanner]);
 
-  if (vip || !adLoaded) return null;
+  if (!adsAllowed || !adLoaded) return null;
 
   return <div style={{ height: '50px', flexShrink: 0 }} className="admob-banner-container" />;
+}
+
+function isProduction(): boolean {
+  try {
+    const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    const isNative = Capacitor?.isNativePlatform?.() ?? false;
+    return isNative && !localStorage.getItem('garrdash_dev_mode');
+  } catch {
+    return false;
+  }
 }

@@ -2,26 +2,27 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
-import { ADMOB_CONFIG } from '@/lib/config';
+import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
 import { AdMob } from '@capacitor-community/admob';
 
 export function InterstitialAd({ onDone }: { onDone: () => void }) {
-  const { isOnline } = useGame();
+  const { isOnline, userRole, vip } = useGame();
   const [showLoading, setShowLoading] = useState(true);
   const doneRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (!shouldShowAds(userRole, vip)) { if (!cancelled) { doneRef.current = true; onDone(); } return; }
       if (!isOnline) { if (!cancelled) { doneRef.current = true; onDone(); } return; }
+      if (!checkRateLimit()) { if (!cancelled) { doneRef.current = true; onDone(); } return; }
       try {
         const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
         const isNative = Capacitor?.isNativePlatform?.() ?? false;
         if (!isNative) { if (!cancelled) { doneRef.current = true; onDone(); } return; }
 
-        await AdMob.prepareInterstitial({
-          adId: ADMOB_CONFIG.anuncioTiempoId,
-        });
+        const ids = getActiveAdIds();
+        await AdMob.prepareInterstitial({ adId: ids.anuncioTiempoId });
         if (cancelled) return;
         await AdMob.showInterstitial();
         if (cancelled) return;
@@ -34,7 +35,7 @@ export function InterstitialAd({ onDone }: { onDone: () => void }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [onDone, isOnline]);
+  }, [onDone, isOnline, userRole, vip]);
 
   if (!showLoading || doneRef.current) return null;
 

@@ -151,6 +151,15 @@ export interface OperatorTurn {
   checkoutUrl?: string;
 }
 
+export interface OperatorLogEntry {
+  id: string;
+  operatorUid: string;
+  operatorName: string;
+  action: string;
+  details: string;
+  timestamp: number;
+}
+
 export type TransactionLight = 'green' | 'yellow' | 'red';
 
 export interface AdminStats {
@@ -319,6 +328,10 @@ interface GameState {
   dismissWelcomeBonus: () => void;
   campaignLevelStats: CampaignLevelStat[];
   refreshCampaignLevelStats: () => Promise<void>;
+  addCampaignKeyFromAd: () => void;
+  logOperatorAction: (action: string, details?: string) => Promise<void>;
+  operatorLogs: OperatorLogEntry[];
+  refreshOperatorLogs: () => Promise<void>;
 }
 
 export interface SignUpData {
@@ -463,6 +476,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }>>([]);
   const [vipExpiry, setVipExpiry] = useState<string | null>(null);
   const [observerMode, setObserverMode] = useState(false);
+  const [operatorLogs, setOperatorLogs] = useState<OperatorLogEntry[]>([]);
 
   const lastInterstitialTimeRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -1023,6 +1037,42 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
     return { ok: true };
   }, [campaignProgress.keys, spendCoins]);
+
+  const addCampaignKeyFromAd = useCallback(() => {
+    setCampaignProgress((prev) => {
+      const next = { ...prev, keys: prev.keys + 1 };
+      saveData({ campaignProgress: next });
+      const user = auth.currentUser;
+      if (user) {
+        try { updateDoc(doc(db, 'usuarios', user.uid), { campaignKeys: next.keys }).catch(() => {}); } catch {}
+      }
+      return next;
+    });
+  }, []);
+
+  const refreshOperatorLogs = useCallback(async () => {
+    try {
+      const q = query(collection(db, 'logs_operadores'), limit(50));
+      const snap = await getDocs(q);
+      const logs: OperatorLogEntry[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        let ts = 0;
+        if (data.timestamp && typeof data.timestamp.toDate === 'function') ts = data.timestamp.toDate().getTime();
+        else if (data.timestamp) ts = new Date(data.timestamp).getTime();
+        logs.push({
+          id: d.id,
+          operatorUid: data.operatorUid ?? '',
+          operatorName: data.operatorName ?? '',
+          action: data.action ?? '',
+          details: data.details ?? '',
+          timestamp: ts,
+        });
+      });
+      logs.sort((a, b) => b.timestamp - a.timestamp);
+      setOperatorLogs(logs);
+    } catch {}
+  }, []);
 
   const exchangeDiamonds = useCallback(async (playerID: string, nickname: string): Promise<{ ok: boolean; error?: string }> => {
     const check = canExchangeDiamonds();
@@ -1743,6 +1793,20 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [coins, campaignProgress.keys, refreshCanjes]);
 
   // Admin functions
+  const logOperatorAction = useCallback(async (action: string, details?: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      await addDoc(collection(db, 'logs_operadores'), {
+        operatorUid: user.uid,
+        operatorName: playerName || user.email?.split('@')[0] || 'Operador',
+        action,
+        details: details ?? '',
+        timestamp: serverTimestamp(),
+      });
+    } catch {}
+  }, [playerName]);
+
   const adminApproveCanje = useCallback(async (canjeId: string): Promise<{ ok: boolean; error?: string }> => {
     try {
       const user = auth.currentUser;
@@ -1752,7 +1816,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
       const data = canjeDoc.data();
       const now = Date.now();
-      // Move to approved collection
       await setDoc(doc(db, 'canjes_aprobadas', canjeId), {
         ...data,
         status: 'approved',
@@ -1761,12 +1824,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       });
       await deleteDoc(canjeRef);
       await refreshCanjes();
+      await logOperatorAction('aprobar_canje', `Canje: ${canjeId}, Recompensa: ${data.selectedReward ?? ''}`);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al aprobar canje';
       return { ok: false, error: msg };
     }
-  }, [refreshCanjes]);
+  }, [refreshCanjes, logOperatorAction]);
 
   const adminMarkCorrection = useCallback(async (canjeId: string): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -1781,12 +1845,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         correctionDeadline: deadline,
       });
       await refreshCanjes();
+      await logOperatorAction('marcar_correccion', `Canje: ${canjeId}, Player ID: ${data.playerID ?? ''}`);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al marcar corrección';
       return { ok: false, error: msg };
     }
-  }, [refreshCanjes]);
+  }, [refreshCanjes, logOperatorAction]);
 
   const adminRejectCanje = useCallback(async (canjeId: string, reason: string): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -1820,12 +1885,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       });
       await deleteDoc(canjeRef);
       await refreshCanjes();
+      await logOperatorAction('rechazar_canje', `Canje: ${canjeId}, Motivo: ${reason}`);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al rechazar canje';
       return { ok: false, error: msg };
     }
-  }, [refreshCanjes]);
+  }, [refreshCanjes, logOperatorAction]);
 
   // Auto-cancel expired correction canjes
   useEffect(() => {
@@ -2477,8 +2543,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     completeLevel, getCurrentCampaignLevel, exchangeDiamonds, buyTower, getTowerLevel,
     submitSurvivalScore, canExchangeDiamonds,
     buyCampaignKey, getCampaignKeyPrice,
+    addCampaignKeyFromAd,
     showWelcomeBonus, dismissWelcomeBonus,
     campaignLevelStats, refreshCampaignLevelStats,
+    logOperatorAction, operatorLogs, refreshOperatorLogs,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

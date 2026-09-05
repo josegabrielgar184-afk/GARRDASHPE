@@ -35,7 +35,7 @@ const PROB_MEDIUM = 0.20;
 const PROB_CONSOLATION = 0.791;
 
 export function RouletteScreen() {
-  const { coins, addCoins, setScreen, vip, getFreeSpinsRemaining, recordRouletteSpin, isOnline, canShowInterstitial, recordInterstitial } = useGame();
+  const { coins, addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin, isOnline, canShowInterstitial, recordInterstitial } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -360,6 +360,8 @@ export function RouletteScreen() {
         title="Giro Extra"
         rewardText="¡Has ganado un giro extra en la ruleta!"
         adId={ADMOB_CONFIG.ruletaId}
+        userRole={userRole}
+        vip={vip}
       />
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
