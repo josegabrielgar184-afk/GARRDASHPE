@@ -1175,7 +1175,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const dismissWelcomeBonus = useCallback(() => setShowWelcomeBonus(false), []);
   const dismissReturnReward = useCallback(() => setShowReturnReward(false), []);
-  const dismissExchangeNotification = useCallback(() => setExchangeNotification(null), []);
+  const dismissExchangeNotification = useCallback(() => {
+    setExchangeNotification(null);
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      getDocs(query(
+        collection(db, 'notificaciones'),
+        where('userId', '==', user.uid),
+        where('read', '==', false)
+      )).then((snap) => {
+        snap.forEach((d) => updateDoc(doc(db, 'notificaciones', d.id), { read: true }).catch(() => {}));
+      }).catch(() => {});
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, 'notificaciones'),
+        where('userId', '==', user.uid),
+        where('read', '==', false),
+        limit(1)
+      );
+      const unsub = onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          if (data.message) setExchangeNotification(data.message as string);
+        }
+      }, () => {});
+      return () => unsub();
+    } catch { return; }
+  }, [loggedIn]);
 
   const refreshCampaignLevelStats = useCallback(async () => {
     try {

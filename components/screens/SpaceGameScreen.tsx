@@ -52,6 +52,7 @@ export function SpaceGameScreen() {
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [showReviveReward, setShowReviveReward] = useState(false);
+  const adDebounceRef = useRef(0);
   const [floatTexts, setFloatTexts] = useState<Array<{ id: number; text: string; x: number; y: number; color: string; size?: number }>>([]);
   const [bossActive, setBossActive] = useState(false);
   const [bossHp, setBossHp] = useState(0);
@@ -889,7 +890,12 @@ export function SpaceGameScreen() {
             <p className="text-white/60 text-sm mb-1">Puntuacion: {score}</p>
             <p className="text-amber-400 text-sm mb-6">Monedas ganadas: {coinsEarned}</p>
             {!hasRevived && isOnline && (
-              <button onClick={() => setShowReviveReward(true)} className="w-full py-3 rounded-xl bg-green-500 text-white font-bold mb-2 hover:bg-green-400 shadow-lg shadow-green-500/20 flex items-center justify-center gap-2">
+              <button onClick={() => {
+                const now = Date.now();
+                if (now - adDebounceRef.current < 4000) return;
+                adDebounceRef.current = now;
+                setShowReviveReward(true);
+              }} className="w-full py-3 rounded-xl bg-green-500 text-white font-bold mb-2 hover:bg-green-400 shadow-lg shadow-green-500/20 flex items-center justify-center gap-2">
                 <Video className="w-4 h-4" /> Revivir (Ver anuncio)
               </button>
             )}

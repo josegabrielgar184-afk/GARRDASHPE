@@ -8,7 +8,7 @@ import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert,
-  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye,
+  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell,
 } from 'lucide-react';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
@@ -21,7 +21,8 @@ export function MenuScreen() {
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
     bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
     influencerInfo, refreshInfluencerInfo,
-    showWelcomeBonus, dismissWelcomeBonus, showReturnReward, dismissReturnReward, campaignProgress,
+    showWelcomeBonus, dismissWelcomeBonus, showReturnReward, dismissReturnReward,
+    exchangeNotification, dismissExchangeNotification, campaignProgress,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -308,6 +309,17 @@ export function MenuScreen() {
             <p className="text-white/70 text-sm mb-1">¡Te extrañamos! Gracias por volver a GarrDash</p>
             <p className="text-cyan-400 font-bold text-lg mb-4">+200 Monedas</p>
             <button onClick={dismissReturnReward} className="w-full py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-400">¡Genial!</button>
+          </div>
+        </div>
+      )}
+
+      {exchangeNotification && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-xs mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-card border-2 border-green-400/50 p-6 text-center animate-scale-in shadow-2xl shadow-green-500/30">
+            <Bell className="w-16 h-16 text-green-400 mx-auto mb-3 animate-bounce" />
+            <h2 className="text-green-300 font-black text-xl mb-2">¡Canje Completado!</h2>
+            <p className="text-white/80 text-sm mb-4">{exchangeNotification}</p>
+            <button onClick={dismissExchangeNotification} className="w-full py-3 rounded-xl bg-green-500 text-white font-bold hover:bg-green-400">¡Entendido!</button>
           </div>
         </div>
       )}

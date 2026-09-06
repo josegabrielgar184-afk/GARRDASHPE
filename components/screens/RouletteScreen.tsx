@@ -48,6 +48,7 @@ export function RouletteScreen() {
   const [showInterstitial, setShowInterstitial] = useState(false);
   const [adSpins, setAdSpins] = useState(0);
   const rotationRef = useRef(0);
+  const adDebounceRef = useRef(0);
   const confettiIdRef = useRef(0);
   const renderGlow = getPerformanceTier() === 'high';
 
@@ -328,7 +329,12 @@ export function RouletteScreen() {
           {/* Infinite ad-based spin button - always available when no free/extra spins */}
           {freeSpinsRemaining === 0 && extraSpins === 0 && adSpins === 0 && !spinning && (
             <button
-              onClick={() => setShowReward(true)}
+              onClick={() => {
+                const now = Date.now();
+                if (now - adDebounceRef.current < 4000) return;
+                adDebounceRef.current = now;
+                setShowReward(true);
+              }}
               disabled={!isOnline}
               className="w-full max-w-xs mt-3 py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold uppercase tracking-wide hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ border: '2px solid rgba(255,255,255,0.15)', clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}

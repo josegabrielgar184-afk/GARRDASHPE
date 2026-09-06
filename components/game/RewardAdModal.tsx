@@ -21,6 +21,11 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
   const [errorMsg, setErrorMsg] = useState('');
   const rewardedRef = useRef(false);
   const closedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const onRewardRef = useRef(onReward);
+
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => { onRewardRef.current = onReward; }, [onReward]);
 
   useEffect(() => {
     if (!open) {
@@ -74,7 +79,7 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
             setPhase('reward');
           } else {
             closedRef.current = true;
-            onClose();
+            onCloseRef.current();
           }
         });
 
@@ -103,7 +108,7 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
     return () => {
       cancelled = true;
     };
-  }, [open, onClose, adId, userRole, vip]);
+  }, [open, adId, userRole, vip]);
 
   if (!open) return null;
 
@@ -148,8 +153,8 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
           <p className="text-green-300 text-sm mb-6">{rewardText}</p>
           <button
             onClick={() => {
-              onReward();
-              onClose();
+              onRewardRef.current();
+              onCloseRef.current();
             }}
             className="w-full py-3 rounded-xl bg-green-500 hover:bg-green-400 text-white font-bold transition-colors"
           >

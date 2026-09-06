@@ -5,32 +5,29 @@ import { useGame } from '@/hooks/use-game';
 import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
 import { AdMob, BannerAdSize, BannerAdPosition, BannerAdPluginEvents } from '@capacitor-community/admob';
 
-const MAX_RETRIES = 10;
-const RETRY_BASE_MS = 2000;
-
 export function AdBanner() {
   const { vip, isOnline, userRole } = useGame();
   const [adLoaded, setAdLoaded] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isNativeRef = useRef(false);
   const listenerCleanupRef = useRef<(() => void) | null>(null);
+  const loadedRef = useRef(false);
 
   const adsAllowed = shouldShowAds(userRole, vip);
 
   const showBanner = useCallback(async () => {
+    if (loadedRef.current) return;
     if (!adsAllowed) return;
     if (!checkRateLimit()) return;
+    loadedRef.current = true;
     try {
       const ids = getActiveAdIds();
       await AdMob.initialize({ initializeForTesting: !isProduction() });
       const loadListener = await AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
         setAdLoaded(true);
-        setRetryCount(0);
       });
       const failListener = await AdMob.addListener(BannerAdPluginEvents.FailedToLoad, () => {
         setAdLoaded(false);
-        scheduleRetry();
+        loadedRef.current = false;
       });
       listenerCleanupRef.current = () => {
         loadListener.remove();
@@ -43,22 +40,11 @@ export function AdBanner() {
         margin: 0,
       });
       setAdLoaded(true);
-      setRetryCount(0);
     } catch {
       setAdLoaded(false);
-      scheduleRetry();
+      loadedRef.current = false;
     }
   }, [adsAllowed]);
-
-  const scheduleRetry = useCallback(() => {
-    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    if (retryCount >= MAX_RETRIES) return;
-    const delay = RETRY_BASE_MS * Math.pow(1.5, retryCount);
-    retryTimerRef.current = setTimeout(() => {
-      setRetryCount((c) => c + 1);
-      showBanner();
-    }, delay);
-  }, [retryCount, showBanner]);
 
   useEffect(() => {
     const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
@@ -68,7 +54,7 @@ export function AdBanner() {
   useEffect(() => {
     if (!adsAllowed || !isOnline) {
       setAdLoaded(false);
-      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      loadedRef.current = false;
       if (listenerCleanupRef.current) { listenerCleanupRef.current(); listenerCleanupRef.current = null; }
       if (isNativeRef.current) {
         AdMob.hideBanner().catch(() => {});
@@ -77,12 +63,11 @@ export function AdBanner() {
     }
     if (!isNativeRef.current) return;
 
-    setRetryCount(0);
     showBanner();
 
     return () => {
-      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
       if (listenerCleanupRef.current) { listenerCleanupRef.current(); listenerCleanupRef.current = null; }
+      loadedRef.current = false;
     };
   }, [adsAllowed, isOnline, showBanner]);
 
@@ -90,12 +75,11 @@ export function AdBanner() {
     if (!isNativeRef.current) return;
     const handleOnline = () => {
       if (!adsAllowed) return;
-      setRetryCount(0);
+      loadedRef.current = false;
       showBanner();
     };
     const handleOffline = () => {
       setAdLoaded(false);
-      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -104,16 +88,6 @@ export function AdBanner() {
       window.removeEventListener('offline', handleOffline);
     };
   }, [adsAllowed, showBanner]);
-
-  useEffect(() => {
-    if (!isNativeRef.current || !adsAllowed || !isOnline) return;
-    const healthCheck = setInterval(() => {
-      if (!adLoaded && retryCount < MAX_RETRIES) {
-        showBanner();
-      }
-    }, 30000);
-    return () => clearInterval(healthCheck);
-  }, [adLoaded, retryCount, adsAllowed, isOnline, showBanner]);
 
   if (!adsAllowed || !adLoaded) return null;
 

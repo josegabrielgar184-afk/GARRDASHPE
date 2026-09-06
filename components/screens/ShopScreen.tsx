@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
@@ -29,6 +29,14 @@ export function ShopScreen() {
   const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
   const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
   const [perfTier, setPerfTierState] = useState<PerformanceTier>(getPerformanceTier());
+  const adDebounceRef = useRef<number>(0);
+
+  const adDebounced = (): boolean => {
+    const now = Date.now();
+    if (now - adDebounceRef.current < 4000) return false;
+    adDebounceRef.current = now;
+    return true;
+  };
 
   useEffect(() => {
     setCoinAdStatus(getCoinAdStatus());
@@ -282,7 +290,10 @@ export function ShopScreen() {
                 </div>
 
                 <button
-                  onClick={() => setShowKeyAd(true)}
+                  onClick={() => {
+                    if (!adDebounced()) return;
+                    setShowKeyAd(true);
+                  }}
                   className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
                   style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
                 >
@@ -314,7 +325,10 @@ export function ShopScreen() {
                 </div>
 
                 <button
-                  onClick={() => { setError(''); setSuccess(''); setShowCoinAd(true); }}
+                  onClick={() => {
+                    if (!adDebounced()) return;
+                    setError(''); setSuccess(''); setShowCoinAd(true);
+                  }}
                   disabled={coinAdStatus.remaining <= 0}
                   className="w-full py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
