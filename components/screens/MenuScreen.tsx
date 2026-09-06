@@ -310,7 +310,7 @@ export function MenuScreen() {
             <button onClick={dismissReturnReward} className="w-full py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-400">¡Genial!</button>
           </div>
         </div>
-      )
+      )}
 
       {toast && (
         <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-xl bg-card border border-purple-500/40 shadow-2xl shadow-purple-500/20 animate-scale-in max-w-xs">
