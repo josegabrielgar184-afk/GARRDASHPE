@@ -100,17 +100,17 @@ export function MenuScreen() {
   const vipDaysLeft = vipExpiry ? Math.ceil((new Date(vipExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
 
   const [particles] = useState(() =>
-    Array.from({ length: 18 }, () => ({
+    Array.from({ length: 12 }, () => ({
       left: Math.random() * 100,
-      size: 2 + Math.random() * 4,
-      duration: 8 + Math.random() * 10,
-      delay: Math.random() * 8,
-      color: ['#22d3ee', '#d946ef', '#fbbf24', '#4ade80'][Math.floor(Math.random() * 4)],
+      size: 1 + Math.random() * 3,
+      duration: 10 + Math.random() * 12,
+      delay: Math.random() * 10,
+      color: ['#8a9b50', '#5a6b30', '#f59e0b', '#6b7280'][Math.floor(Math.random() * 4)],
     }))
   );
 
   return (
-    <div className="h-full flex flex-col space-bg relative overflow-hidden">
+    <div className="h-full flex flex-col tac-bg relative overflow-hidden">
       <OfflineBanner />
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {particles.map((p, i) => (
@@ -134,7 +134,7 @@ export function MenuScreen() {
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
       <button
         onClick={() => setShowSettings(true)}
-        className="fixed top-4 right-14 z-40 w-10 h-10 rounded-full bg-black/50 backdrop-blur border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+        className="fixed top-4 right-14 z-40 w-10 h-10 rounded-lg tac-btn flex items-center justify-center text-[#8a9b50] hover:text-[#d4d8b8] transition-colors"
       >
         <Settings className="w-5 h-5" />
       </button>
@@ -142,70 +142,75 @@ export function MenuScreen() {
       <div ref={scrollRef} className="flex-1 flex flex-col items-center px-4 pb-32 relative z-10 overflow-y-auto no-scrollbar pt-16">
         <div className="w-full max-w-sm">
           <div className="text-center mb-4">
-            <h1 className="neon-title text-5xl font-black tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
+            <h1 className="tac-title text-5xl font-black" style={{ fontFamily: 'Inter, sans-serif' }}>
               GARRDASH
             </h1>
+            <div className="mt-1 flex items-center justify-center gap-1.5">
+              <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#5a6b30]" />
+              <span className="text-[#8a9b50]/60 text-[9px] font-bold uppercase tracking-[0.3em]">Zona de Combate</span>
+              <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#5a6b30]" />
+            </div>
           </div>
 
           {/* Throne of the Global King */}
-          <div className="mb-4 rounded-2xl bg-gradient-to-br from-amber-900/40 via-amber-800/20 to-card border border-amber-500/40 p-4 shadow-lg shadow-amber-500/20">
+          <div className="mb-3 tac-panel tac-stencil p-4">
             <div className="flex items-center gap-3">
               <div className="relative shrink-0">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#5a6b30] to-[#3a4b20] flex items-center justify-center border border-[#8a9b50]/40" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
                   {topPlayerAvatar ? (
-                    <img src={topPlayerAvatar} alt="King" className="w-full h-full rounded-2xl object-cover" />
+                    <img src={topPlayerAvatar} alt="King" className="w-full h-full object-cover" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }} />
                   ) : (
-                    <Crown className="w-7 h-7 text-white" />
+                    <Crown className="w-7 h-7 text-[#d4d8b8]" />
                   )}
                 </div>
-                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-3 h-3 text-white" />
+                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#f59e0b] flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-3 h-3 text-[#1a1f10]" />
                 </div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="text-amber-300 text-[10px] font-bold uppercase tracking-wider">Rey Global</span>
+                  <Crown className="w-3.5 h-3.5 text-[#f59e0b] shrink-0" />
+                  <span className="text-[#f59e0b]/80 text-[10px] font-bold uppercase tracking-wider">Comandante Global</span>
                 </div>
-                <p className="text-white font-bold text-sm truncate flex items-center gap-1"><Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />{topPlayerName}</p>
-                <p className="text-amber-400 font-mono text-xs">{topPlayerScore.toLocaleString()} pts</p>
+                <p className="text-[#d4d8b8] font-bold text-sm truncate flex items-center gap-1"><Crown className="w-3.5 h-3.5 text-[#f59e0b] fill-[#f59e0b] shrink-0" />{topPlayerName}</p>
+                <p className="text-[#8a9b50] font-mono text-xs">{topPlayerScore.toLocaleString()} pts</p>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-[10px] text-white/40 uppercase">Racha</div>
-                <div className="text-amber-400 font-bold text-lg">#1</div>
+                <div className="text-[10px] text-[#6b7280] uppercase">Rango</div>
+                <div className="text-[#f59e0b] font-bold text-lg">#1</div>
               </div>
             </div>
           </div>
 
           {/* Balance card */}
-          <div className="mb-4">
-            <div className="rounded-2xl bg-card border border-amber-500/30 p-3 flex items-center gap-2 shadow-lg shadow-amber-500/10">
-              <div className="w-9 h-9 rounded-full bg-amber-500/20 flex items-center justify-center"><Coins className="w-4 h-4 text-amber-400" /></div>
-              <div><p className="text-white/40 text-[10px] uppercase">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
+          <div className="mb-3">
+            <div className="tac-panel tac-stencil p-3 flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-[#f59e0b]/15 flex items-center justify-center border border-[#f59e0b]/30"><Coins className="w-4 h-4 text-[#f59e0b]" /></div>
+              <div><p className="text-[#6b7280] text-[10px] uppercase tracking-wider">Munición</p><p className="text-[#f59e0b] font-bold tac-amber-glow">{coins.toLocaleString()}</p></div>
             </div>
           </div>
 
-          {/* 4 neon centralized buttons */}
+          {/* 5 tactical buttons */}
           <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setScreen('campaign')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
-              <Gamepad2 className="w-8 h-8 text-white" />
-              <span className="text-white font-bold text-sm">CAMPAÑA</span>
+            <button onClick={() => setScreen('campaign')} className="tac-btn tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Gamepad2 className="w-8 h-8 text-[#d4d8b8]" />
+              <span className="text-[#d4d8b8] font-bold text-sm tracking-wider">CAMPAÑA</span>
             </button>
-            <button onClick={() => setScreen('shop')} className="neon-btn-green aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
-              <Store className="w-8 h-8 text-white" />
-              <span className="text-white font-bold text-sm">TIENDA</span>
+            <button onClick={() => setScreen('shop')} className="tac-btn tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Store className="w-8 h-8 text-[#d4d8b8]" />
+              <span className="text-[#d4d8b8] font-bold text-sm tracking-wider">ARSENAL</span>
             </button>
-            <button onClick={() => setScreen('canjes')} className="neon-btn-cyan aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
-              <Gift className="w-8 h-8 text-white" />
-              <span className="text-white font-bold text-sm">CANJES</span>
+            <button onClick={() => setScreen('canjes')} className="tac-btn-accent tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Gift className="w-8 h-8 text-[#fbbf24]" />
+              <span className="text-[#fbbf24] font-bold text-sm tracking-wider">CANJES</span>
             </button>
-            <button onClick={() => setScreen('roulette')} className="neon-btn-amber aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
-              <Disc className="w-8 h-8 text-white" />
-              <span className="text-white font-bold text-sm">RULETA</span>
+            <button onClick={() => setScreen('roulette')} className="tac-btn-accent tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Disc className="w-8 h-8 text-[#fbbf24]" />
+              <span className="text-[#fbbf24] font-bold text-sm tracking-wider">RULETA</span>
             </button>
-            <button onClick={() => setScreen('ranking')} className="neon-btn-magenta aspect-square rounded-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95">
-              <Trophy className="w-8 h-8 text-white" />
-              <span className="text-white font-bold text-sm">RANKINGS</span>
+            <button onClick={() => setScreen('ranking')} className="tac-btn-danger tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Trophy className="w-8 h-8 text-[#fca5a5]" />
+              <span className="text-[#fca5a5] font-bold text-sm tracking-wider">RANKINGS</span>
             </button>
           </div>
 
@@ -213,18 +218,18 @@ export function MenuScreen() {
           <div className="mt-3 grid grid-cols-2 gap-3">
             <button
               onClick={handleOfferwall}
-              className="rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-green-500/20 to-cyan-500/20 border border-green-500/40 text-green-400 hover:from-green-500/30 hover:to-cyan-500/30"
+              className="tac-btn tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs text-[#8a9b50] hover:text-[#d4d8b8]"
             >
               <Gift className="w-4 h-4" />
-              Monedas Gratis
+              Suministros
             </button>
             {(userRole === 'admin' || userRole === 'operador') && (
               <button
                 onClick={() => setScreen(userRole === 'admin' ? 'admin' : 'operator')}
-                className="rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/40 text-amber-400"
+                className="tac-btn-accent tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs text-[#f59e0b]"
               >
                 <ShieldAlert className="w-4 h-4" />
-                {userRole === 'admin' ? 'ADMIN' : 'OPERADOR'}
+                {userRole === 'admin' ? 'COMANDO' : 'OPERADOR'}
               </button>
             )}
           </div>
@@ -233,13 +238,13 @@ export function MenuScreen() {
           <div className="mt-3">
             <button
               onClick={handleInfluencer}
-              className={`w-full rounded-xl py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 ${
+              className={`w-full tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 ${
                 influencerEligible
-                  ? 'bg-gradient-to-r from-purple-600/20 to-pink-500/20 border border-purple-500/40 text-purple-400'
-                  : 'bg-card border border-border text-white/30'
+                  ? 'tac-btn text-[#d4d8b8]'
+                  : 'tac-btn text-[#6b7280]'
               }`}
             >
-              {influencerEligible ? <Gem className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+              {influencerEligible ? <Gem className="w-4 h-4 text-[#8a9b50]" /> : <Lock className="w-4 h-4" />}
               {influencerEligible
                 ? `CREADORES (${influencerInfo?.rank.toUpperCase() ?? 'NUEVO'})`
                 : 'CREADORES (BLOQUEADO)'}
@@ -250,20 +255,20 @@ export function MenuScreen() {
           <div className="mt-6 flex items-center gap-3">
             {!vip ? (
               vipAvailable ? (
-                <button onClick={() => setScreen('shop')} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-amber-500/20">
+                <button onClick={() => setScreen('shop')} className="flex-1 py-3 tac-btn-accent tac-stencil rounded-lg text-[#fbbf24] font-bold text-sm flex items-center justify-center gap-2">
                   <Crown className="w-4 h-4" />Comprar VIP
                 </button>
               ) : (
-                <div className="flex-1 py-3 rounded-xl bg-card border border-border text-white/30 font-bold text-sm flex items-center justify-center gap-2">
+                <div className="flex-1 py-3 tac-btn tac-stencil rounded-lg text-[#6b7280] font-bold text-sm flex items-center justify-center gap-2">
                   <Lock className="w-4 h-4" />VIP Proximamente
                 </div>
               )
             ) : (
-              <div className="flex-1 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold text-sm flex items-center justify-center gap-2">
+              <div className="flex-1 py-3 tac-btn-accent tac-stencil rounded-lg text-[#f59e0b] font-bold text-sm flex items-center justify-center gap-2">
                 <Crown className="w-4 h-4" />VIP Activo{vipDaysLeft > 0 ? ` (${vipDaysLeft}d)` : ''}
               </div>
             )}
-            <button onClick={() => { logOut(); }} className="px-4 py-3 rounded-xl bg-card border border-border text-white/40 hover:text-white/60 transition-colors flex items-center justify-center">
+            <button onClick={() => { logOut(); }} className="px-4 py-3 tac-btn rounded-lg text-[#6b7280] hover:text-[#d4d8b8] transition-colors flex items-center justify-center">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -274,7 +279,7 @@ export function MenuScreen() {
       {canScrollDown && (
         <button
           onClick={scrollDown}
-          className="fixed bottom-24 right-4 z-40 w-10 h-10 rounded-full bg-cyan-500/20 backdrop-blur border border-cyan-500/40 flex items-center justify-center text-cyan-400 hover:bg-cyan-500/30 transition-colors shadow-lg animate-fade-in"
+          className="fixed bottom-24 right-4 z-40 w-10 h-10 rounded-lg tac-btn flex items-center justify-center text-[#8a9b50] hover:text-[#d4d8b8] transition-colors animate-fade-in"
         >
           <ChevronDown className="w-5 h-5" />
         </button>
@@ -282,7 +287,7 @@ export function MenuScreen() {
       {canScrollUp && (
         <button
           onClick={scrollUp}
-          className="fixed top-20 right-4 z-40 w-10 h-10 rounded-full bg-cyan-500/20 backdrop-blur border border-cyan-500/40 flex items-center justify-center text-cyan-400 hover:bg-cyan-500/30 transition-colors shadow-lg animate-fade-in"
+          className="fixed top-20 right-4 z-40 w-10 h-10 rounded-lg tac-btn flex items-center justify-center text-[#8a9b50] hover:text-[#d4d8b8] transition-colors animate-fade-in"
         >
           <ChevronUp className="w-5 h-5" />
         </button>
@@ -291,42 +296,42 @@ export function MenuScreen() {
       {/* Toast */}
       {showWelcomeBonus && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-xs mx-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-card border-2 border-amber-400/50 p-6 text-center animate-scale-in shadow-2xl shadow-amber-500/30">
-            <Gift className="w-16 h-16 text-amber-400 mx-auto mb-3 animate-bounce" />
-            <h2 className="text-amber-300 font-black text-xl mb-2">¡Bono de Bienvenida!</h2>
-            <p className="text-white/70 text-sm mb-1">¡Gracias por unirte a GarrDash!</p>
-            <p className="text-amber-400 font-bold text-lg mb-4">+500 Monedas +1 Llave</p>
-            <button onClick={dismissWelcomeBonus} className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-400">¡Gracias!</button>
+          <div className="w-full max-w-xs mx-4 tac-panel tac-stencil rounded-lg p-6 text-center animate-scale-in">
+            <Gift className="w-16 h-16 text-[#f59e0b] mx-auto mb-3 animate-bounce" />
+            <h2 className="text-[#f59e0b] font-black text-xl mb-2 tac-amber-glow">¡Bono de Bienvenida!</h2>
+            <p className="text-[#d4d8b8]/70 text-sm mb-1">¡Gracias por unirte a GarrDash!</p>
+            <p className="text-[#f59e0b] font-bold text-lg mb-4">+500 Munición +1 Llave</p>
+            <button onClick={dismissWelcomeBonus} className="w-full py-3 tac-btn-accent tac-stencil rounded-lg text-[#fbbf24] font-bold">¡Recibido!</button>
           </div>
         </div>
       )}
 
       {showReturnReward && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-xs mx-4 rounded-2xl bg-gradient-to-br from-cyan-900/40 to-card border-2 border-cyan-400/50 p-6 text-center animate-scale-in shadow-2xl shadow-cyan-500/30">
-            <Sparkles className="w-16 h-16 text-cyan-400 mx-auto mb-3 animate-bounce" />
-            <h2 className="text-cyan-300 font-black text-xl mb-2">¡Bono de Retorno!</h2>
-            <p className="text-white/70 text-sm mb-1">¡Te extrañamos! Gracias por volver a GarrDash</p>
-            <p className="text-cyan-400 font-bold text-lg mb-4">+200 Monedas</p>
-            <button onClick={dismissReturnReward} className="w-full py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-400">¡Genial!</button>
+          <div className="w-full max-w-xs mx-4 tac-panel tac-stencil rounded-lg p-6 text-center animate-scale-in">
+            <Sparkles className="w-16 h-16 text-[#8a9b50] mx-auto mb-3 animate-bounce" />
+            <h2 className="text-[#8a9b50] font-black text-xl mb-2 tac-text-glow">¡Bono de Retorno!</h2>
+            <p className="text-[#d4d8b8]/70 text-sm mb-1">¡Te extrañamos! Gracias por volver a GarrDash</p>
+            <p className="text-[#8a9b50] font-bold text-lg mb-4">+200 Munición</p>
+            <button onClick={dismissReturnReward} className="w-full py-3 tac-btn tac-stencil rounded-lg text-[#d4d8b8] font-bold">¡Entendido!</button>
           </div>
         </div>
       )}
 
       {exchangeNotification && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-xs mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-card border-2 border-green-400/50 p-6 text-center animate-scale-in shadow-2xl shadow-green-500/30">
-            <Bell className="w-16 h-16 text-green-400 mx-auto mb-3 animate-bounce" />
-            <h2 className="text-green-300 font-black text-xl mb-2">¡Canje Completado!</h2>
-            <p className="text-white/80 text-sm mb-4">{exchangeNotification}</p>
-            <button onClick={dismissExchangeNotification} className="w-full py-3 rounded-xl bg-green-500 text-white font-bold hover:bg-green-400">¡Entendido!</button>
+          <div className="w-full max-w-xs mx-4 tac-panel tac-stencil rounded-lg p-6 text-center animate-scale-in">
+            <Bell className="w-16 h-16 text-[#8a9b50] mx-auto mb-3 animate-bounce" />
+            <h2 className="text-[#8a9b50] font-black text-xl mb-2 tac-text-glow">¡Canje Completado!</h2>
+            <p className="text-[#d4d8b8]/80 text-sm mb-4">{exchangeNotification}</p>
+            <button onClick={dismissExchangeNotification} className="w-full py-3 tac-btn tac-stencil rounded-lg text-[#d4d8b8] font-bold">¡Entendido!</button>
           </div>
         </div>
       )}
 
       {toast && (
-        <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 rounded-xl bg-card border border-purple-500/40 shadow-2xl shadow-purple-500/20 animate-scale-in max-w-xs">
-          <p className="text-white text-xs font-bold text-center">{toast}</p>
+        <div className="fixed bottom-40 left-1/2 -translate-x-1/2 z-[200] px-5 py-3 tac-panel tac-stencil rounded-lg animate-scale-in max-w-xs">
+          <p className="text-[#d4d8b8] text-xs font-bold text-center">{toast}</p>
         </div>
       )}
 
@@ -334,48 +339,48 @@ export function MenuScreen() {
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setShowSettings(false)}>
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-card border border-cyan-500/30 p-6 animate-scale-in shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white font-bold text-xl flex items-center gap-2"><Settings className="w-5 h-5 text-cyan-400" />Ajustes</h2>
-              <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full bg-background flex items-center justify-center text-white/50 hover:text-white"><X className="w-4 h-4" /></button>
+              <h2 className="text-[#d4d8b8] font-bold text-xl flex items-center gap-2"><Settings className="w-5 h-5 text-[#8a9b50]" />Ajustes</h2>
+              <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
             </div>
 
             <div className="space-y-4">
-              <button onClick={toggleMute} className="w-full flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border">
+              <button onClick={toggleMute} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3">
-                  {muted ? <VolumeX className="w-5 h-5 text-white/40" /> : <Volume2 className="w-5 h-5 text-cyan-400" />}
-                  <div className="text-left"><p className="text-white font-bold text-sm">Sonido</p><p className="text-white/40 text-xs">{muted ? 'Silenciado' : 'Activo'}</p></div>
+                  {muted ? <VolumeX className="w-5 h-5 text-[#6b7280]" /> : <Volume2 className="w-5 h-5 text-[#8a9b50]" />}
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Sonido</p><p className="text-[#6b7280] text-xs">{muted ? 'Silenciado' : 'Activo'}</p></div>
                 </div>
-                <div className={`w-12 h-6 rounded-full transition-colors ${muted ? 'bg-white/10' : 'bg-cyan-500/40'}`}>
+                <div className={`w-12 h-6 rounded-full transition-colors ${muted ? 'bg-white/10' : 'bg-[#8a9b50]/40'}`}>
                   <div className={`w-5 h-5 rounded-full bg-white transition-transform ${muted ? 'translate-x-0.5' : 'translate-x-6'} mt-0.5`} />
                 </div>
               </button>
 
-              <button onClick={toggleBlood} className="w-full flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border">
+              <button onClick={toggleBlood} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3">
-                  <Droplet className={`w-5 h-5 ${bloodEnabled ? 'text-red-400' : 'text-white/40'}`} />
-                  <div className="text-left"><p className="text-white font-bold text-sm">Efectos de Sangre Neon</p><p className="text-white/40 text-xs">{bloodEnabled ? 'Visibles' : 'Ocultos (apto para todas las edades)'}</p></div>
+                  <Droplet className={`w-5 h-5 ${bloodEnabled ? 'text-[#ef4444]' : 'text-[#6b7280]'}`} />
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Efectos de Sangre</p><p className="text-[#6b7280] text-xs">{bloodEnabled ? 'Visibles' : 'Ocultos (apto para todas las edades)'}</p></div>
                 </div>
-                <div className={`w-12 h-6 rounded-full transition-colors ${bloodEnabled ? 'bg-red-500/40' : 'bg-white/10'}`}>
+                <div className={`w-12 h-6 rounded-full transition-colors ${bloodEnabled ? 'bg-[#ef4444]/40' : 'bg-white/10'}`}>
                   <div className={`w-5 h-5 rounded-full bg-white transition-transform ${bloodEnabled ? 'translate-x-6' : 'translate-x-0.5'} mt-0.5`} />
                 </div>
               </button>
 
-              <a href="/privacy.html" target="_blank" rel="noopener" className="w-full flex items-center justify-between p-3 rounded-xl bg-background/50 border border-border hover:bg-secondary/30 transition-colors">
+              <a href="/privacy.html" target="_blank" rel="noopener" className="w-full flex items-center justify-between p-3 tac-btn rounded-lg hover:bg-[#8a9b50]/10 transition-colors">
                 <div className="flex items-center gap-3">
-                  <ShieldCheck className="w-5 h-5 text-green-400" />
-                  <div className="text-left"><p className="text-white font-bold text-sm">Politica de Privacidad</p><p className="text-white/40 text-xs">Ver documento legal</p></div>
+                  <ShieldCheck className="w-5 h-5 text-[#8a9b50]" />
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Politica de Privacidad</p><p className="text-[#6b7280] text-xs">Ver documento legal</p></div>
                 </div>
               </a>
 
-              <div className="w-full p-3 rounded-xl bg-background/50 border border-border">
+              <div className="w-full p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3 mb-3">
-                  <Smartphone className="w-5 h-5 text-cyan-400" />
-                  <div className="text-left"><p className="text-white font-bold text-sm">Orientacion</p><p className="text-white/40 text-xs">Bloqueo manual de rotacion</p></div>
+                  <Smartphone className="w-5 h-5 text-[#8a9b50]" />
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Orientacion</p><p className="text-[#6b7280] text-xs">Bloqueo manual de rotacion</p></div>
                 </div>
                 <div className="flex gap-2">
                   {(['auto', 'portrait', 'landscape'] as const).map((m) => (
-                    <button key={m} onClick={() => setOrientationMode(m)} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${orientationMode === m ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-card border border-border text-white/40'}`}>
+                    <button key={m} onClick={() => setOrientationMode(m)} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${orientationMode === m ? 'bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40' : 'tac-btn text-[#6b7280]'}`}>
                       {m === 'auto' ? 'Auto' : m === 'portrait' ? 'Vertical' : 'Horizontal'}
                     </button>
                   ))}
@@ -383,25 +388,25 @@ export function MenuScreen() {
               </div>
 
               {/* Performance tier selector */}
-              <div className="w-full p-3 rounded-xl bg-background/50 border border-border">
+              <div className="w-full p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3 mb-3">
-                  <Settings className="w-5 h-5 text-green-400" />
-                  <div className="text-left"><p className="text-white font-bold text-sm">Rendimiento Grafico</p><p className="text-white/40 text-xs">Ajusta para tu dispositivo</p></div>
+                  <Settings className="w-5 h-5 text-[#8a9b50]" />
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Rendimiento Grafico</p><p className="text-[#6b7280] text-xs">Ajusta para tu dispositivo</p></div>
                 </div>
                 <div className="flex gap-2">
                   {(['low', 'medium', 'high'] as PerformanceTier[]).map((t) => (
-                    <button key={t} onClick={() => { setPerformanceTier(t); setPerfTierState(t); }} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${perfTier === t ? 'bg-green-500/20 text-green-400 border border-green-500/40' : 'bg-card border border-border text-white/40'}`}>
+                    <button key={t} onClick={() => { setPerformanceTier(t); setPerfTierState(t); }} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${perfTier === t ? 'bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40' : 'tac-btn text-[#6b7280]'}`}>
                       {t === 'low' ? 'Baja' : t === 'medium' ? 'Media' : 'Alta'}
                     </button>
                   ))}
                 </div>
-                <p className="text-white/30 text-[10px] mt-2">
+                <p className="text-[#6b7280] text-[10px] mt-2">
                   {perfTier === 'low' ? 'Sin partículas ni efectos de brillo. Ideal para celulares lentos.' : perfTier === 'medium' ? 'Partículas limitadas. Balance entre calidad y rendimiento.' : 'Maxima calidad visual con todos los efectos activos.'}
                 </p>
               </div>
             </div>
 
-            <p className="mt-6 text-center text-white/30 text-xs">&copy; 2026</p>
+            <p className="mt-6 text-center text-[#6b7280] text-xs">&copy; 2026</p>
           </div>
         </div>
       )}
