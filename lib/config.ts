@@ -48,7 +48,8 @@ export const URL_OFFERWALL_REAL = '';
 export const MIN_CLAIM_COINS = 10000;
 export const DIAMOND_CLAIM_KEYS_REQUIRED = 5;
 export const CAMPAIGN_KEYS_PER_10_LEVELS = 1;
-export const WELCOME_BONUS_COINS = 30;
+export const WELCOME_BONUS_COINS = 500;
+export const WELCOME_BONUS_KEYS = 1;
 
 export const SPECIAL_LEVELS: Record<number, { theme: string; color: string; message: string }> = {
   4: { theme: 'love', color: '#ef4444', message: '¡4 AÑOS DE AMOR ETERNO!' },

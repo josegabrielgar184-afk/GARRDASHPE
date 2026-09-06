@@ -294,7 +294,7 @@ export function MenuScreen() {
             <Gift className="w-16 h-16 text-amber-400 mx-auto mb-3 animate-bounce" />
             <h2 className="text-amber-300 font-black text-xl mb-2">¡Bono de Bienvenida!</h2>
             <p className="text-white/70 text-sm mb-1">¡Gracias por unirte a GarrDash!</p>
-            <p className="text-amber-400 font-bold text-lg mb-4">+500 Monedas</p>
+            <p className="text-amber-400 font-bold text-lg mb-4">+500 Monedas +1 Llave</p>
             <button onClick={dismissWelcomeBonus} className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-400">¡Gracias!</button>
           </div>
         </div>

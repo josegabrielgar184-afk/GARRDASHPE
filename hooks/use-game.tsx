@@ -17,7 +17,7 @@ import {
 import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
-import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
+import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, WELCOME_BONUS_KEYS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
 import { setupDailyNotifications } from '@/lib/notifications';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
@@ -328,6 +328,8 @@ interface GameState {
   dismissWelcomeBonus: () => void;
   showReturnReward: boolean;
   dismissReturnReward: () => void;
+  exchangeNotification: string | null;
+  dismissExchangeNotification: () => void;
   campaignLevelStats: CampaignLevelStat[];
   refreshCampaignLevelStats: () => Promise<void>;
   addCampaignKeyFromAd: () => void;
@@ -434,6 +436,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [survivalBestTime, setSurvivalBestTime] = useState(0);
   const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
   const [showReturnReward, setShowReturnReward] = useState(false);
+  const [exchangeNotification, setExchangeNotification] = useState<string | null>(null);
   const [campaignLevelStats, setCampaignLevelStats] = useState<CampaignLevelStat[]>([]);
   const [spaceRanking, setSpaceRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [zombieRanking, setZombieRanking] = useState<RankEntry[]>(EMPTY_RANKING);
@@ -556,7 +559,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               rol: 'user',
               welcomeBonusClaimed: true,
               campaignLevel: 1,
-              campaignKeys: 0,
+              campaignKeys: WELCOME_BONUS_KEYS,
               campaignStars: {},
               towerLevels: { turret: 0, drone: 0, medic: 0 },
             });
@@ -1172,6 +1175,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const dismissWelcomeBonus = useCallback(() => setShowWelcomeBonus(false), []);
   const dismissReturnReward = useCallback(() => setShowReturnReward(false), []);
+  const dismissExchangeNotification = useCallback(() => setExchangeNotification(null), []);
 
   const refreshCampaignLevelStats = useCallback(async () => {
     try {
@@ -1428,7 +1432,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         rol: 'user',
         welcomeBonusClaimed: true,
         campaignLevel: 1,
-        campaignKeys: 0,
+        campaignKeys: WELCOME_BONUS_KEYS,
         campaignStars: {},
         towerLevels: { turret: 0, drone: 0, medic: 0 },
       });
@@ -1835,6 +1839,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         approvedAt: now,
         approvedBy: user.uid,
       });
+      if (data.userId) {
+        await addDoc(collection(db, 'notificaciones'), {
+          userId: data.userId,
+          message: '¡Tus diamantes fueron canjeados! Ve a verlos',
+          createdAt: now,
+          read: false,
+        }).catch(() => {});
+      }
       await deleteDoc(canjeRef);
       await refreshCanjes();
       await logOperatorAction('aprobar_canje', `Canje: ${canjeId}, Recompensa: ${data.selectedReward ?? ''}`);
@@ -2559,6 +2571,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     addCampaignKeyFromAd,
     showWelcomeBonus, dismissWelcomeBonus,
     showReturnReward, dismissReturnReward,
+    exchangeNotification, dismissExchangeNotification,
     campaignLevelStats, refreshCampaignLevelStats,
     logOperatorAction, operatorLogs, refreshOperatorLogs,
   };
