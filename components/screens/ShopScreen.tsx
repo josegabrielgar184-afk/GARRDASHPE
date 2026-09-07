@@ -10,7 +10,7 @@ import { ADMOB_CONFIG } from '@/lib/config';
 import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video, TrendingUp } from 'lucide-react';
 import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
 import { getCoinAdStatus, recordCoinAd, getCoinAdReward, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
-import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/lib/performance';
+import { getPerformanceTier, type PerformanceTier } from '@/lib/performance';
 
 export function ShopScreen() {
   const {
@@ -28,7 +28,7 @@ export function ShopScreen() {
   const [showKeyAd, setShowKeyAd] = useState(false);
   const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
   const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
-  const [perfTier, setPerfTierState] = useState<PerformanceTier>(getPerformanceTier());
+  const [perfTier] = useState<PerformanceTier>(getPerformanceTier());
   const adDebounceRef = useRef<number>(0);
 
   const adDebounced = (): boolean => {
@@ -338,7 +338,7 @@ export function ShopScreen() {
         onReward={handleCoinAdReward}
         title="Monedas por Anuncio"
         rewardText={`¡+${getCoinAdReward()} monedas!`}
-        adId={ADMOB_CONFIG.rewarded || ''}
+        adId={(ADMOB_CONFIG as any).rewarded || ''}
         userRole={userRole}
         vip={vip}
       />
@@ -348,7 +348,7 @@ export function ShopScreen() {
         onReward={handleKeyAdReward}
         title="Llave por Anuncio"
         rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
-        adId={ADMOB_CONFIG.rewarded || ''}
+        adId={(ADMOB_CONFIG as any).rewarded || ''}
         userRole={userRole}
         vip={vip}
       />
