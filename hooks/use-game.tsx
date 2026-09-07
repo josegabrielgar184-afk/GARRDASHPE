@@ -77,6 +77,14 @@ export interface RankEntry {
 
 export type ControlSize = 'small' | 'medium' | 'large';
 export type OrientationMode = 'auto' | 'portrait' | 'landscape';
+export type UITheme = 'tactical-dark' | 'cyan-neon' | 'blood-red' | 'military-green';
+
+export const UI_THEMES: Array<{ id: UITheme; name: string; primary: string; accent: string; bg: string }> = [
+  { id: 'tactical-dark', name: 'Tactico Oscuro', primary: '#8a9b50', accent: '#d4d8b8', bg: '#0d0f0a' },
+  { id: 'cyan-neon', name: 'Cian Neon', primary: '#22d3ee', accent: '#67e8f9', bg: '#04141a' },
+  { id: 'blood-red', name: 'Rojo Sangre', primary: '#ef4444', accent: '#fca5a5', bg: '#1a0404' },
+  { id: 'military-green', name: 'Verde Militar', primary: '#4d7c0f', accent: '#84cc16', bg: '#0a1004' },
+];
 
 export interface OfferwallConfig {
   active: boolean;
@@ -214,6 +222,8 @@ interface GameState {
   bloodEnabled: boolean;
   controlSize: ControlSize;
   orientationMode: OrientationMode;
+  uiTheme: UITheme;
+  setUITheme: (t: UITheme) => void;
   lastInterstitialTime: number;
   setScreen: (s: Screen) => void;
   addCoins: (n: number) => void;
@@ -375,6 +385,7 @@ interface SaveData {
   bloodEnabled: boolean;
   controlSize: ControlSize;
   orientationMode: OrientationMode;
+  uiTheme?: UITheme;
   campaignProgress?: CampaignProgress;
   towerLevels?: TowerLevel;
   survivalBestTime?: number;
@@ -445,7 +456,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [pendingCoins, setPendingCoins] = useState(0);
   const [bloodEnabled, setBloodEnabled] = useState(true);
   const [controlSize, setControlSizeState] = useState<ControlSize>('medium');
-  const [orientationMode, setOrientationModeState] = useState<OrientationMode>('auto');
+  const [orientationMode, setOrientationModeState] = useState<OrientationMode>('portrait');
+  const [uiTheme, setUIThemeState] = useState<UITheme>('tactical-dark');
   const [authReady, setAuthReady] = useState(false);
   const [offerwallConfig, setOfferwallConfig] = useState<OfferwallConfig | null>(null);
   const [offerwallDownloadsToday, setOfferwallDownloadsToday] = useState(0);
@@ -513,6 +525,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.bloodEnabled !== undefined) setBloodEnabled(s.bloodEnabled);
     if (s.controlSize !== undefined) setControlSizeState(s.controlSize);
     if (s.orientationMode !== undefined) setOrientationModeState(s.orientationMode);
+    if (s.uiTheme !== undefined) setUIThemeState(s.uiTheme);
   }, []);
 
   const userDocUnsubRef = useRef<(() => void) | null>(null);
@@ -931,6 +944,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     saveData({ orientationMode: m });
   }, []);
 
+  const setUITheme = useCallback((t: UITheme) => {
+    setUIThemeState(t);
+    saveData({ uiTheme: t });
+  }, []);
+
   const selectCharacter = useCallback((id: string) => {
     setSelectedCharacter(id);
     saveData({ selectedCharacter: id });
@@ -998,6 +1016,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const completeLevel = useCallback((level: number, stars: number, coinsEarned: number) => {
     const isFirstClear = !campaignProgress.stars[level];
+    const guaranteedCoins = Math.max(10, Math.min(30, coinsEarned || 10));
+    addCoins(guaranteedCoins);
     setCampaignProgress((prev) => {
       const newStars = { ...prev.stars, [level]: Math.max(prev.stars[level] ?? 0, stars) };
       const newLevel = Math.max(prev.currentLevel, level + 1);
@@ -1012,13 +1032,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             campaignLevel: newLevel,
             campaignKeys: newKeys,
             campaignStars: newStars,
+            coins: coins + guaranteedCoins,
             lastActive: serverTimestamp(),
           }).catch(() => {});
         } catch {}
       }
       return next;
     });
-  }, [campaignProgress.stars]);
+  }, [campaignProgress.stars, addCoins, coins]);
 
   const getCurrentCampaignLevel = useCallback(() => campaignProgress.currentLevel, [campaignProgress.currentLevel]);
 
@@ -2573,6 +2594,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     controlSize, orientationMode, lastInterstitialTime: lastInterstitialTimeRef.current,
     setScreen, addCoins, spendCoins, addPoints, spendPoints, setLives,
     buyVIP, vipAvailable: VIP_DISPONIBLE_PLAYSTORE, vipExpiry, toggleMute, toggleBlood, setControlSize, setOrientationMode,
+    uiTheme, setUITheme,
     selectCharacter, selectShip, selectZombie, setLoggedIn, recordRouletteSpin,
     addSuggestion, getCharacter: getChar, getShip: getShipDef, getZombieCharacter: getZombieChar, buyUpgrade,
     refreshRanking, refreshWeeklyRanking, loadMoreRanking, hasMoreRanking,

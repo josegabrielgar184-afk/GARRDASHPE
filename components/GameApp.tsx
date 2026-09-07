@@ -25,6 +25,8 @@ import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '@/lib/wake-lock';
 import { AdMob } from '@capacitor-community/admob';
+import { checkMinVersion } from '@/lib/firebase';
+import { ForceUpdateModal } from '@/components/game/ForceUpdateModal';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
@@ -129,25 +131,9 @@ function BackButtonHandler() {
 }
 
 function OrientationManager() {
-  const { screen, orientationMode } = useGame();
-
   useEffect(() => {
-    if (typeof screen === 'undefined') return;
-
-    const isGameplay = GAMEPLAY_SCREENS.includes(screen);
-
-    if (orientationMode === 'portrait') {
-      document.documentElement.style.setProperty('--app-rotation', '0deg');
-      return;
-    }
-    if (orientationMode === 'landscape') {
-      document.documentElement.style.setProperty('--app-rotation', '90deg');
-      return;
-    }
-
-    // auto mode: gameplay = landscape, menus = portrait
-    document.documentElement.style.setProperty('--app-rotation', isGameplay ? '90deg' : '0deg');
-  }, [screen, orientationMode]);
+    document.documentElement.style.setProperty('--app-rotation', '0deg');
+  }, []);
 
   return null;
 }
@@ -156,8 +142,22 @@ function AppShell() {
   const { screen, isDeviceBanned, canShowInterstitial, recordInterstitial, vip } = useGame();
   const isGameplay = GAMEPLAY_SCREENS.includes(screen);
   const [showInterstitial, setShowInterstitial] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState<{ minVersion: number; currentVersion: number } | null>(null);
   const lastScreenRef = useRef(screen);
   const menuScreens = ['menu', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await checkMinVersion();
+        if (!cancelled && result.updateRequired) {
+          setForceUpdate({ minVersion: result.minVersion, currentVersion: result.currentVersion });
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const fromMenu = menuScreens.includes(lastScreenRef.current);
@@ -232,6 +232,7 @@ function AppShell() {
       <BackButtonHandler />
       <OrientationManager />
       {showInterstitial && <InterstitialAd onDone={() => setShowInterstitial(false)} />}
+      {forceUpdate && <ForceUpdateModal minVersion={forceUpdate.minVersion} currentVersion={forceUpdate.currentVersion} />}
     </div>
   );
 }

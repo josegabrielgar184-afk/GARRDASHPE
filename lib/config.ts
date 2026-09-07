@@ -1,5 +1,8 @@
 export const MODO_PRUEBA = false;
 
+export const APP_VERSION = 2;
+export const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.garricraft.garrdash';
+
 export const VIP_DISPONIBLE_PLAYSTORE = false;
 export const VIP_DURATION_DAYS = 60;
 export const VIP_PRODUCT_ID = 'pase_vip_60dias';

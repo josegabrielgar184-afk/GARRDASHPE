@@ -12,6 +12,7 @@ import {
   spawnParticles2D, updateParticles2D, drawParticles2D,
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle, drawMetallicCoin,
+  drawSoldier2D, drawZombie2D, drawWarzoneBackground,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -45,7 +46,7 @@ function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'shi
 const LANE_COUNT = 5;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
-const SPRITE_SCALE = 1.35;
+const SPRITE_SCALE = 1.9;
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
   pistol: '#fbbf24', rifle: '#22d3ee', shotgun: '#f87171', minigun: '#f97316', laser: '#a855f7',
@@ -492,98 +493,26 @@ export function ZombieGameScreen() {
     }
   }, [gameOver, canShowInterstitial, recordInterstitial, vip, endGameBatch, submitZombieScore]);
 
-  // Cartoon zombie drawing
+  // Aggressive military zombie drawing (delegates to engine2d)
   const drawCartoonZombie = (ctx: CanvasRenderingContext2D, z: Zombie, now: number) => {
-    ctx.save();
-    ctx.translate(z.x, z.y);
-    const wobble = Math.sin(z.walkCycle) * 4;
-    const armSwing = Math.sin(z.walkCycle + Math.PI / 2) * 6;
-    const s = z.size;
+    const isTank = z.type === 'tank' || z.type === 'boss';
+    const isMutant = z.type === 'fast';
+    const angle = Math.PI / 2;
+    drawZombie2D(ctx, z.x, z.y, angle, z.walkCycle, z.size, z.color, isMutant, isTank);
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(0, s * 0.8, s * 0.7, s * 0.2, 0, 0, Math.PI * 2); ctx.fill();
-
-    // Body (torn clothes)
-    ctx.fillStyle = z.type === 'tank' ? '#3b5a1a' : z.type === 'fast' ? '#65a30d' : '#4d7c0f';
-    ctx.beginPath();
-    ctx.roundRect(-s * 0.5, wobble - s * 0.1, s, s * 0.7, 4);
-    ctx.fill();
-    // Torn shirt details
-    ctx.fillStyle = '#3a5a1a';
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.5, wobble + s * 0.1);
-    ctx.lineTo(-s * 0.3, wobble + s * 0.2);
-    ctx.lineTo(-s * 0.4, wobble + s * 0.3);
-    ctx.lineTo(-s * 0.5, wobble + s * 0.25);
-    ctx.fill();
-
-    // Head (green cartoon)
-    ctx.fillStyle = z.color;
-    ctx.beginPath(); ctx.arc(0, wobble - s * 0.35, s * 0.4, 0, Math.PI * 2); ctx.fill();
-    // Cheek shading
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.beginPath(); ctx.arc(-s * 0.15, wobble - s * 0.3, s * 0.12, 0, Math.PI * 2); ctx.fill();
-
-    // Eyes (white sclera, red pupils)
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(-s * 0.15, wobble - s * 0.4, s * 0.1, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(s * 0.15, wobble - s * 0.4, s * 0.1, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath(); ctx.arc(-s * 0.13, wobble - s * 0.38, s * 0.05, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(s * 0.17, wobble - s * 0.38, s * 0.05, 0, Math.PI * 2); ctx.fill();
-
-    // Mouth (zigzag teeth)
-    ctx.strokeStyle = '#1a2a0a';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.2, wobble - s * 0.2);
-    for (let i = 0; i < 5; i++) {
-      ctx.lineTo(-s * 0.2 + (i + 0.5) * s * 0.1, wobble - s * 0.2 + (i % 2 === 0 ? -3 : 0));
-    }
-    ctx.stroke();
-
-    // Arms (swinging)
-    ctx.strokeStyle = z.color;
-    ctx.lineWidth = Math.max(2, s * 0.12);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.4, wobble + s * 0.1);
-    ctx.lineTo(-s * 0.6, wobble + s * 0.3 + armSwing);
-    ctx.moveTo(s * 0.4, wobble + s * 0.1);
-    ctx.lineTo(s * 0.6, wobble + s * 0.3 - armSwing);
-    ctx.stroke();
-
-    // Legs
-    ctx.strokeStyle = '#3b5a1a';
-    ctx.lineWidth = Math.max(2, s * 0.1);
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.25, wobble + s * 0.55);
-    ctx.lineTo(-s * 0.25 + Math.sin(z.walkCycle) * 4, wobble + s * 0.85);
-    ctx.moveTo(s * 0.25, wobble + s * 0.55);
-    ctx.lineTo(s * 0.25 - Math.sin(z.walkCycle) * 4, wobble + s * 0.85);
-    ctx.stroke();
-
-    if (z.type === 'tank') {
-      // Tank: bigger, armor plates
-      ctx.fillStyle = '#5a4a1a';
-      ctx.fillRect(-s * 0.55, wobble - s * 0.05, s * 1.1, s * 0.15);
-      ctx.strokeStyle = '#7a6a2a';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(-s * 0.55, wobble - s * 0.05, s * 1.1, s * 0.15);
-    }
-
+    // Boss overlay: football helmet
     if (z.type === 'boss') {
-      // Football helmet (red)
+      ctx.save();
+      ctx.translate(z.x, z.y);
+      const wobble = Math.sin(z.walkCycle) * 4;
+      const s = z.size;
       ctx.fillStyle = '#dc2626';
       ctx.beginPath();
       ctx.arc(0, wobble - s * 0.35, s * 0.48, Math.PI, 0);
       ctx.fill();
       ctx.fillRect(-s * 0.48, wobble - s * 0.35, s * 0.96, s * 0.15);
-      // Helmet stripe
       ctx.fillStyle = '#fff';
       ctx.fillRect(-s * 0.06, wobble - s * 0.7, s * 0.12, s * 0.4);
-      // Facemask
       ctx.strokeStyle = '#7f1d1d';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -596,37 +525,21 @@ export function ZombieGameScreen() {
       ctx.moveTo(s * 0.25, wobble - s * 0.25);
       ctx.lineTo(s * 0.25, wobble - s * 0.1);
       ctx.stroke();
-      // Shoulder pads (red)
-      ctx.fillStyle = '#dc2626';
-      ctx.beginPath();
-      ctx.roundRect(-s * 0.65, wobble - s * 0.05, s * 0.3, s * 0.2, 3);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.roundRect(s * 0.35, wobble - s * 0.05, s * 0.3, s * 0.2, 3);
-      ctx.fill();
-      // Football
-      ctx.fillStyle = '#7B4a1a';
-      ctx.beginPath();
-      ctx.ellipse(s * 0.7, wobble + s * 0.3 + armSwing, s * 0.15, s * 0.1, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(s * 0.65, wobble + s * 0.28 + armSwing);
-      ctx.lineTo(s * 0.75, wobble + s * 0.32 + armSwing);
-      ctx.stroke();
+      ctx.restore();
     }
 
     // Hit flash
     if (z.hitFlash > 0) {
+      ctx.save();
       ctx.globalAlpha = z.hitFlash * 0.6;
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(0, wobble, s + 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.size + 4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
-    ctx.restore();
 
     // HP bar
     if (z.hp < z.maxHp) {
+      const s = z.size;
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
       ctx.fillRect(z.x - s, z.y - s - 10, s * 2, 4);
       ctx.fillStyle = '#ef4444';
@@ -693,79 +606,41 @@ export function ZombieGameScreen() {
     ctx.restore();
   };
 
-  // Cartoon survivor/turret drawing
+  // Tactical soldier drawing (delegates to engine2d)
   const drawSurvivor = (ctx: CanvasRenderingContext2D, x: number, y: number, now: number) => {
-    ctx.save();
-    ctx.translate(x, y);
     const s = 22 * SPRITE_SCALE;
     const breath = Math.sin(now * 0.003) * 1.5;
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(0, s * 0.7, s * 0.6, s * 0.15, 0, 0, Math.PI * 2); ctx.fill();
-
-    // Barricade base
-    ctx.fillStyle = '#3a2a1a';
+    // Barricade base (sandbag style)
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#2a2820';
     ctx.beginPath(); ctx.roundRect(-s * 1.4, -2, s * 2.8, s * 0.8, 3); ctx.fill();
-    ctx.fillStyle = '#2a1a0a';
-    for (let i = -s * 1.3; i < s * 1.4; i += 8) { ctx.fillRect(i, -2, 4, s * 0.8); }
-    ctx.strokeStyle = '#5a4a2a';
-    ctx.lineWidth = 2;
+    ctx.fillStyle = '#3a3528';
+    for (let i = -s * 1.3; i < s * 1.4; i += 8) { ctx.fillRect(i, 0, 7, s * 0.7); }
+    ctx.strokeStyle = '#4a4636';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-s * 1.4, -6);
     for (let i = -s * 1.3; i < s * 1.4; i += 10) { ctx.lineTo(i, -6 + (i % 20 === 0 ? -4 : 0)); }
     ctx.stroke();
+    ctx.restore();
 
-    // Body
-    ctx.fillStyle = char.color;
-    ctx.beginPath();
-    ctx.roundRect(-s * 0.4, breath - s * 0.1, s * 0.8, s * 0.6, 4);
-    ctx.fill();
+    // Tactical soldier sprite (facing up)
+    const walkCycle = now * 0.003;
+    drawSoldier2D(ctx, x, y + breath, -Math.PI / 2, walkCycle, char.color, shieldRef.current, weaponRef.current);
 
-    // Head
-    ctx.fillStyle = '#d4a574';
-    ctx.beginPath(); ctx.arc(0, breath - s * 0.35, s * 0.3, 0, Math.PI * 2); ctx.fill();
-    // Helmet
-    ctx.fillStyle = char.color;
-    ctx.beginPath();
-    ctx.arc(0, breath - s * 0.38, s * 0.32, Math.PI, 0);
-    ctx.fill();
-    ctx.fillRect(-s * 0.32, breath - s * 0.38, s * 0.64, s * 0.08);
-
-    // Eyes (determined look)
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(-s * 0.1, breath - s * 0.3, s * 0.06, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(s * 0.1, breath - s * 0.3, s * 0.06, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath(); ctx.arc(-s * 0.1, breath - s * 0.3, s * 0.03, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(s * 0.1, breath - s * 0.3, s * 0.03, 0, Math.PI * 2); ctx.fill();
-
-    // Arms holding gun up
-    ctx.strokeStyle = '#d4a574';
-    ctx.lineWidth = Math.max(2, s * 0.1);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-s * 0.2, breath);
-    ctx.lineTo(-s * 0.1, breath - s * 0.3);
-    ctx.moveTo(s * 0.2, breath);
-    ctx.lineTo(s * 0.1, breath - s * 0.3);
-    ctx.stroke();
-
-    // Gun barrel pointing up
-    ctx.fillStyle = '#3a3a3a';
-    ctx.fillRect(-s * 0.08, breath - s * 0.5, s * 0.16, s * 0.3);
-    ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(-s * 0.06, breath - s * 0.55, s * 0.12, s * 0.1);
     // Muzzle glow when ready
     if (shootCooldownRef.current < 2) {
+      ctx.save();
+      ctx.translate(x, y + breath);
       ctx.shadowColor = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
       ctx.shadowBlur = 15;
       ctx.fillStyle = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
-      ctx.fillRect(-s * 0.04, breath - s * 0.6, s * 0.08, s * 0.08);
+      ctx.fillRect(-s * 0.04, -s * 0.6, s * 0.08, s * 0.08);
       ctx.shadowBlur = 0;
+      ctx.restore();
     }
-
-    ctx.restore();
   };
 
   useEffect(() => {

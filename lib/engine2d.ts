@@ -273,12 +273,9 @@ export function drawSoldier2D(
     ctx.moveTo(i, -4); ctx.lineTo(i, 4);
     ctx.stroke();
   }
-  // Neon chest line
+  // Neon chest line (no shadow for perf)
   ctx.fillStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 5;
   ctx.fillRect(-5, -1, 10, 1.5);
-  ctx.shadowBlur = 0;
 
   // Head
   ctx.fillStyle = '#c4a574';
@@ -299,12 +296,9 @@ export function drawSoldier2D(
   ctx.fillRect(-2, -7.5, 4, 2);
   ctx.fillStyle = '#555';
   ctx.fillRect(-1.5, -7, 3, 1);
-  // Neon visor strip
+  // Neon visor strip (no shadow for perf)
   ctx.fillStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 4;
   ctx.fillRect(-4, -2, 8, 1.5);
-  ctx.shadowBlur = 0;
 
   // Weapon pointing forward
   ctx.fillStyle = '#2a2a2a';
@@ -343,12 +337,9 @@ export function drawSoldier2D(
     ctx.translate(x, y);
     ctx.strokeStyle = '#34d399';
     ctx.lineWidth = 2;
-    ctx.shadowColor = '#34d399';
-    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.arc(0, 0, 24, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.shadowBlur = 0;
     ctx.restore();
   }
 }
@@ -366,160 +357,78 @@ export function drawZombie2D(
   ctx.save();
   ctx.translate(x, y);
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  // Shadow (flat ellipse, no blur)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(0, 5, size * 0.75, size * 0.28, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 5, size * 0.7, size * 0.25, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.rotate(angle);
 
-  // Lurching walk — more aggressive stagger
-  const lurch = Math.sin(walkCycle * 1.3) * (size * 0.08);
-  const legSwing = Math.sin(walkCycle) * (size * 0.18);
+  const legSwing = Math.sin(walkCycle) * (size * 0.15);
 
-  // Legs with tattered pants
+  // Legs
   ctx.fillStyle = isTank ? '#5a1a1a' : isMutant ? '#3a2a4a' : '#2a3a1a';
-  ctx.fillRect(-size * 0.22, -size * 0.15 + legSwing, size * 0.16, size * 0.5);
-  ctx.fillRect(size * 0.06, size * 0.15 - legSwing, size * 0.16, size * 0.5);
-  // Exposed bone on one leg
-  ctx.fillStyle = isTank ? '#8a3a2a' : isMutant ? '#6a4a5a' : '#5a5a3a';
-  ctx.fillRect(-size * 0.2, size * 0.2 + legSwing, size * 0.04, size * 0.15);
+  ctx.fillRect(-size * 0.2, -size * 0.15 + legSwing, size * 0.15, size * 0.45);
+  ctx.fillRect(size * 0.05, size * 0.15 - legSwing, size * 0.15, size * 0.45);
 
-  // Hunched body — tilted forward
+  // Hunched body
   ctx.save();
-  ctx.translate(lurch, 0);
-  ctx.rotate(0.15);
+  ctx.rotate(0.12);
 
-  // Body torso
+  // Torso
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.ellipse(0, 0, size * 0.48, size * 0.58, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, size * 0.45, size * 0.55, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // Exposed ribcage
-  ctx.strokeStyle = isTank ? '#8a3a2a' : isMutant ? '#6a4a5a' : '#5a5a3a';
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
-    const ry = -size * 0.1 + i * size * 0.12;
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.2, ry);
-    ctx.lineTo(size * 0.2, ry);
-    ctx.stroke();
-  }
 
   // Torn clothing
-  ctx.fillStyle = isTank ? '#4a0a0a' : isMutant ? '#2a1a3a' : '#1a2a0a';
-  ctx.fillRect(-size * 0.3, -size * 0.25, size * 0.6, size * 0.2);
-  // Torn edges
-  ctx.fillStyle = isTank ? '#3a0808' : isMutant ? '#1a0a2a' : '#0a1a08';
-  for (let i = 0; i < 4; i++) {
-    ctx.fillRect(-size * 0.3 + i * size * 0.16, -size * 0.08, size * 0.06, size * 0.06);
-  }
+  ctx.fillStyle = isTank ? '#3a0808' : isMutant ? '#1a0a2a' : '#1a2a0a';
+  ctx.fillRect(-size * 0.28, -size * 0.22, size * 0.56, size * 0.18);
 
-  // Arms reaching forward — aggressive claws
+  // Arms reaching forward
   ctx.fillStyle = color;
-  const armReach = isTank ? size * 0.85 : isMutant ? size * 0.7 : size * 0.6;
-  // Upper arm
-  ctx.fillRect(size * 0.15, -size * 0.4, armReach * 0.6, size * 0.13);
-  ctx.fillRect(size * 0.15, size * 0.27, armReach * 0.6, size * 0.13);
-  // Forearm with claw
-  ctx.fillStyle = isTank ? '#8a2a2a' : isMutant ? '#6a3a6a' : '#4a5a2a';
-  ctx.fillRect(size * 0.15 + armReach * 0.6, -size * 0.38, armReach * 0.4, size * 0.1);
-  ctx.fillRect(size * 0.15 + armReach * 0.6, size * 0.29, armReach * 0.4, size * 0.1);
+  const armReach = isTank ? size * 0.8 : isMutant ? size * 0.65 : size * 0.55;
+  ctx.fillRect(size * 0.12, -size * 0.35, armReach, size * 0.12);
+  ctx.fillRect(size * 0.12, size * 0.23, armReach, size * 0.12);
+
   // Claws
   ctx.fillStyle = isTank ? '#dc2626' : isMutant ? '#a855f7' : '#65a30d';
+  ctx.fillRect(size * 0.12 + armReach, -size * 0.33, size * 0.1, size * 0.08);
+  ctx.fillRect(size * 0.12 + armReach, size * 0.25, size * 0.1, size * 0.08);
+
+  // Head
+  ctx.fillStyle = isTank ? '#902020' : isMutant ? '#7a2a9a' : '#448010';
   ctx.beginPath();
-  ctx.moveTo(size * 0.15 + armReach, -size * 0.35);
-  ctx.lineTo(size * 0.15 + armReach + size * 0.12, -size * 0.33);
-  ctx.lineTo(size * 0.15 + armReach + size * 0.1, -size * 0.38);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(size * 0.15 + armReach, size * 0.32);
-  ctx.lineTo(size * 0.15 + armReach + size * 0.12, size * 0.34);
-  ctx.lineTo(size * 0.15 + armReach + size * 0.1, size * 0.29);
-  ctx.closePath();
+  ctx.arc(0, 0, size * 0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // Blood drips from arms
-  ctx.fillStyle = 'rgba(139,0,0,0.6)';
-  ctx.fillRect(size * 0.15 + armReach * 0.7, -size * 0.28, size * 0.03, size * 0.12);
-  ctx.fillRect(size * 0.15 + armReach * 0.8, size * 0.38, size * 0.025, size * 0.1);
-
-  // Head — tilted, menacing
-  ctx.fillStyle = isTank ? '#b02020' : isMutant ? '#8a3aa0' : '#558010';
+  // Jaw
+  ctx.fillStyle = isTank ? '#3a0808' : isMutant ? '#2a103a' : '#1a2a08';
   ctx.beginPath();
-  ctx.arc(0, 0, size * 0.32, 0, Math.PI * 2);
+  ctx.arc(size * 0.08, size * 0.05, size * 0.14, 0, Math.PI * 2);
   ctx.fill();
 
-  // Jaw torn open
-  ctx.fillStyle = isTank ? '#5a0a0a' : isMutant ? '#3a1a4a' : '#2a3a0a';
-  ctx.beginPath();
-  ctx.arc(size * 0.08, size * 0.05, size * 0.15, 0, Math.PI * 2);
-  ctx.fill();
-  // Teeth
-  ctx.fillStyle = '#ddd';
-  for (let i = 0; i < 4; i++) {
-    ctx.fillRect(size * 0.02 + i * size * 0.05, size * 0.02, size * 0.03, size * 0.05);
-  }
-
-  // Glowing eyes — intense predator stare
+  // Glowing eyes — single shadow call
   const eyeColor = isTank ? '#fbbf24' : isMutant ? '#c084fc' : '#ef4444';
   ctx.fillStyle = eyeColor;
   ctx.shadowColor = eyeColor;
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 6;
   ctx.beginPath();
-  ctx.arc(size * 0.1, -size * 0.1, size * 0.07, 0, Math.PI * 2);
-  ctx.arc(size * 0.1, size * 0.1, size * 0.07, 0, Math.PI * 2);
+  ctx.arc(size * 0.1, -size * 0.1, size * 0.06, 0, Math.PI * 2);
+  ctx.arc(size * 0.1, size * 0.1, size * 0.06, 0, Math.PI * 2);
   ctx.fill();
-  // Eye glow trail
-  ctx.globalAlpha = 0.3;
-  ctx.beginPath();
-  ctx.arc(size * 0.05, -size * 0.1, size * 0.12, 0, Math.PI * 2);
-  ctx.arc(size * 0.05, size * 0.1, size * 0.12, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
 
   ctx.restore();
 
-  // Tank extra details — pulsing aura
+  // Tank aura ring (single stroke, no shadow)
   if (isTank) {
     ctx.strokeStyle = '#fbbf24';
     ctx.lineWidth = 2;
-    ctx.shadowColor = '#fbbf24';
-    ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.arc(0, 0, size * 0.65, 0, Math.PI * 2);
+    ctx.arc(0, 0, size * 0.6, 0, Math.PI * 2);
     ctx.stroke();
-    // Spikes on back
-    ctx.fillStyle = '#fbbf24';
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * size * 0.5, Math.sin(a) * size * 0.5);
-      ctx.lineTo(Math.cos(a) * size * 0.7, Math.sin(a) * size * 0.7);
-      ctx.lineTo(Math.cos(a + 0.15) * size * 0.5, Math.sin(a + 0.15) * size * 0.5);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
-  }
-
-  // Mutant extra — pulsing veins
-  if (isMutant) {
-    ctx.strokeStyle = 'rgba(192,132,252,0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 4;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(-size * 0.3, -size * 0.2 + i * size * 0.15);
-      ctx.lineTo(size * 0.1, -size * 0.1 + i * size * 0.15);
-      ctx.stroke();
-    }
-    ctx.shadowBlur = 0;
   }
 
   ctx.restore();

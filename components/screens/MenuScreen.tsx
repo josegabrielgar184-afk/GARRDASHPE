@@ -7,19 +7,20 @@ import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionM
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
-  Droplet, Volume2, VolumeX, ShieldCheck, Smartphone, RotateCcw, Download, ShieldAlert,
+  Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
   Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell,
 } from 'lucide-react';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
 } from '@/lib/config';
 import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/lib/performance';
+import { UI_THEMES, type UITheme } from '@/hooks/use-game';
 
 export function MenuScreen() {
   const {
     coins, vip, vipAvailable, vipExpiry, setScreen, logOut,
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
-    bloodEnabled, toggleBlood, orientationMode, setOrientationMode, offerwallConfig, userRole,
+    bloodEnabled, toggleBlood, uiTheme, setUITheme, offerwallConfig, userRole,
     influencerInfo, refreshInfluencerInfo,
     showWelcomeBonus, dismissWelcomeBonus, showReturnReward, dismissReturnReward,
     exchangeNotification, dismissExchangeNotification, campaignProgress,
@@ -373,15 +374,17 @@ export function MenuScreen() {
                 </div>
               </a>
 
+              {/* UI Theme selector */}
               <div className="w-full p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3 mb-3">
-                  <Smartphone className="w-5 h-5 text-[#8a9b50]" />
-                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Orientacion</p><p className="text-[#6b7280] text-xs">Bloqueo manual de rotacion</p></div>
+                  <Palette className="w-5 h-5 text-[#8a9b50]" />
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Color de Interfaz</p><p className="text-[#6b7280] text-xs">Personaliza tu tema</p></div>
                 </div>
-                <div className="flex gap-2">
-                  {(['auto', 'portrait', 'landscape'] as const).map((m) => (
-                    <button key={m} onClick={() => setOrientationMode(m)} className={`flex-1 py-2 rounded-lg font-bold text-xs transition-colors ${orientationMode === m ? 'bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40' : 'tac-btn text-[#6b7280]'}`}>
-                      {m === 'auto' ? 'Auto' : m === 'portrait' ? 'Vertical' : 'Horizontal'}
+                <div className="grid grid-cols-2 gap-2">
+                  {UI_THEMES.map((t) => (
+                    <button key={t.id} onClick={() => setUITheme(t.id as UITheme)} className={`flex items-center gap-2 py-2 px-3 rounded-lg font-bold text-xs transition-colors ${uiTheme === t.id ? 'border' : 'tac-btn text-[#6b7280]'}`} style={uiTheme === t.id ? { background: `${t.primary}20`, color: t.primary, borderColor: `${t.primary}60` } : {}}>
+                      <div className="w-3 h-3 rounded-full" style={{ background: t.primary, boxShadow: `0 0 6px ${t.primary}` }} />
+                      {t.name}
                     </button>
                   ))}
                 </div>

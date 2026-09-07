@@ -10,6 +10,7 @@ import {
   spawnParticles2D, updateParticles2D, drawParticles2D,
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle,
+  drawSoldier2D, drawZombie2D, drawWarzoneBackground,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -31,7 +32,7 @@ function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, l
 const LANE_COUNT = 5;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
-const SPRITE_SCALE = 1.35;
+const SPRITE_SCALE = 1.9;
 
 export function SurvivalScreen() {
   const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch } = useGame();
@@ -54,6 +55,7 @@ export function SurvivalScreen() {
   const survivalTimeRef = useRef(0);
   const survivalCoinTimerRef = useRef(0);
   const coinsEarnedRef = useRef(0);
+  const zombieKillsRef = useRef(0);
   const barricadeHpRef = useRef(100);
   const gameOverRef = useRef(false);
   const shootCooldownRef = useRef(0);
@@ -80,7 +82,7 @@ export function SurvivalScreen() {
     coinPoolRef.current.releaseAll();
     particlesRef.current = [];
     muzzleFlashesRef.current = [];
-    survivalTimeRef.current = 0; coinsEarnedRef.current = 0;
+    survivalTimeRef.current = 0; coinsEarnedRef.current = 0; zombieKillsRef.current = 0;
     barricadeHpRef.current = 100;
     gameOverRef.current = false;
     spawnTimerRef.current = 0; crateTimerRef.current = 0;
@@ -192,13 +194,6 @@ export function SurvivalScreen() {
         survivalTimeRef.current += dt * 16.67;
         setSurvivalTime(Math.floor(survivalTimeRef.current / 1000));
         difficultyRef.current = 1 + survivalTimeRef.current / 30000;
-        // Time-based coin reward: vicio mode gives 50% coins (1 coin per 20s)
-        survivalCoinTimerRef.current += dt;
-        if (survivalCoinTimerRef.current >= 1200) {
-          survivalCoinTimerRef.current = 0;
-          coinsEarnedRef.current += 1; setCoinsEarned(coinsEarnedRef.current);
-          addCoins(1);
-        }
 
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
 
@@ -256,8 +251,13 @@ export function SurvivalScreen() {
               spawnParticles2D(particlesRef.current, b.x, b.y, 4, b.color, 3);
               if (z.hp <= 0) {
                 zombiePoolRef.current.release(z);
-                coinsEarnedRef.current += 1; setCoinsEarned(coinsEarnedRef.current);
-                playCoin();
+                zombieKillsRef.current += 1;
+                if (zombieKillsRef.current >= 4) {
+                  zombieKillsRef.current = 0;
+                  coinsEarnedRef.current += 1; setCoinsEarned(coinsEarnedRef.current);
+                  addCoins(1);
+                  playCoin();
+                }
                 spawnParticles2D(particlesRef.current, z.x, z.y, 10, z.color, 4);
               }
               break;
@@ -307,37 +307,19 @@ export function SurvivalScreen() {
         if (dashY > 0 && dashY < barricadeY) ctx.fillRect(w / 2 - 3, dashY, 6, 20);
       }
 
-      // Draw zombies
+      // Draw zombies (aggressive military zombies via engine2d)
       for (const z of zombiePoolRef.current.getActive()) {
-        ctx.save();
-        ctx.translate(z.x, z.y);
-        const wobble = Math.sin(z.walkCycle) * 4;
-        const armSwing = Math.sin(z.walkCycle + Math.PI / 2) * 6;
-        const s = z.size;
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath(); ctx.ellipse(0, s * 0.8, s * 0.7, s * 0.2, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#4d7c0f';
-        ctx.beginPath(); ctx.roundRect(-s * 0.5, wobble - s * 0.1, s, s * 0.7, 4); ctx.fill();
-        ctx.fillStyle = z.color;
-        ctx.beginPath(); ctx.arc(0, wobble - s * 0.35, s * 0.4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(-s * 0.15, wobble - s * 0.4, s * 0.1, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(s * 0.15, wobble - s * 0.4, s * 0.1, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath(); ctx.arc(-s * 0.13, wobble - s * 0.38, s * 0.05, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(s * 0.17, wobble - s * 0.38, s * 0.05, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = z.color;
-        ctx.lineWidth = Math.max(2, s * 0.12); ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-s * 0.4, wobble + s * 0.1); ctx.lineTo(-s * 0.6, wobble + s * 0.3 + armSwing);
-        ctx.moveTo(s * 0.4, wobble + s * 0.1); ctx.lineTo(s * 0.6, wobble + s * 0.3 - armSwing);
-        ctx.stroke();
+        const isTank = z.type === 'tank';
+        const isMutant = z.type === 'fast';
+        drawZombie2D(ctx, z.x, z.y, Math.PI / 2, z.walkCycle, z.size, z.color, isMutant, isTank);
         if (z.hitFlash > 0) {
+          ctx.save();
           ctx.globalAlpha = z.hitFlash * 0.6; ctx.fillStyle = '#fff';
-          ctx.beginPath(); ctx.arc(0, wobble, s + 4, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(z.x, z.y, z.size + 4, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
         }
-        ctx.restore();
         if (z.hp < z.maxHp) {
+          const s = z.size;
           ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(z.x - s, z.y - s - 10, s * 2, 4);
           ctx.fillStyle = '#ef4444'; ctx.fillRect(z.x - s, z.y - s - 10, s * 2 * (z.hp / z.maxHp), 4);
         }
@@ -361,20 +343,16 @@ export function SurvivalScreen() {
         ctx.restore();
       }
 
-      // Barricade
-      ctx.fillStyle = '#3a2a1a'; ctx.fillRect(0, barricadeY, w, 10);
-      ctx.fillStyle = '#2a1a0a'; for (let i = 0; i < w; i += 14) { ctx.fillRect(i, barricadeY, 7, 10); }
+      // Barricade (sandbag style)
+      ctx.fillStyle = '#2a2820'; ctx.fillRect(0, barricadeY, w, 10);
+      ctx.fillStyle = '#3a3528'; for (let i = 0; i < w; i += 14) { ctx.fillRect(i, barricadeY, 7, 10); }
+      ctx.strokeStyle = '#4a4636'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, barricadeY - 2); for (let i = 0; i < w; i += 14) { ctx.lineTo(i, barricadeY - 2 + (i % 28 === 0 ? -3 : 0)); } ctx.stroke();
 
-      // Survivor
+      // Survivor (tactical soldier via engine2d)
       const tx = turretXRef.current;
-      ctx.save(); ctx.translate(tx, turretY);
-      const s = 22 * SPRITE_SCALE;
-      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, s * 0.7, s * 0.6, s * 0.15, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = char.color; ctx.beginPath(); ctx.roundRect(-s * 0.4, -s * 0.1, s * 0.8, s * 0.6, 4); ctx.fill();
-      ctx.fillStyle = '#d4a574'; ctx.beginPath(); ctx.arc(0, -s * 0.35, s * 0.3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = char.color; ctx.beginPath(); ctx.arc(0, -s * 0.38, s * 0.32, Math.PI, 0); ctx.fill();
-      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-s * 0.08, -s * 0.5, s * 0.16, s * 0.3);
-      ctx.restore();
+      const breath = Math.sin(now * 0.003) * 1.5;
+      drawSoldier2D(ctx, tx, turretY + breath, -Math.PI / 2, now * 0.003, char.color, false, 'pistol');
 
       // Bullets
       for (const b of bulletPoolRef.current.getActive()) {

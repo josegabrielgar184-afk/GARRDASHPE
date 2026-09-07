@@ -16,6 +16,23 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
+export async function checkMinVersion(): Promise<{ updateRequired: boolean; minVersion: number; currentVersion: number }> {
+  try {
+    const { doc, getDoc: fbGetDoc } = await import('firebase/firestore');
+    const configRef = doc(db, 'config', 'app');
+    const snap = await fbGetDoc(configRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      const minVersion = typeof data.min_version === 'number' ? data.min_version : 1;
+      const currentVersion = (await import('@/lib/config')).APP_VERSION;
+      return { updateRequired: currentVersion < minVersion, minVersion, currentVersion };
+    }
+    return { updateRequired: false, minVersion: 1, currentVersion: 1 };
+  } catch {
+    return { updateRequired: false, minVersion: 1, currentVersion: 1 };
+  }
+}
+
 export async function verificarYCrearUsuario(user: any) {
   if (!user) return;
   const userRef = doc(db, "usuarios", user.uid);
