@@ -34,8 +34,26 @@ export function shouldRenderShadows(): boolean {
 export function getParticleLimit(): number {
   const tier = getPerformanceTier();
   if (tier === 'low') return 0;
-  if (tier === 'medium') return 30;
-  return 80;
+  if (tier === 'medium') return 15;
+  return 60;
+}
+
+export function getRenderScale(): number {
+  const tier = getPerformanceTier();
+  if (tier === 'low') return 0.6;
+  if (tier === 'medium') return 0.8;
+  return 1;
+}
+
+export function shouldReduceMotion(): boolean {
+  return getPerformanceTier() === 'low';
+}
+
+export function getTargetFPS(): number {
+  const tier = getPerformanceTier();
+  if (tier === 'low') return 30;
+  if (tier === 'medium') return 45;
+  return 60;
 }
 
 export function shouldSimplifySprites(): boolean {

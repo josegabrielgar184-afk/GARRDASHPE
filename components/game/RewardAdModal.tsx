@@ -54,6 +54,7 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
     closedRef.current = false;
 
     let cancelled = false;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
     (async () => {
       const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
@@ -84,7 +85,18 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
         });
 
         const useAdId = adId || ids.ruletaId || ids.revivirId;
+
+        // Timeout: if ad doesn't load in 12s, show error instead of black screen
+        timeoutHandle = setTimeout(() => {
+          if (cancelled) return;
+          try { rewardListener.remove(); dismissListener.remove(); } catch {}
+          setErrorMsg('El anuncio tardó demasiado en cargar. Revisa tu conexión e intenta de nuevo.');
+          setPhase('error');
+        }, 12000);
+
         await AdMob.prepareRewardVideoAd({ adId: useAdId });
+
+        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
 
         if (cancelled) {
           rewardListener.remove();
@@ -98,8 +110,9 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
         rewardListener.remove();
         dismissListener.remove();
       } catch {
+        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
         if (!cancelled) {
-          setErrorMsg('No se pudo cargar el anuncio. Intenta de nuevo.');
+          setErrorMsg('No se pudo cargar el anuncio. Verifica tu conexión a internet e intenta de nuevo.');
           setPhase('error');
         }
       }
@@ -107,6 +120,7 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
 
     return () => {
       cancelled = true;
+      if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
     };
   }, [open, adId, userRole, vip]);
 

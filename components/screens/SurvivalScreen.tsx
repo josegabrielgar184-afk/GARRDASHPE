@@ -34,8 +34,8 @@ const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.9;
-const TOWER_MAX_HP = 350;
-const CASTLE_MAX_HP = 500;
+const TOWER_MAX_HP = 250;
+const CASTLE_MAX_HP = 350;
 
 export function SurvivalScreen() {
   const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch } = useGame();
@@ -251,7 +251,7 @@ export function SurvivalScreen() {
           }
 
           if (z.y > barricadeY - z.size) {
-            const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : 15;
+            const dmg = z.type === 'tank' ? 40 : z.type === 'fast' ? 20 : 25;
             // Determine which structure to damage based on x position
             const { w } = canvasSizeRef.current;
             const leftTowerX = w * 0.15;

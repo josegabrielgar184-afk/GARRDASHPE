@@ -91,15 +91,15 @@ export function CanjesScreen() {
         </div>
 
         <div className="max-w-md mx-auto">
-          {/* Balance - stencil style */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="rounded-none bg-[#1a1a28] border-l-4 border-amber-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
-              <Coins className="w-5 h-5 text-amber-400" />
-              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
+          {/* Balance - clean modern cards */}
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="rounded-xl bg-gradient-to-b from-[#1a1a28] to-[#0f1520] border border-amber-500/20 p-4 flex items-center gap-3 shadow-lg">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center"><Coins className="w-5 h-5 text-amber-400" /></div>
+              <div><p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Monedas</p><p className="text-amber-400 font-black text-lg">{coins.toLocaleString()}</p></div>
             </div>
-            <div className="rounded-none bg-[#1a1a28] border-l-4 border-cyan-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
-              <Key className="w-5 h-5 text-cyan-400" />
-              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Llaves</p><p className="text-cyan-400 font-bold">{campaignProgress.keys}</p></div>
+            <div className="rounded-xl bg-gradient-to-b from-[#1a1a28] to-[#0f1520] border border-cyan-500/20 p-4 flex items-center gap-3 shadow-lg">
+              <div className="w-10 h-10 rounded-lg bg-cyan-500/15 flex items-center justify-center"><Key className="w-5 h-5 text-cyan-400" /></div>
+              <div><p className="text-white/40 text-[10px] uppercase tracking-wider font-bold">Llaves</p><p className="text-cyan-400 font-black text-lg">{campaignProgress.keys}</p></div>
             </div>
           </div>
 
@@ -207,48 +207,44 @@ export function CanjesScreen() {
             </div>
           )}
 
-          {/* New canje form - stencil style */}
-          <div className="rounded-none bg-[#1a1a28] border-l-4 border-cyan-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-            <h2 className="text-white font-black mb-4 uppercase tracking-widest flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400" /> Solicitar Canje</h2>
+          {/* New canje form - clean modern design */}
+          <div className="rounded-2xl bg-gradient-to-b from-[#1a1a28] to-[#0f1520] border border-cyan-500/20 p-5 shadow-xl">
+            <h2 className="text-white font-black mb-1 uppercase tracking-widest flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-cyan-400" /> Solicitar Canje</h2>
+            <p className="text-white/40 text-xs mb-4">Selecciona tu recompensa e ingresa tus datos</p>
 
-            {/* Game badge */}
-            <div className="mb-3 flex items-center gap-2 rounded-none bg-[#0f1520] border-l-4 border-orange-500/60 p-3" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
-              <span className="text-2xl">🔥</span>
-              <span className="text-white font-bold text-sm uppercase tracking-wide">Canje de Diamantes</span>
-            </div>
-
-            {/* Reward select */}
-            <label className="text-white/60 text-xs font-medium mb-1 block uppercase tracking-wider">Recompensa</label>
-            <div className="space-y-2 mb-3">
+            {/* Reward cards - clean grid */}
+            <label className="text-white/60 text-xs font-bold mb-2 block uppercase tracking-wider">Recompensa de Diamantes</label>
+            <div className="grid grid-cols-2 gap-3 mb-5">
               {CANJE_REWARDS.map((r) => {
                 const canAfford = coins >= r.coinCost && campaignProgress.keys >= r.keyCost;
                 return (
-                  <button key={r.id} onClick={() => setSelectedReward(r.id)} disabled={!canAfford} className={`w-full p-3 rounded-none text-left transition-colors border-l-4 ${selectedReward === r.id ? 'bg-cyan-500/20 border-cyan-500' : 'bg-background/40 border-border'} ${!canAfford ? 'opacity-40' : ''}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white font-bold text-sm uppercase tracking-wide">{r.label}</span>
+                  <button key={r.id} onClick={() => setSelectedReward(r.id)} disabled={!canAfford} className={`p-4 rounded-xl text-left transition-all border-2 ${selectedReward === r.id ? 'bg-cyan-500/15 border-cyan-500 shadow-lg shadow-cyan-500/20 scale-[1.02]' : 'bg-[#0f1520] border-white/10 hover:border-cyan-500/30'} ${!canAfford ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-black text-lg uppercase">{r.label}</span>
+                      {selectedReward === r.id && <CheckCircle2 className="w-4 h-4 text-cyan-400" />}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[10px]">
-                      <span className="text-amber-400 flex items-center gap-1"><Coins className="w-3 h-3" /> {r.coinCost.toLocaleString()}</span>
-                      <span className="text-cyan-400 flex items-center gap-1"><Key className="w-3 h-3" /> {r.keyCost}</span>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-amber-400 flex items-center gap-1 font-bold"><Coins className="w-3 h-3" /> {r.coinCost.toLocaleString()}</span>
+                      {r.keyCost > 0 && <span className="text-cyan-400 flex items-center gap-1 font-bold"><Key className="w-3 h-3" /> {r.keyCost}</span>}
                     </div>
                   </button>
                 );
               })}
             </div>
 
-            {/* Player ID - beveled edges */}
-            <div className="space-y-3 mb-3">
+            {/* Input fields - clean aligned */}
+            <div className="space-y-4 mb-5">
               <div>
-                <label className="text-white/60 text-xs font-medium mb-1 block uppercase tracking-wider">Player ID *</label>
-                <input type="text" value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="Ej: 1234567890" className="w-full px-4 py-2.5 rounded-none bg-[#0f1520] border-2 border-cyan-500/30 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all" style={{ clipPath: 'polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }} />
+                <label className="text-white/60 text-xs font-bold mb-1.5 block uppercase tracking-wider">Player ID *</label>
+                <input type="text" value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="Ej: 1234567890" className="w-full px-4 py-3 rounded-xl bg-[#0f1520] border-2 border-cyan-500/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all placeholder:text-white/20" />
               </div>
               <div>
-                <label className="text-white/60 text-xs font-medium mb-1 block uppercase tracking-wider">In-Game Nickname *</label>
-                <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-2.5 rounded-none bg-[#0f1520] border-2 border-cyan-500/30 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all" style={{ clipPath: 'polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }} />
+                <label className="text-white/60 text-xs font-bold mb-1.5 block uppercase tracking-wider">In-Game Nickname *</label>
+                <input type="text" value={nick} onChange={(e) => setNick(e.target.value)} placeholder="Ej: ProGamer123" className="w-full px-4 py-3 rounded-xl bg-[#0f1520] border-2 border-cyan-500/20 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400/50 focus:border-cyan-400 transition-all placeholder:text-white/20" />
               </div>
             </div>
 
-            <button onClick={handleSubmit} disabled={submitting} className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
+            <button onClick={handleSubmit} disabled={submitting} className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 text-white font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-cyan-500/20">
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Coins className="w-5 h-5" />}
               {submitting ? 'Enviando...' : `Canjear ${reward.label}`}
             </button>

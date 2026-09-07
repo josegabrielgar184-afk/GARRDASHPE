@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown, Crown, Calendar, Globe, User, Heart, Baby, Infinity as InfinityIcon, History } from 'lucide-react';
+import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown, Crown, Calendar, Globe, User, Heart, Baby, Infinity as InfinityIcon } from 'lucide-react';
 
 export function RankingScreen() {
   const {
@@ -12,10 +12,9 @@ export function RankingScreen() {
     loadMoreRanking, hasMoreRanking, playerName, currentUserRank, currentUserScore,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival' | 'monthly'>('weekly');
+  const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival'>('weekly');
   const [gameTab, setGameTab] = useState<'space' | 'zombie'>('space');
   const [loading, setLoading] = useState(false);
-  const [monthlyChampions, setMonthlyChampions] = useState<Array<{ name: string; score: number; month: string }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showArrow, setShowArrow] = useState(false);
 
@@ -24,25 +23,7 @@ export function RankingScreen() {
   }, [mainTab, gameTab]);
 
   useEffect(() => {
-    if (mainTab === 'monthly') {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem('monthlyChampions') : null;
-      if (stored) {
-        try { setMonthlyChampions(JSON.parse(stored)); } catch {}
-      }
-      const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const now = new Date();
-      const currentMonth = `${months[now.getMonth()]} ${now.getFullYear()}`;
-      if (weeklyRanking.length > 0 && weeklyRanking[0]) {
-        const champ = { name: weeklyRanking[0].name, score: weeklyRanking[0].score, month: currentMonth };
-        setMonthlyChampions((prev) => {
-          const filtered = prev.filter((c) => c.month !== currentMonth);
-          const updated = [champ, ...filtered].slice(0, 12);
-          if (typeof window !== 'undefined') localStorage.setItem('monthlyChampions', JSON.stringify(updated));
-          return updated;
-        });
-      }
-    }
-  }, [mainTab, weeklyRanking]);
+}, [mainTab, weeklyRanking]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -55,7 +36,7 @@ export function RankingScreen() {
     return () => el.removeEventListener('scroll', check);
   }, [loading, mainTab, gameTab]);
 
-  const ranking = mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (zombieRanking) : mainTab === 'monthly' ? [] : (gameTab === 'space' ? spaceRanking : zombieRanking);
+  const ranking = mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (zombieRanking) : (gameTab === 'space' ? spaceRanking : zombieRanking);
   const getMedalColor = (i: number) => i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-white/30';
 
   const handleLoadMore = async () => {
@@ -66,7 +47,7 @@ export function RankingScreen() {
     }
   };
 
-  const canLoadMore = mainTab === 'weekly' ? hasMoreRanking('weekly') : mainTab === 'survival' || mainTab === 'monthly' ? false : hasMoreRanking(gameTab);
+  const canLoadMore = mainTab === 'weekly' ? hasMoreRanking('weekly') : mainTab === 'survival' ? false : hasMoreRanking(gameTab);
 
   const getLevelColor = (level: number): string | null => {
     if (level === 4) return '#ef4444';
@@ -103,9 +84,6 @@ export function RankingScreen() {
             <button onClick={() => setMainTab('global')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 ${mainTab === 'global' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-card border border-border text-white/50'}`}>
               <Globe className="w-3.5 h-3.5" />Global
             </button>
-            <button onClick={() => setMainTab('monthly')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 ${mainTab === 'monthly' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40 shadow-lg shadow-purple-500/10' : 'bg-card border border-border text-white/50'}`}>
-              <History className="w-3.5 h-3.5" />Mensual
-            </button>
             <button onClick={() => setMainTab('survival')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 ${mainTab === 'survival' ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-lg shadow-red-500/10' : 'bg-card border border-border text-white/50'}`}>
               <InfinityIcon className="w-3.5 h-3.5" />Superv.
             </button>
@@ -122,11 +100,6 @@ export function RankingScreen() {
             </div>
           )}
 
-          {mainTab === 'monthly' && (
-            <div className="text-center mb-3">
-              <p className="text-purple-400/60 text-xs flex items-center justify-center gap-1"><History className="w-3 h-3" /> Histórico de Campeones Mensuales — #1 de cada mes</p>
-            </div>
-          )}
           {mainTab === 'survival' && (
             <div className="text-center mb-3">
               <p className="text-red-400/60 text-xs flex items-center justify-center gap-1"><Skull className="w-3 h-3" /> Ranking del Camino del Vicio - Mejores tiempos de supervivencia</p>
@@ -148,33 +121,7 @@ export function RankingScreen() {
               <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-3" />
               <p className="text-white/40 text-sm">Consultando Firebase...</p>
             </div>
-          ) : mainTab === 'monthly' ? (
-            monthlyChampions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <Crown className="w-10 h-10 text-white/20 mb-3" />
-                <p className="text-white/40 text-sm font-bold mb-1">Sin campeones registrados</p>
-                <p className="text-white/30 text-xs">Los campeones mensuales aparecerán aquí automáticamente</p>
-              </div>
-            ) : (
-              <div ref={scrollRef} className="h-full overflow-y-auto no-scrollbar space-y-2 pb-4">
-                {monthlyChampions.map((champ, i) => (
-                  <div key={i} className={`flex items-center gap-3 rounded-xl p-3 border transition-all animate-fade-in ${i === 0 ? 'bg-gradient-to-r from-purple-900/30 to-card border-purple-500/40 shadow-lg shadow-purple-500/10' : 'bg-card border-border'}`}>
-                    <div className="flex items-center justify-center w-8">
-                      {i === 0 ? <Crown className="w-6 h-6 text-purple-400" /> : <span className="text-white/30 font-bold text-sm">{i + 1}</span>}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-bold text-sm truncate ${i === 0 ? 'text-purple-400' : 'text-white'}`}>{champ.name}</p>
-                      <p className="text-white/30 text-[10px]">{champ.month}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-bold text-sm text-purple-400">{champ.score.toLocaleString()}</p>
-                      <p className="text-white/30 text-[10px]">puntos</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : ranking.length === 0 ? (
+) : ranking.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Trophy className="w-10 h-10 text-white/20 mb-3" />
               <p className="text-white/40 text-sm font-bold mb-1">Aun no hay puntajes</p>

@@ -434,7 +434,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [loggedIn, setLoggedInState] = useState(false);
   const [email, setEmail] = useState('');
   const [playerName, setPlayerName] = useState('');
-  const [topPlayerName, setTopPlayerName] = useState('Cargando...');
+  const [topPlayerName, setTopPlayerName] = useState('Carlos');
   const [topPlayerScore, setTopPlayerScore] = useState(0);
   const [topPlayerAvatar, setTopPlayerAvatar] = useState<string | undefined>(undefined);
   const [absoluteRecord, setAbsoluteRecord] = useState(154820);
@@ -660,7 +660,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const unsub = onSnapshot(topRef, (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          const name = data.name || data.nickname || 'NeonHunter';
+          const name = data.name || data.nickname || 'Carlos';
           const score = data.score || 0;
           const avatar = data.avatar;
           if (score > 0) {
@@ -1312,24 +1312,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const hasMoreRanking = useCallback((_type: 'space' | 'zombie' | 'weekly') => false, []);
 
-  const BOT_NAMES = ['NeonHunter', 'CyberWolf', 'PixelKing', 'StarLord', 'GhostRider', 'DarkPhoenix', 'IronFist', 'ShadowBlade', 'StormBringer', 'VoidWalker', 'FrostByte', 'TurboNinja', 'RogueAce', 'BlazeX', 'NovaStrike'];
-  const BOT_SCORES = [8420, 5190, 3300, 2750, 2100, 1850, 1500, 1200, 980, 750, 600, 450, 320, 200, 100];
-
-  const fillWithBots = useCallback((entries: RankEntry[], field: 'space' | 'zombie' | 'weekly'): RankEntry[] => {
-    if (entries.length >= 15) return entries.slice(0, 15);
-    const realScores = entries.map((e) => e.score);
-    const maxReal = realScores.length > 0 ? Math.max(...realScores) : 0;
-    const bots: RankEntry[] = [];
-    const usedNames = new Set(entries.map((e) => e.name));
-    for (let i = entries.length; i < 15; i++) {
-      let name = BOT_NAMES[i % BOT_NAMES.length];
-      if (usedNames.has(name)) name = `${name}${i}`;
-      usedNames.add(name);
-      const baseScore = BOT_SCORES[i] ?? 50;
-      const botScore = maxReal > baseScore ? Math.max(50, Math.floor(baseScore - Math.random() * 100)) : Math.max(50, Math.floor(baseScore * (1 - i * 0.05) - Math.random() * 50));
-      bots.push({ name, score: botScore, uid: `bot_${field}_${i}` });
-    }
-    return [...entries, ...bots].slice(0, 15);
+  const fillWithBots = useCallback((entries: RankEntry[], _field: 'space' | 'zombie' | 'weekly'): RankEntry[] => {
+    return entries.slice(0, 15);
   }, []);
 
   useEffect(() => {

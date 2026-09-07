@@ -78,6 +78,12 @@ const MILESTONES: Record<number, { title: string; coins?: number; shield?: boole
   30: { title: '¡GUARDIÁN DEL BEBÉ DE LA SUERTE!', shield: true, scoreBoost: true, color: '#60a5fa' },
 };
 
+const SPECIAL_LEVEL_THEMES: Record<number, Partial<ArenaTheme>> = {
+  4: { name: 'Amor Eterno', ground: ['#2a1a2a', '#221220', '#1a0e18'], lane: ['#3a2a3a', '#4a3a4a', '#3a2a3a'], laneEdge: 'rgba(236,72,153,0.5)', laneDash: 'rgba(255,200,255,0.4)', center: ['#2a1a2a', '#322030', '#2a1a2a'], divider: 'rgba(236,72,153,0.2)', nest: '#3a1a2a', nestRing: 'rgba(236,72,153,0.4)', nestCore: 'rgba(236,72,153,0.18)' },
+  10: { name: 'Bebé de la Suerte', ground: ['#1a1a2e', '#161628', '#101020'], lane: ['#2a2a3e', '#3a3a4e', '#2a2a3e'], laneEdge: 'rgba(96,165,250,0.5)', laneDash: 'rgba(200,220,255,0.4)', center: ['#1a1a2e', '#222238', '#1a1a2e'], divider: 'rgba(96,165,250,0.2)', nest: '#2a2a3e', nestRing: 'rgba(96,165,250,0.4)', nestCore: 'rgba(96,165,250,0.18)' },
+  30: { name: 'Bebé de la Suerte', ground: ['#1a1a2e', '#161628', '#101020'], lane: ['#2a2a3e', '#3a3a4e', '#2a2a3e'], laneEdge: 'rgba(96,165,250,0.5)', laneDash: 'rgba(200,220,255,0.4)', center: ['#1a1a2e', '#222238', '#1a1a2e'], divider: 'rgba(96,165,250,0.2)', nest: '#2a2a3e', nestRing: 'rgba(96,165,250,0.4)', nestCore: 'rgba(96,165,250,0.18)' },
+};
+
 
 export function ZombieGameScreen() {
   const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel} = useGame();
@@ -340,7 +346,8 @@ export function ZombieGameScreen() {
     themeIndexRef.current = 0; themeTimerRef.current = 0; setThemeName(COLOR_THEMES[0].name);
     const cl = getCurrentCampaignLevel();
     campaignLevelRef.current = cl; setCampaignLevel(cl);
-    arenaThemeRef.current = getArenaTheme(cl);
+    const specialTheme = SPECIAL_LEVEL_THEMES[cl];
+    arenaThemeRef.current = specialTheme ? { ...getArenaTheme(cl), ...specialTheme } : getArenaTheme(cl);
     reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
@@ -815,9 +822,9 @@ export function ZombieGameScreen() {
         // Continuous zombie + barrel spawning - never pauses, even during boss or ulti (BLOCK 7)
         if (!victoryTriggeredRef.current && !victory) {
           spawnTimerRef.current += dt;
-          const baseInterval = coinsCapped ? 25 : 40;
-          const levelMultiplier = Math.max(1.2, 2.5 - (campaignLevelRef.current - 1) * 0.08);
-          const interval = Math.max(10, baseInterval * levelMultiplier - difficultyRef.current * 2);
+          const baseInterval = coinsCapped ? 18 : 30;
+          const levelMultiplier = Math.max(1.0, 2.0 - (campaignLevelRef.current - 1) * 0.06);
+          const interval = Math.max(8, baseInterval * levelMultiplier - difficultyRef.current * 2);
           const maxActive = Math.floor(MAX_ACTIVE_ZOMBIES_BASE + (campaignLevelRef.current - 1) * MAX_ACTIVE_ZOMBIES_PER_LEVEL);
           if (spawnTimerRef.current > interval && zombiePoolRef.current.getActive().length < maxActive) { spawnZombie(); spawnTimerRef.current = 0; }
           if (scoreRef.current >= miniBossThresholdRef.current) {

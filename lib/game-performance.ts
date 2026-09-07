@@ -112,6 +112,13 @@ export class FPSMonitor {
   }
 }
 
+export function getPoolSize(base: number): number {
+  const tier = (typeof window !== 'undefined' && window.localStorage.getItem('garrdash_perf_tier')) || 'high';
+  if (tier === 'low') return Math.max(8, Math.floor(base * 0.4));
+  if (tier === 'medium') return Math.max(12, Math.floor(base * 0.7));
+  return base;
+}
+
 export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
