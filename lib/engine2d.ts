@@ -334,42 +334,66 @@ export function drawZombie2D(
   ctx.fillRect(-size * 0.15, -size * 0.1 + legSwing, size * 0.12, size * 0.35);
   ctx.fillRect(size * 0.03, size * 0.1 - legSwing, size * 0.12, size * 0.35);
 
-  // Torso (slightly hunched, clean)
+  // Torso (slightly hunched, defined silhouette)
   ctx.save();
   ctx.rotate(0.08);
-  ctx.fillStyle = color;
+  // Dark military green body
+  const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2d4010';
+  ctx.fillStyle = bodyColor;
   ctx.beginPath();
-  ctx.ellipse(0, 0, size * 0.35, size * 0.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, size * 0.32, size * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Darker chest detail
+  ctx.fillStyle = isTank ? '#2a0a0a' : isMutant ? '#1a1a2a' : '#1a2a08';
+  ctx.fillRect(-size * 0.18, -size * 0.12, size * 0.36, size * 0.1);
+  // Body outline for definition
+  ctx.strokeStyle = isTank ? '#5a2a2a' : isMutant ? '#4a4a5a' : '#3a5018';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.32, size * 0.38, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Arms reaching forward (defined)
+  ctx.fillStyle = bodyColor;
+  const armReach = size * 0.42;
+  ctx.fillRect(size * 0.1, -size * 0.22, armReach, size * 0.07);
+  ctx.fillRect(size * 0.1, size * 0.15, armReach, size * 0.07);
+  // Arm outlines
+  ctx.strokeStyle = isTank ? '#5a2a2a' : isMutant ? '#4a4a5a' : '#3a5018';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(size * 0.1, -size * 0.22, armReach, size * 0.07);
+  ctx.strokeRect(size * 0.1, size * 0.15, armReach, size * 0.07);
+
+  // Head (darker green, defined)
+  ctx.fillStyle = isTank ? '#5a2020' : isMutant ? '#4a2a5a' : '#2a4008';
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Head outline
+  ctx.strokeStyle = isTank ? '#7a3030' : isMutant ? '#6a3a7a' : '#3a5018';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Jaw (dark)
+  ctx.fillStyle = isTank ? '#1a0404' : isMutant ? '#0a0a1a' : '#0a1804';
+  ctx.beginPath();
+  ctx.arc(size * 0.05, size * 0.04, size * 0.09, 0, Math.PI * 2);
   ctx.fill();
 
-  // Torn shirt
-  ctx.fillStyle = isTank ? '#2a0808' : isMutant ? '#1a0a2a' : '#1a2a08';
-  ctx.fillRect(-size * 0.2, -size * 0.15, size * 0.4, size * 0.12);
-
-  // Arms reaching forward
-  ctx.fillStyle = color;
-  const armReach = size * 0.4;
-  ctx.fillRect(size * 0.1, -size * 0.25, armReach, size * 0.08);
-  ctx.fillRect(size * 0.1, size * 0.17, armReach, size * 0.08);
-
-  // Head (simple clean circle)
-  ctx.fillStyle = isTank ? '#7a2020' : isMutant ? '#5a2a7a' : '#3a6010';
-  ctx.beginPath();
-  ctx.arc(0, 0, size * 0.22, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Jaw
-  ctx.fillStyle = isTank ? '#2a0808' : isMutant ? '#1a0a2a' : '#1a2a08';
-  ctx.beginPath();
-  ctx.arc(size * 0.06, size * 0.04, size * 0.1, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Glowing eyes
-  const eyeColor = isTank ? '#fbbf24' : isMutant ? '#c084fc' : '#ef4444';
+  // Glowing red eyes (bright, defined)
+  const eyeColor = isTank ? '#fbbf24' : isMutant ? '#c084fc' : '#ff1744';
   ctx.fillStyle = eyeColor;
   ctx.beginPath();
-  ctx.arc(size * 0.08, -size * 0.06, size * 0.04, 0, Math.PI * 2);
-  ctx.arc(size * 0.08, size * 0.06, size * 0.04, 0, Math.PI * 2);
+  ctx.arc(size * 0.07, -size * 0.05, size * 0.045, 0, Math.PI * 2);
+  ctx.arc(size * 0.07, size * 0.05, size * 0.045, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye glow
+  ctx.fillStyle = `rgba(255,40,80,${isTank ? 0.2 : isMutant ? 0.15 : 0.25})`;
+  ctx.beginPath();
+  ctx.arc(size * 0.07, -size * 0.05, size * 0.08, 0, Math.PI * 2);
+  ctx.arc(size * 0.07, size * 0.05, size * 0.08, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
@@ -2347,21 +2371,26 @@ export function drawTacticalArena(
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  // ── Side lanes (dirt paths) ──
-  ctx.fillStyle = '#1e1c14';
+  // ── Side lanes (asphalt roads) ──
+  const laneGrad = ctx.createLinearGradient(0, 0, laneW, 0);
+  laneGrad.addColorStop(0, '#1a1a1e');
+  laneGrad.addColorStop(0.5, '#222226');
+  laneGrad.addColorStop(1, '#1a1a1e');
+  ctx.fillStyle = laneGrad;
   ctx.fillRect(0, 0, laneW, h);
+  ctx.fillStyle = laneGrad;
   ctx.fillRect(w - laneW, 0, laneW, h);
 
-  // Lane edge lines
-  ctx.strokeStyle = 'rgba(120,110,70,0.3)';
-  ctx.lineWidth = 1;
+  // Lane edge lines (bright tactical markings)
+  ctx.strokeStyle = 'rgba(138,155,80,0.5)';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(laneW, 0); ctx.lineTo(laneW, h);
   ctx.moveTo(w - laneW, 0); ctx.lineTo(w - laneW, h);
   ctx.stroke();
 
-  // Lane dashed center lines (scrolling)
-  ctx.fillStyle = 'rgba(140,130,80,0.15)';
+  // Lane dashed center lines (scrolling, bright yellow)
+  ctx.fillStyle = 'rgba(250,204,60,0.35)';
   for (let i = 0; i < h; i += 36) {
     const dy = ((i + scrollY * 0.5) % (h + 36)) - 18;
     if (dy > 0 && dy < h) {
@@ -2370,87 +2399,153 @@ export function drawTacticalArena(
     }
   }
 
-  // ── Center zone (blocked) ──
-  ctx.fillStyle = '#121008';
-  ctx.fillRect(laneW, 0, w - laneW * 2, h);
-
-  // Center crates / barricades blocking passage
-  const crateSize = Math.min(laneW * 0.8, 28);
+  // ── Center zone (blocked — clean tech barrier) ──
   const centerX = w / 2;
-  for (let row = 0; row < 6; row++) {
-    const cy = 50 + row * (h * 0.13);
-    if (cy > h - 80) break;
-    const offset = row % 2 === 0 ? 0 : crateSize * 0.5;
-    for (let cx = laneW + 8 + offset; cx < w - laneW - crateSize - 8; cx += crateSize + 6) {
-      ctx.fillStyle = '#3a2a18';
-      ctx.fillRect(cx, cy, crateSize, crateSize);
-      ctx.fillStyle = '#4a3a22';
-      ctx.fillRect(cx + 2, cy + 2, crateSize - 4, crateSize - 4);
-      ctx.strokeStyle = '#2a1a08';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cx, cy, crateSize, crateSize);
+  const centerW = w - laneW * 2;
+  // Dark concrete base
+  const centerGrad = ctx.createLinearGradient(laneW, 0, w - laneW, 0);
+  centerGrad.addColorStop(0, '#0a0a0c');
+  centerGrad.addColorStop(0.5, '#0e0e12');
+  centerGrad.addColorStop(1, '#0a0a0c');
+  ctx.fillStyle = centerGrad;
+  ctx.fillRect(laneW, 0, centerW, h);
+
+  // Neon energy barrier line down the center (pulsing)
+  const barrierPulse = 0.4 + Math.sin(scrollY * 0.04) * 0.15;
+  ctx.strokeStyle = `rgba(34,211,238,${barrierPulse})`;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(centerX, 35); ctx.lineTo(centerX, h - 20);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Barrier segments (tech pillars every ~80px)
+  ctx.fillStyle = '#1a1a20';
+  for (let py = 45; py < h - 25; py += 80) {
+    ctx.fillRect(centerX - 6, py, 12, 30);
+    ctx.fillStyle = '#2a2a30';
+    ctx.fillRect(centerX - 5, py + 1, 10, 28);
+    // Neon core dot
+    ctx.fillStyle = `rgba(34,211,238,${barrierPulse * 0.8})`;
+    ctx.fillRect(centerX - 2, py + 12, 4, 6);
+    ctx.fillStyle = '#1a1a20';
+  }
+  // Faint hex pattern overlay
+  ctx.strokeStyle = 'rgba(34,211,238,0.04)';
+  ctx.lineWidth = 1;
+  for (let py = 0; py < h; py += 20) {
+    for (let px = laneW + 10; px < w - laneW - 10; px += 18) {
       ctx.beginPath();
-      ctx.moveTo(cx, cy + crateSize * 0.5);
-      ctx.lineTo(cx + crateSize, cy + crateSize * 0.5);
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
 
-  // ── River (horizontal band crossing both lanes) ──
+  // ── River (bright cyan neon water) ──
   const riverGrad = ctx.createLinearGradient(0, riverY, 0, riverY + riverH);
-  riverGrad.addColorStop(0, '#0a1a2a');
-  riverGrad.addColorStop(0.5, '#0d2538');
-  riverGrad.addColorStop(1, '#0a1a2a');
+  riverGrad.addColorStop(0, '#0891b2');
+  riverGrad.addColorStop(0.3, '#06b6d4');
+  riverGrad.addColorStop(0.5, '#22d3ee');
+  riverGrad.addColorStop(0.7, '#06b6d4');
+  riverGrad.addColorStop(1, '#0891b2');
   ctx.fillStyle = riverGrad;
   ctx.fillRect(0, riverY, w, riverH);
 
-  // River ripples
-  ctx.strokeStyle = 'rgba(80,140,180,0.15)';
+  // River glow edges
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = 'rgba(165,243,252,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, riverY); ctx.lineTo(w, riverY);
+  ctx.moveTo(0, riverY + riverH); ctx.lineTo(w, riverY + riverH);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // River wave ripples (bright animated)
+  ctx.strokeStyle = 'rgba(207,250,254,0.4)';
   ctx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
-    const ry = riverY + riverH * (0.25 + i * 0.25);
+  for (let i = 0; i < 4; i++) {
+    const ry = riverY + riverH * (0.15 + i * 0.22);
     ctx.beginPath();
-    for (let x = 0; x < w; x += 8) {
-      const wave = Math.sin((x + scrollY * 2 + i * 20) * 0.05) * 1.5;
+    for (let x = 0; x < w; x += 6) {
+      const wave = Math.sin((x + scrollY * 2 + i * 25) * 0.06) * 2;
       if (x === 0) ctx.moveTo(x, ry + wave);
       else ctx.lineTo(x, ry + wave);
     }
     ctx.stroke();
   }
-
-  // ── Wooden bridges over river (at each lane) ──
-  for (const cx of [leftCx, rightCx]) {
-    const bw = laneW * 0.9;
-    const bx = cx - bw * 0.5;
-    // Bridge deck
-    ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(bx, riverY - 2, bw, riverH + 4);
-    ctx.fillStyle = '#6a4a2a';
-    ctx.fillRect(bx + 1, riverY, bw - 2, riverH);
-    // Plank lines
-    ctx.strokeStyle = '#3a2a10';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
-      const px = bx + (i + 0.5) * (bw / 5);
-      ctx.beginPath();
-      ctx.moveTo(px, riverY);
-      ctx.lineTo(px, riverY + riverH);
-      ctx.stroke();
-    }
-    // Bridge railings
-    ctx.strokeStyle = '#4a3010';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(bx, riverY - 2); ctx.lineTo(bx + bw, riverY - 2);
-    ctx.moveTo(bx, riverY + riverH + 2); ctx.lineTo(bx + bw, riverY + riverH + 2);
-    ctx.stroke();
+  // Sparkle dots on water
+  ctx.fillStyle = 'rgba(207,250,254,0.5)';
+  for (let i = 0; i < 8; i++) {
+    const sx = ((i * 47 + scrollY * 3) % w);
+    const sy = riverY + riverH * (0.2 + (i % 3) * 0.25);
+    ctx.fillRect(sx, sy, 2, 2);
   }
 
-  // Block center at river (no bridge in center)
-  ctx.fillStyle = '#3a2a18';
-  ctx.fillRect(laneW, riverY - 3, w - laneW * 2, riverH + 6);
-  ctx.fillStyle = '#4a3a22';
-  ctx.fillRect(laneW + 2, riverY, w - laneW * 2 - 4, riverH);
+  // ── Wooden bridges over river (detailed planks) ──
+  for (const cx of [leftCx, rightCx]) {
+    const bw = laneW * 0.92;
+    const bx = cx - bw * 0.5;
+    // Bridge shadow on water
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(bx, riverY + riverH - 3, bw, 3);
+    // Bridge deck — light brown wood
+    ctx.fillStyle = '#c8956a';
+    ctx.fillRect(bx, riverY - 3, bw, riverH + 6);
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(bx + 1, riverY - 2, bw - 2, riverH + 4);
+    // Plank grooves (dark separations)
+    ctx.strokeStyle = '#7a5230';
+    ctx.lineWidth = 1.5;
+    const plankCount = 7;
+    for (let i = 1; i < plankCount; i++) {
+      const px = bx + i * (bw / plankCount);
+      ctx.beginPath();
+      ctx.moveTo(px, riverY - 2);
+      ctx.lineTo(px, riverY + riverH + 2);
+      ctx.stroke();
+    }
+    // Wood grain lines
+    ctx.strokeStyle = 'rgba(180,130,80,0.3)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      const gy = riverY + riverH * (0.25 + i * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(bx + 2, gy); ctx.lineTo(bx + bw - 2, gy);
+      ctx.stroke();
+    }
+    // Bridge railings — dark brown posts
+    ctx.fillStyle = '#5a3a18';
+    ctx.fillRect(bx - 2, riverY - 5, 4, riverH + 10);
+    ctx.fillRect(bx + bw - 2, riverY - 5, 4, riverH + 10);
+    // Railing top bar
+    ctx.fillStyle = '#7a5230';
+    ctx.fillRect(bx - 2, riverY - 5, bw + 4, 3);
+    ctx.fillRect(bx - 2, riverY + riverH + 2, bw + 4, 3);
+    // Metal bolts on planks
+    ctx.fillStyle = '#4a3010';
+    for (let i = 0; i <= plankCount; i++) {
+      const px = bx + i * (bw / plankCount);
+      ctx.beginPath(); ctx.arc(px, riverY - 1, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px, riverY + riverH + 1, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Center barrier at river (no bridge — energy wall)
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(laneW, riverY - 4, centerW, riverH + 8);
+  // Neon energy field across center river section
+  ctx.fillStyle = `rgba(34,211,238,${0.15 + barrierPulse * 0.1})`;
+  ctx.fillRect(laneW, riverY - 2, centerW, riverH + 4);
+  ctx.strokeStyle = `rgba(165,243,252,${0.3 + barrierPulse * 0.2})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(laneW, riverY - 2); ctx.lineTo(w - laneW, riverY - 2);
+  ctx.moveTo(laneW, riverY + riverH + 2); ctx.lineTo(w - laneW, riverY + riverH + 2);
+  ctx.stroke();
 
   // ── Zombie nest (top center) ──
   ctx.fillStyle = '#2a1a0a';
