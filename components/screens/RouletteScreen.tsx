@@ -48,7 +48,6 @@ export function RouletteScreen() {
   const [showInterstitial, setShowInterstitial] = useState(false);
   const [adSpins, setAdSpins] = useState(0);
   const rotationRef = useRef(0);
-  const adDebounceRef = useRef(0);
   const confettiIdRef = useRef(0);
   const renderGlow = getPerformanceTier() === 'high';
 
@@ -199,7 +198,6 @@ export function RouletteScreen() {
             </div>
           )}
 
-          {/* Wheel container */}
           <div className="relative w-72 h-72 mb-6">
             {renderGlow && (
               <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
@@ -287,7 +285,7 @@ export function RouletteScreen() {
           onReward={handleRewardAdComplete}
           title="Giro Extra por Anuncio"
           rewardText="Termina de ver el anuncio para ganar 1 giro extra"
-          adId={ADMOB_CONFIG.rewarded || ''}
+          adId={(ADMOB_CONFIG as any).rewarded || (ADMOB_CONFIG as any).ruletaId || ''}
           userRole={userRole}
           vip={vip}
         />
