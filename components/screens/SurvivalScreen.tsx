@@ -11,6 +11,7 @@ import {
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle,
   drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
+  getArenaLaneX, getArenaLaneBounds,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -125,7 +126,7 @@ export function SurvivalScreen() {
 
   const getLaneX = (lane: number) => {
     const { w } = canvasSizeRef.current;
-    return (w / LANE_COUNT) * (lane + 0.5);
+    return getArenaLaneX(lane, w);
   };
 
   const shoot = useCallback(() => {
@@ -157,7 +158,7 @@ export function SurvivalScreen() {
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
-    z.vx = type === 'fast' ? rand(-1.0, 1.0) : 0;
+    z.vx = 0;
     z.vy = vy * char.speedMult; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, [char]);
@@ -231,10 +232,11 @@ export function SurvivalScreen() {
 
         for (const z of zombiePoolRef.current.getActive()) {
           z.y += z.vy * dt;
-          if (z.type === 'fast') z.x += z.vx * dt;
-          if (z.x < 20 || z.x > w - 20) z.vx *= -1;
-          z.walkCycle += dt * 0.3;
+          z.walkCycle += dt * 0.35;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
+          // Keep zombies in their lane
+          const bounds = getArenaLaneBounds(z.x < canvasSizeRef.current.w / 2 ? 0 : 1, canvasSizeRef.current.w);
+          z.x = clamp(z.x, bounds.min, bounds.max);
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : 15;

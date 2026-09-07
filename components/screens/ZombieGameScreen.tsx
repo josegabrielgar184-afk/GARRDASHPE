@@ -13,6 +13,7 @@ import {
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle, drawMetallicCoin,
   drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
+  getArenaLaneX, getArenaLaneBounds,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -365,7 +366,7 @@ export function ZombieGameScreen() {
 
   const getLaneX = (lane: number) => {
     const { w } = canvasSizeRef.current;
-    return (w / LANE_COUNT) * (lane + 0.5);
+    return getArenaLaneX(lane, w);
   };
 
   const shoot = useCallback(() => {
@@ -419,7 +420,7 @@ export function ZombieGameScreen() {
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
-    z.vx = type === 'fast' ? rand(-1.0, 1.0) : 0;
+    z.vx = 0;
     z.vy = vy * speedMultRef.current; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, []);
@@ -432,7 +433,7 @@ export function ZombieGameScreen() {
     const waveMult = 1 + waveIdx * 0.35;
     const zHp = Math.floor((2000 + (level - 1) * 500) * waveMult);
     const boss = zombiePoolRef.current.acquire();
-    boss.x = w / 2; boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02) * (1 + waveIdx * 0.15); boss.vx = 0; boss.walkCycle = 0;
+    boss.x = getLaneX(Math.random() < 0.5 ? 0 : 1); boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02) * (1 + waveIdx * 0.15); boss.vx = 0; boss.walkCycle = 0;
     boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#65a30d'; boss.type = 'boss'; boss.hitFlash = 0;
     bossRef.current = boss;
     setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp);
@@ -841,10 +842,11 @@ export function ZombieGameScreen() {
 
         for (const z of zombiePoolRef.current.getActive()) {
           z.y += z.vy * dt;
-          if (z.type === 'fast') z.x += z.vx * dt;
-          if (z.x < 20 || z.x > w - 20) z.vx *= -1;
-          z.walkCycle += dt * 0.3;
+          z.walkCycle += dt * 0.35;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
+          // Keep zombies in their lane
+          const bounds = getArenaLaneBounds(z.x < canvasSizeRef.current.w / 2 ? 0 : 1, canvasSizeRef.current.w);
+          z.x = clamp(z.x, bounds.min, bounds.max);
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
