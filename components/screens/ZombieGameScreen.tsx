@@ -48,8 +48,8 @@ const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.9;
-const TOWER_MAX_HP = 200;
-const CASTLE_MAX_HP = 300;
+const TOWER_MAX_HP = 350;
+const CASTLE_MAX_HP = 500;
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
   pistol: '#fbbf24', rifle: '#22d3ee', shotgun: '#f87171', minigun: '#f97316', laser: '#a855f7',
@@ -70,7 +70,7 @@ const COLOR_THEMES = [
   { name: 'Morado Oscuro', road: '#1a0a1a', fog: 'rgba(150,50,255,0.12)', border: '#7c3aed', dash: 'rgba(220,200,255,0.6)' },
 ];
 
-const BULLET_MAX_Y_RATIO = 0.46;
+const BULLET_MAX_Y_RATIO = 0.28;
 
 const MILESTONES: Record<number, { title: string; coins?: number; shield?: boolean; scoreBoost?: boolean; color: string }> = {
   4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 15, color: '#ec4899' },
@@ -806,7 +806,9 @@ export function ZombieGameScreen() {
           }
         }
 
-        difficultyRef.current = 0.3 + scoreRef.current / 1000;
+        // Progressive difficulty: increases over time (score-based) + per-level base
+        const timeMinutes = playTimeRef.current / 60000;
+        difficultyRef.current = 0.3 + scoreRef.current / 1000 + timeMinutes * 0.15;
         if (coinsCapped) difficultyRef.current *= 1.3;
 
         // Continuous zombie + barrel spawning - never pauses, even during boss or ulti (BLOCK 7)

@@ -327,23 +327,24 @@ export function drawZombie2D(
 
   ctx.rotate(angle);
 
-  const legSwing = Math.sin(walkCycle) * (size * 0.22);
-  const bodyBob = Math.abs(Math.sin(walkCycle * 2)) * size * 0.05;
-  const torsoSway = Math.sin(walkCycle) * 0.06;
-  const armSwing = Math.sin(walkCycle + Math.PI) * (size * 0.08);
+  // Classic PvZ-style walk: slow lurching sway, arms stretched forward
+  const legSwing = Math.sin(walkCycle) * (size * 0.18);
+  const bodyBob = Math.abs(Math.sin(walkCycle)) * size * 0.06;
+  const torsoSway = Math.sin(walkCycle) * 0.04;
+  const armSway = Math.sin(walkCycle) * (size * 0.03);
 
-  // Legs (marching animation — pronounced stride with hip swing)
+  // Legs (classic shuffling walk — alternating stride)
   ctx.fillStyle = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2a2a1a';
   ctx.fillRect(-size * 0.15, -size * 0.1 + legSwing, size * 0.12, size * 0.35);
   ctx.fillRect(size * 0.03, size * 0.1 - legSwing, size * 0.12, size * 0.35);
-  // Feet (small boots for marching feel)
+  // Feet (small boots)
   ctx.fillStyle = isTank ? '#2a0a0a' : isMutant ? '#1a1a2a' : '#0a1804';
   ctx.fillRect(-size * 0.17, -size * 0.1 + legSwing + size * 0.3, size * 0.14, size * 0.06);
   ctx.fillRect(size * 0.01, size * 0.1 - legSwing + size * 0.3, size * 0.14, size * 0.06);
 
-  // Torso (swaying with walk cycle, bobbing vertically)
+  // Torso (slight hunch, swaying with walk cycle)
   ctx.save();
-  ctx.rotate(0.08 + torsoSway);
+  ctx.rotate(0.06 + torsoSway);
   ctx.translate(0, -bodyBob);
   // Dark military green body
   const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2d4010';
@@ -361,16 +362,24 @@ export function drawZombie2D(
   ctx.ellipse(0, 0, size * 0.32, size * 0.38, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Arms reaching forward (swinging with walk cycle)
+  // Arms stretched forward (classic PvZ zombie pose — both arms reaching ahead)
   ctx.fillStyle = bodyColor;
-  const armReach = size * 0.42;
-  ctx.fillRect(size * 0.1, -size * 0.22 + armSwing, armReach, size * 0.07);
-  ctx.fillRect(size * 0.1, size * 0.15 - armSwing, armReach, size * 0.07);
+  const armReach = size * 0.45;
+  const armW = size * 0.08;
+  // Both arms reach forward (slight sway for walking feel)
+  ctx.fillRect(size * 0.08, -size * 0.18 + armSway, armReach, armW);
+  ctx.fillRect(size * 0.08, size * 0.10 - armSway, armReach, armW);
   // Arm outlines
   ctx.strokeStyle = isTank ? '#5a2a2a' : isMutant ? '#4a4a5a' : '#3a5018';
   ctx.lineWidth = 0.5;
-  ctx.strokeRect(size * 0.1, -size * 0.22 + armSwing, armReach, size * 0.07);
-  ctx.strokeRect(size * 0.1, size * 0.15 - armSwing, armReach, size * 0.07);
+  ctx.strokeRect(size * 0.08, -size * 0.18 + armSway, armReach, armW);
+  ctx.strokeRect(size * 0.08, size * 0.10 - armSway, armReach, armW);
+  // Hands (small circles at end of arms)
+  ctx.fillStyle = isTank ? '#5a2020' : isMutant ? '#4a2a5a' : '#2a4008';
+  ctx.beginPath();
+  ctx.arc(size * 0.08 + armReach, -size * 0.18 + armSway + armW * 0.5, armW * 0.6, 0, Math.PI * 2);
+  ctx.arc(size * 0.08 + armReach, size * 0.10 - armSway + armW * 0.5, armW * 0.6, 0, Math.PI * 2);
+  ctx.fill();
 
   // Head (darker green, defined)
   ctx.fillStyle = isTank ? '#5a2020' : isMutant ? '#4a2a5a' : '#2a4008';

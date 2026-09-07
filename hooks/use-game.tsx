@@ -986,6 +986,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty('--border', `${primaryHsl.split(' ')[0]} 10% 22%`);
     root.style.setProperty('--secondary', `${bgHsl.split(' ')[0]} 12% 18%`);
     root.style.setProperty('--muted', `${bgHsl.split(' ')[0]} 12% 18%`);
+    root.style.setProperty('--popover', `${bgHsl.split(' ')[0]} 15% 10%`);
+    root.style.setProperty('--popover-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--input', `${primaryHsl.split(' ')[0]} 10% 20%`);
+    root.style.setProperty('--destructive', primaryHsl);
+    root.style.setProperty('--destructive-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--muted-foreground', `${primaryHsl.split(' ')[0]} 8% 55%`);
+    root.style.setProperty('--accent-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--secondary-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--tac-primary', theme.primary);
+    root.style.setProperty('--tac-accent', theme.accent);
+    root.style.setProperty('--tac-bg', theme.bg);
   }, [uiTheme]);
 
   const selectCharacter = useCallback((id: string) => {

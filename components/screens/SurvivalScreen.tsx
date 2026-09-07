@@ -34,8 +34,8 @@ const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.9;
-const TOWER_MAX_HP = 200;
-const CASTLE_MAX_HP = 300;
+const TOWER_MAX_HP = 350;
+const CASTLE_MAX_HP = 500;
 
 export function SurvivalScreen() {
   const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch } = useGame();
@@ -298,7 +298,7 @@ export function SurvivalScreen() {
 
         for (const b of bulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-          if (b.life <= 0 || b.y < -10 || b.y < h * 0.46) { bulletPoolRef.current.release(b); continue; }
+          if (b.life <= 0 || b.y < -10 || b.y < h * 0.28) { bulletPoolRef.current.release(b); continue; }
 
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {

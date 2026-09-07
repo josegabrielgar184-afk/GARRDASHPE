@@ -272,48 +272,32 @@ export function MenuScreen() {
               <Disc className="w-8 h-8 text-[#fbbf24]" />
               <span className="text-[#fbbf24] font-bold text-sm tracking-wider">RULETA</span>
             </button>
+          </div>
+
+          {/* Rankings + Suministros (matching large cards, side by side) */}
+          <div className="mt-3 grid grid-cols-2 gap-3">
             <button onClick={() => setScreen('ranking')} className="tac-btn-danger tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
               <Trophy className="w-8 h-8 text-[#fca5a5]" />
               <span className="text-[#fca5a5] font-bold text-sm tracking-wider">RANKINGS</span>
             </button>
+            <button onClick={handleOfferwall} className="tac-btn tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Gift className="w-8 h-8 text-[#d4d8b8]" />
+              <span className="text-[#d4d8b8] font-bold text-sm tracking-wider">SUMINISTROS</span>
+            </button>
           </div>
 
-          {/* Monedas Gratis + Admin row */}
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <button
-              onClick={handleOfferwall}
-              className="tac-btn tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs text-[#8a9b50] hover:text-[#d4d8b8]"
-            >
-              <Gift className="w-4 h-4" />
-              Suministros
-            </button>
-            {(userRole === 'admin' || userRole === 'operador') && (
+          {/* Admin row (only for admins/operators) */}
+          {(userRole === 'admin' || userRole === 'operador') && (
+            <div className="mt-3">
               <button
                 onClick={() => setScreen(userRole === 'admin' ? 'admin' : 'operator')}
-                className="tac-btn-accent tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs text-[#f59e0b]"
+                className="w-full tac-btn-accent tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs text-[#f59e0b]"
               >
                 <ShieldAlert className="w-4 h-4" />
                 {userRole === 'admin' ? 'COMANDO' : 'OPERADOR'}
               </button>
-            )}
-          </div>
-
-          {/* Influencer / Creadores button */}
-          <div className="mt-3">
-            <button
-              onClick={handleInfluencer}
-              className={`w-full tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 ${
-                influencerEligible
-                  ? 'tac-btn text-[#d4d8b8]'
-                  : 'tac-btn text-[#6b7280]'
-              }`}
-            >
-              {influencerEligible ? <Gem className="w-4 h-4 text-[#8a9b50]" /> : <Lock className="w-4 h-4" />}
-              {influencerEligible
-                ? `CREADORES (${influencerInfo?.rank.toUpperCase() ?? 'NUEVO'})`
-                : 'CREADORES (BLOQUEADO)'}
-            </button>
-          </div>
+            </div>
+          )}
 
           {/* Invite friend button */}
           <div className="mt-3">
@@ -327,25 +311,11 @@ export function MenuScreen() {
             </button>
           </div>
 
-          {/* VIP + logout */}
-          <div className="mt-6 flex items-center gap-3">
-            {!vip ? (
-              vipAvailable ? (
-                <button onClick={() => setScreen('shop')} className="flex-1 py-3 tac-btn-accent tac-stencil rounded-lg text-[#fbbf24] font-bold text-sm flex items-center justify-center gap-2">
-                  <Crown className="w-4 h-4" />Comprar VIP
-                </button>
-              ) : (
-                <div className="flex-1 py-3 tac-btn tac-stencil rounded-lg text-[#6b7280] font-bold text-sm flex items-center justify-center gap-2">
-                  <Lock className="w-4 h-4" />VIP Proximamente
-                </div>
-              )
-            ) : (
-              <div className="flex-1 py-3 tac-btn-accent tac-stencil rounded-lg text-[#f59e0b] font-bold text-sm flex items-center justify-center gap-2">
-                <Crown className="w-4 h-4" />VIP Activo{vipDaysLeft > 0 ? ` (${vipDaysLeft}d)` : ''}
-              </div>
-            )}
-            <button onClick={() => { logOut(); }} className="px-4 py-3 tac-btn rounded-lg text-[#6b7280] hover:text-[#d4d8b8] transition-colors flex items-center justify-center">
+          {/* Logout */}
+          <div className="mt-6 flex items-center justify-center">
+            <button onClick={() => { logOut(); }} className="px-4 py-3 tac-btn rounded-lg text-[#6b7280] hover:text-[#d4d8b8] transition-colors flex items-center justify-center gap-2 font-bold text-sm">
               <LogOut className="w-4 h-4" />
+              CERRAR SESIÓN
             </button>
           </div>
         </div>
