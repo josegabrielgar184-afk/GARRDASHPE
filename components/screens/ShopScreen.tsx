@@ -54,7 +54,7 @@ export function ShopScreen() {
   const companionCost = (key: 'turret' | 'drone' | 'medic') => companionDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
 
   const handleCoinAdReward = () => {
-    setShowCoinAd(false); // Cierra el modal de forma limpia al terminar
+    setShowCoinAd(false);
     const ok = recordCoinAd();
     if (ok) {
       const reward = getCoinAdReward();
@@ -67,7 +67,7 @@ export function ShopScreen() {
   };
 
   const handleKeyAdReward = () => {
-    setShowKeyAd(false); // Cierra el modal de forma limpia al terminar
+    setShowKeyAd(false);
     const result = recordKeyAd();
     if (result.earnedKey) {
       addCampaignKeyFromAd();
@@ -338,7 +338,7 @@ export function ShopScreen() {
         onReward={handleCoinAdReward}
         title="Monedas por Anuncio"
         rewardText={`¡+${getCoinAdReward()} monedas!`}
-        adId={ADMOB_CONFIG.rewarded || ADMOB_CONFIG.ruletaId}
+        adId={ADMOB_CONFIG.rewarded || ''}
         userRole={userRole}
         vip={vip}
       />
@@ -348,7 +348,7 @@ export function ShopScreen() {
         onReward={handleKeyAdReward}
         title="Llave por Anuncio"
         rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
-        adId={ADMOB_CONFIG.rewarded || ADMOB_CONFIG.ruletaId}
+        adId={ADMOB_CONFIG.rewarded || ''}
         userRole={userRole}
         vip={vip}
       />
