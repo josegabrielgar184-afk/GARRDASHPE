@@ -48,6 +48,7 @@ export function RouletteScreen() {
   const [showInterstitial, setShowInterstitial] = useState(false);
   const [adSpins, setAdSpins] = useState(0);
   const rotationRef = useRef(0);
+  const adDebounceRef = useRef(0);
   const confettiIdRef = useRef(0);
   const renderGlow = getPerformanceTier() === 'high';
 
@@ -285,7 +286,7 @@ export function RouletteScreen() {
           onClose={() => setShowReward(false)}
           onReward={handleRewardAdComplete}
           title="Giro Extra por Anuncio"
-          rewardText="¡Termina de ver el anuncio para ganar 1 giro extra en la ruleta!"
+          rewardText="Termina de ver el anuncio para ganar 1 giro extra"
           adId={ADMOB_CONFIG.rewarded || ''}
           userRole={userRole}
           vip={vip}
