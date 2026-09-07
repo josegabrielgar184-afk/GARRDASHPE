@@ -11,7 +11,7 @@ import {
   type Particle2D, type MuzzleFlash,
   spawnParticles2D, updateParticles2D, drawParticles2D,
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
-  drawNeonCircle,
+  drawNeonCircle, drawMetallicCoin,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -1314,13 +1314,8 @@ export function ZombieGameScreen() {
 
       // Floating coins
       for (const c of coinPoolRef.current.getActive()) {
-        ctx.save();
-        ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10;
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath(); ctx.arc(c.x, c.y, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#fde68a';
-        ctx.beginPath(); ctx.arc(c.x - 2, c.y - 2, 3, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
+        const spin = (c.life * 0.15);
+        drawMetallicCoin(ctx, c.x, c.y, 7, spin);
       }
 
       // Bullets
