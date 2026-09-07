@@ -100,7 +100,8 @@ export function ShopScreen() {
             </div>
           </div>
 
-          {/* VIP card - stencil style */}
+          {/* VIP card hidden */}
+          {false && (
           <div className="rounded-none bg-gradient-to-r from-amber-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500/60 p-3 mb-4" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
             {vip ? (
               <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
@@ -108,7 +109,7 @@ export function ShopScreen() {
                 <span>VIP Activo</span>
                 {vipExpiry && (
                   <span className="text-white/40 text-xs font-normal ml-1">
-                    · {Math.max(0, Math.ceil((new Date(vipExpiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} días restantes
+                    · {Math.max(0, Math.ceil((new Date(vipExpiry as string).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} días restantes
                   </span>
                 )}
               </div>
@@ -131,6 +132,7 @@ export function ShopScreen() {
               </div>
             )}
           </div>
+          )}
 
           {/* Tabs - stencil style */}
           <div className="flex gap-2 mb-4">
@@ -139,23 +141,7 @@ export function ShopScreen() {
             <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Héroes</button>
           </div>
 
-          {/* Performance tier selector */}
-          <div className="mb-4 rounded-none bg-[#1a1a28] border-l-4 border-cyan-500/60 p-3" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-cyan-400" />
-              <p className="text-white font-bold text-xs uppercase tracking-wide">Rendimiento</p>
-            </div>
-            <div className="flex gap-2">
-              {(['low', 'medium', 'high'] as PerformanceTier[]).map((t) => (
-                <button key={t} onClick={() => { setPerformanceTier(t); setPerfTierState(t); }} className={`flex-1 py-2 rounded-none font-bold text-xs uppercase transition-colors ${perfTier === t ? 'bg-cyan-600/30 text-cyan-400 border border-cyan-500/50' : 'bg-[#0f1520] border border-white/10 text-white/40'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
-                  {t === 'low' ? 'Baja' : t === 'medium' ? 'Media' : 'Alta'}
-                </button>
-              ))}
-            </div>
-            <p className="text-white/30 text-[10px] mt-2">
-              {perfTier === 'low' ? 'Sin partículas ni efectos. Ideal para celulares lentos.' : perfTier === 'medium' ? 'Partículas limitadas. Balance óptimo.' : 'Máxima calidad visual con todos los efectos.'}
-            </p>
-          </div>
+          {/* Performance tier selector moved to Settings */}
 
           {tab === 'companions' && (
             <div className="grid grid-cols-1 gap-3">

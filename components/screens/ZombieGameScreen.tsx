@@ -24,7 +24,7 @@ function randomCoinCap(level: number): number {
   const { min, max } = getCampaignCoinReward(level);
   return Math.floor(rand(min, max + 1));
 }
-import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, initAudio } from '@/lib/audio';
+import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'minigun' | 'laser';
@@ -512,6 +512,7 @@ export function ZombieGameScreen() {
       interstitialCheckedRef.current = true;
       endGameBatch();
       submitZombieScore(killCountRef.current);
+      stopActionMusic();
       hapticPattern([100, 50, 200]);
       if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }
@@ -1011,7 +1012,7 @@ export function ZombieGameScreen() {
                     finalBossDefeatedRef.current = true;
                     victoryTriggeredRef.current = true;
                     for (const zz of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(zz);
-                    setTimeout(() => { if (victoryTriggeredRef.current) { victoryTriggeredRef.current = false; setVictory(true); } }, 1500);
+                    setTimeout(() => { if (victoryTriggeredRef.current) { victoryTriggeredRef.current = false; setVictory(true); stopActionMusic(); } }, 1500);
                   }
                 } else if (z.type === 'tank') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
@@ -1273,16 +1274,16 @@ export function ZombieGameScreen() {
     };
 
     rafRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => { cancelAnimationFrame(rafRef.current); stopActionMusic(); };
   }, [shoot, spawnZombie, spawnBoss, spawnBarrel, addPlayTime, isOnline, safeAddCoins, vip, checkKillStreakMilestone, char, equipWeapon]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const onTouchStart = (e: TouchEvent) => { initAudio(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
+    const onTouchStart = (e: TouchEvent) => { initAudio(); startActionMusic(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
     const onTouchMove = (e: TouchEvent) => { if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
     const onTouchEnd = () => { touchTargetRef.current.active = false; };
-    const onMouseDown = (e: MouseEvent) => { initAudio(); const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, active: true }; };
+    const onMouseDown = (e: MouseEvent) => { initAudio(); startActionMusic(); const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, active: true }; };
     const onMouseMove = (e: MouseEvent) => { if (touchTargetRef.current.active) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, active: true }; } };
     const onMouseUp = () => { touchTargetRef.current.active = false; };
     canvas.addEventListener('touchstart', onTouchStart, { passive: true });

@@ -16,7 +16,7 @@ import {
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
-import { playShoot, playExplosion, playCoin, playHit, playBarrelHit, playPickup, initAudio } from '@/lib/audio';
+import { playShoot, playExplosion, playCoin, playHit, playBarrelHit, playPickup, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
 
 type ZombieType = 'normal' | 'fast' | 'tank';
 
@@ -177,6 +177,7 @@ export function SurvivalScreen() {
     if (gameOver) {
       endGameBatch();
       submitSurvivalScore(survivalTimeRef.current);
+      stopActionMusic();
       hapticPattern([100, 50, 200]);
     }
   }, [gameOver, endGameBatch, submitSurvivalScore]);
@@ -418,13 +419,13 @@ export function SurvivalScreen() {
     };
 
     rafRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => { cancelAnimationFrame(rafRef.current); stopActionMusic(); };
   }, [shoot, spawnZombie, spawnCrate, addCoins, char, endGameBatch]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const onTouchStart = (e: TouchEvent) => { initAudio(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
+    const onTouchStart = (e: TouchEvent) => { initAudio(); startActionMusic(); if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
     const onTouchMove = (e: TouchEvent) => { if (e.touches.length > 0) { const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.touches[0].clientX - rect.left, active: true }; } };
     const onTouchEnd = () => { touchTargetRef.current.active = false; };
     const onMouseDown = (e: MouseEvent) => { initAudio(); const rect = canvas.getBoundingClientRect(); touchTargetRef.current = { x: e.clientX - rect.left, active: true }; };

@@ -30,7 +30,55 @@ export function MenuScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
+  const [customColor, setCustomColor] = useState('#8a9b50');
   const [showReferral, setShowReferral] = useState(false);
+
+  const applyCustomColor = (hex: string) => {
+    const root = document.documentElement;
+    const hexToHsl = (h: string): string => {
+      const r = parseInt(h.slice(1, 3), 16) / 255;
+      const g = parseInt(h.slice(3, 5), 16) / 255;
+      const b = parseInt(h.slice(5, 7), 16) / 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let hue = 0, sat = 0;
+      const lig = (max + min) / 2;
+      if (max !== min) {
+        const d = max - min;
+        sat = lig > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: hue = ((g - b) / d + (g < b ? 6 : 0)); break;
+          case g: hue = ((b - r) / d + 2); break;
+          case b: hue = ((r - g) / d + 4); break;
+        }
+        hue /= 6;
+      }
+      return `${Math.round(hue * 360)} ${Math.round(sat * 100)}% ${Math.round(lig * 100)}%`;
+    };
+    const primaryHsl = hexToHsl(hex);
+    const bgHsl = `${primaryHsl.split(' ')[0]} 20% 6%`;
+    const accentHsl = `${primaryHsl.split(' ')[0]} ${Math.min(100, parseInt(primaryHsl.split(' ')[1]) + 20)}% ${Math.min(90, parseInt(primaryHsl.split(' ')[2]) + 20)}%`;
+    root.style.setProperty('--background', bgHsl);
+    root.style.setProperty('--primary', primaryHsl);
+    root.style.setProperty('--ring', primaryHsl);
+    root.style.setProperty('--accent', accentHsl);
+    root.style.setProperty('--foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--card', `${bgHsl.split(' ')[0]} 15% 12%`);
+    root.style.setProperty('--card-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--border', `${primaryHsl.split(' ')[0]} 10% 22%`);
+    root.style.setProperty('--secondary', `${bgHsl.split(' ')[0]} 12% 18%`);
+    root.style.setProperty('--muted', `${bgHsl.split(' ')[0]} 12% 18%`);
+    root.style.setProperty('--popover', `${bgHsl.split(' ')[0]} 15% 10%`);
+    root.style.setProperty('--popover-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--input', `${primaryHsl.split(' ')[0]} 10% 20%`);
+    root.style.setProperty('--destructive', primaryHsl);
+    root.style.setProperty('--destructive-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--muted-foreground', `${primaryHsl.split(' ')[0]} 8% 55%`);
+    root.style.setProperty('--accent-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--secondary-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--tac-primary', hex);
+    root.style.setProperty('--tac-accent', hex);
+    root.style.setProperty('--tac-bg', `hsl(${bgHsl})`);
+  };
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralCopied, setReferralCopied] = useState(false);
   const [referralCount, setReferralCount] = useState(0);
@@ -203,54 +251,54 @@ export function MenuScreen() {
         <Settings className="w-5 h-5" />
       </button>
 
-      <div ref={scrollRef} className="flex-1 flex flex-col items-center px-4 pb-32 relative z-10 overflow-y-auto no-scrollbar pt-16">
+      <div ref={scrollRef} className="flex-1 flex flex-col items-center px-4 pb-32 relative z-10 overflow-y-auto no-scrollbar pt-14">
         <div className="w-full max-w-sm">
-          <div className="text-center mb-4">
-            <h1 className="tac-title text-5xl font-black" style={{ fontFamily: 'Inter, sans-serif' }}>
+          <div className="text-center mb-2">
+            <h1 className="tac-title text-4xl font-black" style={{ fontFamily: 'Inter, sans-serif' }}>
               GARRDASH
             </h1>
-            <div className="mt-1 flex items-center justify-center gap-1.5">
-              <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#5a6b30]" />
-              <span className="text-[#8a9b50]/60 text-[9px] font-bold uppercase tracking-[0.3em]">Zona de Combate</span>
-              <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#5a6b30]" />
+            <div className="mt-0.5 flex items-center justify-center gap-1.5">
+              <div className="h-px w-10 bg-gradient-to-r from-transparent to-[#5a6b30]" />
+              <span className="text-[#8a9b50]/60 text-[8px] font-bold uppercase tracking-[0.3em]">Zona de Combate</span>
+              <div className="h-px w-10 bg-gradient-to-l from-transparent to-[#5a6b30]" />
             </div>
           </div>
 
-          {/* Throne of the Global King */}
-          <div className="mb-3 tac-panel tac-stencil p-4">
-            <div className="flex items-center gap-3">
+          {/* Top 1 Monthly — compact card */}
+          <div className="mb-2 tac-panel tac-stencil p-2.5">
+            <div className="flex items-center gap-2.5">
               <div className="relative shrink-0">
-                <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#5a6b30] to-[#3a4b20] flex items-center justify-center border border-[#8a9b50]/40" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
+                <div className="w-10 h-10 rounded-md bg-gradient-to-br from-[#5a6b30] to-[#3a4b20] flex items-center justify-center border border-[#8a9b50]/40" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>
                   {topPlayerAvatar ? (
-                    <img src={topPlayerAvatar} alt="King" className="w-full h-full object-cover" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }} />
+                    <img src={topPlayerAvatar} alt="King" className="w-full h-full object-cover" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }} />
                   ) : (
-                    <Crown className="w-7 h-7 text-[#d4d8b8]" />
+                    <Crown className="w-5 h-5 text-[#d4d8b8]" />
                   )}
                 </div>
-                <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#f59e0b] flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-3 h-3 text-[#1a1f10]" />
+                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#f59e0b] flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-2.5 h-2.5 text-[#1a1f10]" />
                 </div>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <Crown className="w-3.5 h-3.5 text-[#f59e0b] shrink-0" />
-                  <span className="text-[#f59e0b]/80 text-[10px] font-bold uppercase tracking-wider">Comandante Global</span>
+                <div className="flex items-center gap-1 mb-0.5">
+                  <Crown className="w-3 h-3 text-[#f59e0b] shrink-0" />
+                  <span className="text-[#f59e0b]/80 text-[9px] font-bold uppercase tracking-wider">Top 1 Mensual</span>
                 </div>
-                <p className="text-[#d4d8b8] font-bold text-sm truncate flex items-center gap-1"><Crown className="w-3.5 h-3.5 text-[#f59e0b] fill-[#f59e0b] shrink-0" />{topPlayerName}</p>
-                <p className="text-[#8a9b50] font-mono text-xs">{topPlayerScore.toLocaleString()} pts</p>
+                <p className="text-[#d4d8b8] font-bold text-xs truncate flex items-center gap-1"><Crown className="w-3 h-3 text-[#f59e0b] fill-[#f59e0b] shrink-0" />{topPlayerName}</p>
+                <p className="text-[#8a9b50] font-mono text-[10px]">{topPlayerScore.toLocaleString()} pts</p>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-[10px] text-[#6b7280] uppercase">Rango</div>
-                <div className="text-[#f59e0b] font-bold text-lg">#1</div>
+                <div className="text-[9px] text-[#6b7280] uppercase">Rango</div>
+                <div className="text-[#f59e0b] font-bold text-base">#1</div>
               </div>
             </div>
           </div>
 
           {/* Balance card */}
-          <div className="mb-3">
-            <div className="tac-panel tac-stencil p-3 flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-[#f59e0b]/15 flex items-center justify-center border border-[#f59e0b]/30"><Coins className="w-4 h-4 text-[#f59e0b]" /></div>
-              <div><p className="text-[#6b7280] text-[10px] uppercase tracking-wider">Munición</p><p className="text-[#f59e0b] font-bold tac-amber-glow">{coins.toLocaleString()}</p></div>
+          <div className="mb-2">
+            <div className="tac-panel tac-stencil p-2.5 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-md bg-[#f59e0b]/15 flex items-center justify-center border border-[#f59e0b]/30"><Coins className="w-4 h-4 text-[#f59e0b]" /></div>
+              <div><p className="text-[#6b7280] text-[9px] uppercase tracking-wider">Munición</p><p className="text-[#f59e0b] font-bold tac-amber-glow text-sm">{coins.toLocaleString()}</p></div>
             </div>
           </div>
 
@@ -455,6 +503,29 @@ export function MenuScreen() {
                       {t.name}
                     </button>
                   ))}
+                </div>
+                {/* Custom color picker */}
+                <div className="mt-3 pt-3 border-t border-[#8a9b50]/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Palette className="w-4 h-4 text-[#8a9b50]" />
+                    <p className="text-[#d4d8b8] font-bold text-xs">Color Personalizado</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={customColor}
+                      onChange={(e) => { setCustomColor(e.target.value); setUITheme('custom' as UITheme); applyCustomColor(e.target.value); }}
+                      className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border border-[#8a9b50]/30"
+                      style={{ padding: '2px' }}
+                    />
+                    <div className="flex-1">
+                      <p className="text-[#6b7280] text-[10px]">Elige cualquier tono</p>
+                      <p className="text-[#d4d8b8] font-mono text-xs">{customColor.toUpperCase()}</p>
+                    </div>
+                    {uiTheme === ('custom' as UITheme) && (
+                      <div className="text-[#8a9b50] text-[10px] font-bold uppercase">Activo</div>
+                    )}
+                  </div>
                 </div>
               </div>
 
