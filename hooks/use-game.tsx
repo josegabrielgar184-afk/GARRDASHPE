@@ -949,6 +949,45 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     saveData({ uiTheme: t });
   }, []);
 
+  // Apply theme to CSS variables globally
+  useEffect(() => {
+    const theme = UI_THEMES.find((t) => t.id === uiTheme) ?? UI_THEMES[0];
+    const root = document.documentElement;
+    // Convert hex to HSL components
+    const hexToHsl = (hex: string): string => {
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h = 0, s = 0;
+      const l = (max + min) / 2;
+      if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
+          case g: h = ((b - r) / d + 2); break;
+          case b: h = ((r - g) / d + 4); break;
+        }
+        h /= 6;
+      }
+      return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+    };
+    const bgHsl = hexToHsl(theme.bg);
+    const primaryHsl = hexToHsl(theme.primary);
+    const accentHsl = hexToHsl(theme.accent);
+    root.style.setProperty('--background', bgHsl);
+    root.style.setProperty('--primary', primaryHsl);
+    root.style.setProperty('--ring', primaryHsl);
+    root.style.setProperty('--accent', accentHsl);
+    root.style.setProperty('--foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--card', `${bgHsl.split(' ')[0]} 15% 12%`);
+    root.style.setProperty('--card-foreground', `${primaryHsl.split(' ')[0]} 10% 88%`);
+    root.style.setProperty('--border', `${primaryHsl.split(' ')[0]} 10% 22%`);
+    root.style.setProperty('--secondary', `${bgHsl.split(' ')[0]} 12% 18%`);
+    root.style.setProperty('--muted', `${bgHsl.split(' ')[0]} 12% 18%`);
+  }, [uiTheme]);
+
   const selectCharacter = useCallback((id: string) => {
     setSelectedCharacter(id);
     saveData({ selectedCharacter: id });

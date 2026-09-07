@@ -2356,3 +2356,197 @@ export function drawDebugFooter(
   ctx.fillText(`6.88 ID: 508404245 Server: GS02  |  FPS: ${fps}`, 8, h - 7);
   ctx.restore();
 }
+
+// ─── Tactical Arena Background (Dual-Lane) ────────────────────────────────────
+
+export function drawTacticalArena(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  scrollY: number,
+) {
+  const laneW = w * 0.42;
+  const leftCx = laneW * 0.5;
+  const rightCx = w - laneW * 0.5;
+  const bridgeY = h * 0.45;
+
+  // Base ground
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#0a0d08');
+  grad.addColorStop(0.5, '#0d100a');
+  grad.addColorStop(1, '#080a06');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Lane fills
+  ctx.fillStyle = '#141810';
+  ctx.fillRect(leftCx - laneW * 0.5, 0, laneW, h);
+  ctx.fillRect(rightCx - laneW * 0.5, 0, laneW, h);
+
+  // Lane borders (neon tactical)
+  ctx.strokeStyle = 'rgba(138,155,80,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(leftCx - laneW * 0.5, 0, laneW, h);
+  ctx.strokeRect(rightCx - laneW * 0.5, 0, laneW, h);
+
+  // Lane dashed center lines
+  ctx.fillStyle = 'rgba(138,155,80,0.2)';
+  for (let i = 0; i < h; i += 40) {
+    const dy = ((i + scrollY * 0.5) % (h + 40)) - 20;
+    if (dy > 0 && dy < h) {
+      ctx.fillRect(leftCx - 2, dy, 4, 20);
+      ctx.fillRect(rightCx - 2, dy, 4, 20);
+    }
+  }
+
+  // Central zone (no-man's land)
+  ctx.fillStyle = 'rgba(20,24,16,0.5)';
+  ctx.fillRect(laneW * 0.5 + laneW * 0.5, 0, w - laneW, h);
+
+  // Bridge connecting lanes
+  ctx.fillStyle = '#1a1d14';
+  ctx.fillRect(leftCx + laneW * 0.3, bridgeY - 20, (rightCx - leftCx) - laneW * 0.6, 40);
+  ctx.strokeStyle = 'rgba(138,155,80,0.3)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(leftCx + laneW * 0.3, bridgeY - 20, (rightCx - leftCx) - laneW * 0.6, 40);
+  // Bridge planks
+  ctx.strokeStyle = 'rgba(60,70,40,0.4)';
+  for (let i = 0; i < 5; i++) {
+    const px = leftCx + laneW * 0.3 + i * (((rightCx - leftCx) - laneW * 0.6) / 5);
+    ctx.beginPath();
+    ctx.moveTo(px, bridgeY - 20);
+    ctx.lineTo(px, bridgeY + 20);
+    ctx.stroke();
+  }
+
+  // Enemy base (top)
+  ctx.fillStyle = 'rgba(80,20,20,0.4)';
+  ctx.fillRect(0, 0, w, 30);
+  ctx.strokeStyle = 'rgba(239,68,68,0.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 30); ctx.lineTo(w, 30);
+  ctx.stroke();
+
+  // Sandbag barricades at bottom
+  ctx.fillStyle = '#2a2820';
+  ctx.fillRect(0, h - 12, w, 12);
+  ctx.fillStyle = '#3a3528';
+  for (let i = 0; i < w; i += 14) {
+    ctx.fillRect(i, h - 12, 7, 10);
+  }
+
+  // Vignette
+  const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, h * 0.8);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, w, h);
+}
+
+export function drawArenaTower(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  hp: number,
+  maxHp: number,
+  side: 'left' | 'right',
+) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, 18, 16, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tower base
+  ctx.fillStyle = '#2a2a22';
+  ctx.fillRect(-12, -20, 24, 38);
+  ctx.fillStyle = '#3a3a30';
+  ctx.fillRect(-10, -18, 20, 34);
+  // Battlements
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(-12, -22, 5, 4);
+  ctx.fillRect(-2, -22, 5, 4);
+  ctx.fillRect(8, -22, 5, 4);
+
+  // Neon accent
+  ctx.fillStyle = side === 'left' ? '#8a9b50' : '#22d3ee';
+  ctx.fillRect(-8, -10, 16, 2);
+
+  // HP bar
+  if (hp < maxHp) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(-14, -28, 28, 4);
+    ctx.fillStyle = hp > maxHp * 0.5 ? '#22c55e' : hp > maxHp * 0.25 ? '#eab308' : '#ef4444';
+    ctx.fillRect(-14, -28, 28 * (hp / maxHp), 4);
+  }
+
+  ctx.restore();
+}
+
+export function drawArenaCastle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  hp: number,
+  maxHp: number,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(0, 24, 28, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Main structure
+  ctx.fillStyle = '#2a2a20';
+  ctx.fillRect(-22, -28, 44, 50);
+  ctx.fillStyle = '#3a3a2c';
+  ctx.fillRect(-20, -26, 40, 46);
+
+  // Central tower
+  ctx.fillStyle = '#2a2a20';
+  ctx.fillRect(-8, -38, 16, 14);
+  ctx.fillStyle = '#3a3a2c';
+  ctx.fillRect(-7, -37, 14, 12);
+
+  // Battlements on tower
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(-8, -40, 4, 3);
+  ctx.fillRect(-1, -40, 4, 3);
+  ctx.fillRect(5, -40, 4, 3);
+
+  // Neon flag
+  ctx.fillStyle = '#8a9b50';
+  ctx.fillRect(-1, -46, 2, 8);
+  ctx.fillRect(1, -46, 8, 4);
+
+  // Door
+  ctx.fillStyle = '#1a1a10';
+  ctx.fillRect(-6, -8, 12, 20);
+  ctx.strokeStyle = '#4a4a36';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(0, -8, 6, 0, Math.PI, true);
+  ctx.stroke();
+
+  // Windows
+  ctx.fillStyle = '#8a9b50';
+  ctx.fillRect(-14, -18, 4, 6);
+  ctx.fillRect(10, -18, 4, 6);
+
+  // HP bar
+  if (hp < maxHp) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(-24, -52, 48, 5);
+    ctx.fillStyle = hp > maxHp * 0.5 ? '#22c55e' : hp > maxHp * 0.25 ? '#eab308' : '#ef4444';
+    ctx.fillRect(-24, -52, 48 * (hp / maxHp), 5);
+  }
+
+  ctx.restore();
+}

@@ -190,6 +190,17 @@ function AppShell() {
     return () => { releaseWakeLock(); };
   }, [isGameplay]);
 
+  // Capture referral code from URL on first load
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get('ref');
+      if (ref) {
+        localStorage.setItem('garrdash_pending_referral', ref);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {

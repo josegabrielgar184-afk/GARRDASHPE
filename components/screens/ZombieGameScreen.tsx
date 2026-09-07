@@ -12,7 +12,7 @@ import {
   spawnParticles2D, updateParticles2D, drawParticles2D,
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle, drawMetallicCoin,
-  drawSoldier2D, drawZombie2D, drawWarzoneBackground,
+  drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -43,10 +43,12 @@ function makeBarrel(): Barrel { return { x: 0, y: 0, vy: 0, hp: 44, maxHp: 44, w
 function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; } }; }
 function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'shield', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.type = 'shield'; } }; }
 
-const LANE_COUNT = 5;
+const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.9;
+const TOWER_MAX_HP = 200;
+const CASTLE_MAX_HP = 300;
 
 const WEAPON_COLORS: Record<WeaponType, string> = {
   pistol: '#fbbf24', rifle: '#22d3ee', shotgun: '#f87171', minigun: '#f97316', laser: '#a855f7',
@@ -82,6 +84,9 @@ export function ZombieGameScreen() {
   const [zombiesKilled, setZombiesKilled] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [barricadeHp, setBarricadeHp] = useState(150);
+  const [leftTowerHp, setLeftTowerHp] = useState(TOWER_MAX_HP);
+  const [rightTowerHp, setRightTowerHp] = useState(TOWER_MAX_HP);
+  const [castleHp, setCastleHp] = useState(CASTLE_MAX_HP);
   const [gameOver, setGameOver] = useState(false);
   const [paused, setPaused] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
@@ -129,6 +134,9 @@ export function ZombieGameScreen() {
   const livesRef = useRef(3);
   const barricadeHpRef = useRef(150);
   const barricadeMaxHpRef = useRef(150);
+  const leftTowerHpRef = useRef(TOWER_MAX_HP);
+  const rightTowerHpRef = useRef(TOWER_MAX_HP);
+  const castleHpRef = useRef(CASTLE_MAX_HP);
   const gameOverRef = useRef(false);
   const pausedRef = useRef(false);
   const shootCooldownRef = useRef(0);
@@ -303,6 +311,9 @@ export function ZombieGameScreen() {
     scoreRef.current = 0; killCountRef.current = 0;
     livesRef.current = 3;
     barricadeHpRef.current = 150; barricadeMaxHpRef.current = 150;
+    leftTowerHpRef.current = TOWER_MAX_HP;
+    rightTowerHpRef.current = TOWER_MAX_HP;
+    castleHpRef.current = CASTLE_MAX_HP;
     gameOverRef.current = false;
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
     difficultyRef.current = Math.max(0.3, 0.3 + (campaignLevelRef.current - 1) * 0.05); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
@@ -326,7 +337,7 @@ export function ZombieGameScreen() {
     const cl = getCurrentCampaignLevel();
     campaignLevelRef.current = cl; setCampaignLevel(cl);
     reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
-    setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setGameOver(false); setBossActive(false);
+    setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
     checkMilestone();
@@ -408,7 +419,7 @@ export function ZombieGameScreen() {
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
-    z.vx = type === 'fast' ? rand(-1.5, 1.5) : 0;
+    z.vx = type === 'fast' ? rand(-1.0, 1.0) : 0;
     z.vy = vy * speedMultRef.current; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, []);
@@ -693,73 +704,17 @@ export function ZombieGameScreen() {
         ctx.strokeRect(8, 8, w - 16, h - 16);
       }
 
-      // Urban road background
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, '#1a1a1a');
-      grad.addColorStop(0.3, theme.road);
-      grad.addColorStop(0.7, theme.road);
-      grad.addColorStop(1, '#0a0a0a');
-      ctx.fillStyle = grad;
-      ctx.fillRect(-20, -20, w + 40, h + 40);
+      // Tactical arena background
+      drawTacticalArena(ctx, w, h, scrollYRef.current);
 
-      // Road perspective (converging lanes)
-      ctx.strokeStyle = `${theme.border}22`;
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= LANE_COUNT; i++) {
-        const lx = (w / LANE_COUNT) * i;
-        ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, barricadeY); ctx.stroke();
-      }
-
-      // Road edges (curbs)
-      ctx.fillStyle = `${theme.border}44`;
-      ctx.fillRect(0, 0, 3, barricadeY);
-      ctx.fillRect(w - 3, 0, 3, barricadeY);
-
-      // Dashed white center line
-      ctx.fillStyle = theme.dash;
-      for (let i = 0; i < h; i += 40) {
-        const dashY = ((i + scrollYRef.current) % (h + 40)) - 20;
-        if (dashY > 0 && dashY < barricadeY) {
-          ctx.fillRect(w / 2 - 3, dashY, 6, 20);
-        }
-      }
-
-      // Sewer grates
-      for (let i = 0; i < 3; i++) {
-        const grateY = ((i * 200 + scrollYRef.current * 0.8) % (h + 100)) - 50;
-        if (grateY > 20 && grateY < barricadeY - 20) {
-          ctx.fillStyle = '#1a1a1a';
-          ctx.beginPath(); ctx.roundRect(w * 0.15, grateY, 30, 8, 2); ctx.fill();
-          ctx.strokeStyle = '#3a3a3a';
-          ctx.lineWidth = 1;
-          for (let j = 0; j < 4; j++) {
-            ctx.beginPath(); ctx.moveTo(w * 0.15 + 3 + j * 7, grateY + 1); ctx.lineTo(w * 0.15 + 3 + j * 7, grateY + 7); ctx.stroke();
-          }
-          ctx.beginPath(); ctx.roundRect(w * 0.8, grateY + 80, 30, 8, 2); ctx.fill();
-          for (let j = 0; j < 4; j++) {
-            ctx.beginPath(); ctx.moveTo(w * 0.8 + 3 + j * 7, grateY + 81); ctx.lineTo(w * 0.8 + 3 + j * 7, grateY + 87); ctx.stroke();
-          }
-        }
-      }
-
-      // Overhead cables
-      ctx.strokeStyle = 'rgba(60,60,60,0.4)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, 20 + i * 15);
-        ctx.quadraticCurveTo(w / 2, 25 + i * 15 + Math.sin(scrollYRef.current * 0.02 + i) * 3, w, 20 + i * 15);
-        ctx.stroke();
-      }
-
-      // Fog overlay
-      if (fpsMon.quality !== 'low') {
-        const fogGrad = ctx.createLinearGradient(0, 0, 0, h * 0.4);
-        fogGrad.addColorStop(0, theme.fog);
-        fogGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = fogGrad;
-        ctx.fillRect(0, 0, w, h * 0.4);
-      }
+      // Draw towers and castle
+      const leftTowerX = w * 0.15;
+      const rightTowerX = w * 0.85;
+      const castleX = w * 0.5;
+      const structureY = h * 0.93;
+      drawArenaTower(ctx, leftTowerX, structureY, leftTowerHpRef.current, TOWER_MAX_HP, 'left');
+      drawArenaTower(ctx, rightTowerX, structureY, rightTowerHpRef.current, TOWER_MAX_HP, 'right');
+      drawArenaCastle(ctx, castleX, structureY, castleHpRef.current, CASTLE_MAX_HP);
 
       // Coins capped red flash
       if (coinsCapped) {
@@ -893,9 +848,53 @@ export function ZombieGameScreen() {
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
+            const leftTowerX = w * 0.15;
+            const rightTowerX = w * 0.85;
+            const castleX = w * 0.5;
+            const towerRange = w * 0.18;
+            const castleRange = w * 0.15;
+
             if (shieldRef.current || reviveShieldTimerRef.current > 0) {
               addFloatText('¡ESCUDO!', z.x, barricadeY - 30, '#22d3ee', 16);
               spawnParticles2D(particlesRef.current, z.x, barricadeY, 10, '#22d3ee', 5);
+              zombiePoolRef.current.release(z);
+              if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
+            } else if (Math.abs(z.x - leftTowerX) < towerRange && leftTowerHpRef.current > 0) {
+              leftTowerHpRef.current = Math.max(0, leftTowerHpRef.current - dmg);
+              setLeftTowerHp(leftTowerHpRef.current);
+              playHit();
+              addFloatText(`-${dmg}`, z.x, barricadeY - 20, '#ef4444');
+              screenShakeRef.current.trigger(3, 10);
+              killStreakRef.current = 0; setKillStreak(0);
+              if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
+              zombiePoolRef.current.release(z);
+            } else if (Math.abs(z.x - rightTowerX) < towerRange && rightTowerHpRef.current > 0) {
+              rightTowerHpRef.current = Math.max(0, rightTowerHpRef.current - dmg);
+              setRightTowerHp(rightTowerHpRef.current);
+              playHit();
+              addFloatText(`-${dmg}`, z.x, barricadeY - 20, '#ef4444');
+              screenShakeRef.current.trigger(3, 10);
+              killStreakRef.current = 0; setKillStreak(0);
+              if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
+              zombiePoolRef.current.release(z);
+            } else if (Math.abs(z.x - castleX) < castleRange) {
+              castleHpRef.current = Math.max(0, castleHpRef.current - dmg);
+              setCastleHp(castleHpRef.current);
+              playHit();
+              addFloatText(`-${dmg}`, z.x, barricadeY - 20, '#ef4444');
+              spawnParticles2D(particlesRef.current, z.x, barricadeY, 8, '#ef4444', 4);
+              screenShakeRef.current.trigger(3, 10);
+              killStreakRef.current = 0; setKillStreak(0);
+              if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
+              zombiePoolRef.current.release(z);
+              if (castleHpRef.current <= 0) {
+                livesRef.current--; setLives(livesRef.current);
+                if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
+                else {
+                  castleHpRef.current = CASTLE_MAX_HP; setCastleHp(CASTLE_MAX_HP);
+                  addFloatText('¡Castillo reparado!', w / 2, h / 2, '#34d399', 16);
+                }
+              }
             } else {
               barricadeHpRef.current -= dmg; setBarricadeHp(Math.max(0, barricadeHpRef.current));
               playHit();
@@ -903,15 +902,15 @@ export function ZombieGameScreen() {
               spawnParticles2D(particlesRef.current, z.x, barricadeY, 8, '#ef4444', 4);
               screenShakeRef.current.trigger(3, 10);
               killStreakRef.current = 0; setKillStreak(0);
-            }
-            if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
-            zombiePoolRef.current.release(z);
-            if (barricadeHpRef.current <= 0) {
-              livesRef.current--; setLives(livesRef.current);
-              if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
-              else {
-                barricadeHpRef.current = barricadeMaxHpRef.current; setBarricadeHp(barricadeMaxHpRef.current);
-                addFloatText('¡Barricada reparada!', w / 2, h / 2, '#34d399', 16);
+              if (z === bossRef.current) { bossRef.current = null; setBossActive(false); }
+              zombiePoolRef.current.release(z);
+              if (barricadeHpRef.current <= 0 && leftTowerHpRef.current <= 0 && rightTowerHpRef.current <= 0) {
+                livesRef.current--; setLives(livesRef.current);
+                if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
+                else {
+                  barricadeHpRef.current = barricadeMaxHpRef.current; setBarricadeHp(barricadeMaxHpRef.current);
+                  addFloatText('¡Defensas reparadas!', w / 2, h / 2, '#34d399', 16);
+                }
               }
             }
           }
@@ -1288,9 +1287,15 @@ export function ZombieGameScreen() {
       </div>
       <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 w-56">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-white/60">BARRICADA</span>
+          <span className="text-[10px] font-bold text-white/60">CASTILLO</span>
           <div className="flex-1 h-3 rounded-full bg-black/50 border border-white/10 overflow-hidden">
-            <div className="h-full transition-all duration-200" style={{ width: `${(barricadeHp / barricadeMaxHpRef.current) * 100}%`, background: barricadeHp > 75 ? '#22c55e' : barricadeHp > 38 ? '#eab308' : '#ef4444' }} />
+            <div className="h-full transition-all duration-200" style={{ width: `${(castleHp / CASTLE_MAX_HP) * 100}%`, background: castleHp > 50 ? '#22c55e' : castleHp > 25 ? '#eab308' : '#ef4444' }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[10px] font-bold text-white/60">TORRES</span>
+          <div className="flex-1 h-2 rounded-full bg-black/50 border border-white/10 overflow-hidden">
+            <div className="h-full transition-all duration-200" style={{ width: `${((leftTowerHp + rightTowerHp) / (TOWER_MAX_HP * 2)) * 100}%`, background: '#8a9b50' }} />
           </div>
         </div>
       </div>

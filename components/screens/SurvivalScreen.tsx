@@ -10,7 +10,7 @@ import {
   spawnParticles2D, updateParticles2D, drawParticles2D,
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle,
-  drawSoldier2D, drawZombie2D, drawWarzoneBackground,
+  drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -29,10 +29,12 @@ function makeBullet(): Bullet { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, dama
 function makeCrate(): SupplyCrate { return { x: 0, y: 0, vy: 0, hp: 30, maxHp: 30, coins: 2, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.hp = 30; this.maxHp = 30; this.coins = 2; } }; }
 function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; } }; }
 
-const LANE_COUNT = 5;
+const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
 const SPRITE_SCALE = 1.9;
+const TOWER_MAX_HP = 200;
+const CASTLE_MAX_HP = 300;
 
 export function SurvivalScreen() {
   const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch } = useGame();
@@ -42,6 +44,9 @@ export function SurvivalScreen() {
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [barricadeHp, setBarricadeHp] = useState(100);
+  const [leftTowerHp, setLeftTowerHp] = useState(TOWER_MAX_HP);
+  const [rightTowerHp, setRightTowerHp] = useState(TOWER_MAX_HP);
+  const [castleHp, setCastleHp] = useState(CASTLE_MAX_HP);
 
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 40));
   const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 100));
@@ -57,6 +62,9 @@ export function SurvivalScreen() {
   const coinsEarnedRef = useRef(0);
   const zombieKillsRef = useRef(0);
   const barricadeHpRef = useRef(100);
+  const leftTowerHpRef = useRef(TOWER_MAX_HP);
+  const rightTowerHpRef = useRef(TOWER_MAX_HP);
+  const castleHpRef = useRef(CASTLE_MAX_HP);
   const gameOverRef = useRef(false);
   const shootCooldownRef = useRef(0);
   const spawnTimerRef = useRef(0);
@@ -84,10 +92,13 @@ export function SurvivalScreen() {
     muzzleFlashesRef.current = [];
     survivalTimeRef.current = 0; coinsEarnedRef.current = 0; zombieKillsRef.current = 0;
     barricadeHpRef.current = 100;
+    leftTowerHpRef.current = TOWER_MAX_HP;
+    rightTowerHpRef.current = TOWER_MAX_HP;
+    castleHpRef.current = CASTLE_MAX_HP;
     gameOverRef.current = false;
     spawnTimerRef.current = 0; crateTimerRef.current = 0;
     difficultyRef.current = 1;
-    setSurvivalTime(0); setCoinsEarned(0); setBarricadeHp(100); setGameOver(false);
+    setSurvivalTime(0); setCoinsEarned(0); setBarricadeHp(100); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false);
     startTimeRef.current = performance.now();
     startGameBatch();
   }, [startGameBatch]);
@@ -146,7 +157,7 @@ export function SurvivalScreen() {
 
     const z = zombiePoolRef.current.acquire();
     z.x = getLaneX(lane); z.y = -30;
-    z.vx = type === 'fast' ? rand(-1.5, 1.5) : 0;
+    z.vx = type === 'fast' ? rand(-1.0, 1.0) : 0;
     z.vy = vy * char.speedMult; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, [char]);
@@ -227,11 +238,43 @@ export function SurvivalScreen() {
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : 15;
-            barricadeHpRef.current -= dmg; setBarricadeHp(Math.max(0, barricadeHpRef.current));
-            playHit();
-            screenShakeRef.current.trigger(3, 10);
-            zombiePoolRef.current.release(z);
-            if (barricadeHpRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
+            // Determine which structure to damage based on x position
+            const { w } = canvasSizeRef.current;
+            const leftTowerX = w * 0.15;
+            const rightTowerX = w * 0.85;
+            const castleX = w * 0.5;
+            const towerRange = w * 0.18;
+            const castleRange = w * 0.15;
+
+            if (Math.abs(z.x - leftTowerX) < towerRange && leftTowerHpRef.current > 0) {
+              leftTowerHpRef.current = Math.max(0, leftTowerHpRef.current - dmg);
+              setLeftTowerHp(leftTowerHpRef.current);
+              playHit();
+              screenShakeRef.current.trigger(3, 10);
+              zombiePoolRef.current.release(z);
+            } else if (Math.abs(z.x - rightTowerX) < towerRange && rightTowerHpRef.current > 0) {
+              rightTowerHpRef.current = Math.max(0, rightTowerHpRef.current - dmg);
+              setRightTowerHp(rightTowerHpRef.current);
+              playHit();
+              screenShakeRef.current.trigger(3, 10);
+              zombiePoolRef.current.release(z);
+            } else if (Math.abs(z.x - castleX) < castleRange) {
+              castleHpRef.current = Math.max(0, castleHpRef.current - dmg);
+              setCastleHp(castleHpRef.current);
+              playHit();
+              screenShakeRef.current.trigger(3, 10);
+              zombiePoolRef.current.release(z);
+              if (castleHpRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
+            } else {
+              // Falls through to barricade
+              barricadeHpRef.current -= dmg; setBarricadeHp(Math.max(0, barricadeHpRef.current));
+              playHit();
+              screenShakeRef.current.trigger(3, 10);
+              zombiePoolRef.current.release(z);
+              if (barricadeHpRef.current <= 0 && leftTowerHpRef.current <= 0 && rightTowerHpRef.current <= 0) {
+                gameOverRef.current = true; setGameOver(true);
+              }
+            }
           }
         }
 
@@ -287,25 +330,16 @@ export function SurvivalScreen() {
       ctx.translate(shake.x, shake.y);
 
       // Background
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, '#1a0a0a');
-      grad.addColorStop(0.5, '#2a1a1a');
-      grad.addColorStop(1, '#0a0a0a');
-      ctx.fillStyle = grad;
-      ctx.fillRect(-20, -20, w + 40, h + 40);
+      drawTacticalArena(ctx, w, h, scrollYRef.current);
 
-      // Road lines
-      ctx.strokeStyle = '#3a2a2a';
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= LANE_COUNT; i++) {
-        const lx = (w / LANE_COUNT) * i;
-        ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, barricadeY); ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
-      for (let i = 0; i < h; i += 40) {
-        const dashY = ((i + scrollYRef.current) % (h + 40)) - 20;
-        if (dashY > 0 && dashY < barricadeY) ctx.fillRect(w / 2 - 3, dashY, 6, 20);
-      }
+      // Draw towers and castle
+      const leftTowerX = w * 0.15;
+      const rightTowerX = w * 0.85;
+      const castleX = w * 0.5;
+      const structureY = h * 0.93;
+      drawArenaTower(ctx, leftTowerX, structureY, leftTowerHpRef.current, TOWER_MAX_HP, 'left');
+      drawArenaTower(ctx, rightTowerX, structureY, rightTowerHpRef.current, TOWER_MAX_HP, 'right');
+      drawArenaCastle(ctx, castleX, structureY, castleHpRef.current, CASTLE_MAX_HP);
 
       // Draw zombies (aggressive military zombies via engine2d)
       for (const z of zombiePoolRef.current.getActive()) {
@@ -343,11 +377,9 @@ export function SurvivalScreen() {
         ctx.restore();
       }
 
-      // Barricade (sandbag style)
+      // Barricade (sandbag style between towers)
       ctx.fillStyle = '#2a2820'; ctx.fillRect(0, barricadeY, w, 10);
       ctx.fillStyle = '#3a3528'; for (let i = 0; i < w; i += 14) { ctx.fillRect(i, barricadeY, 7, 10); }
-      ctx.strokeStyle = '#4a4636'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, barricadeY - 2); for (let i = 0; i < w; i += 14) { ctx.lineTo(i, barricadeY - 2 + (i % 28 === 0 ? -3 : 0)); } ctx.stroke();
 
       // Survivor (tactical soldier via engine2d)
       const tx = turretXRef.current;
@@ -426,9 +458,15 @@ export function SurvivalScreen() {
       </div>
       <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10 w-56 mt-8">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-white/60">BARRICADA</span>
+          <span className="text-[10px] font-bold text-white/60">CASTILLO</span>
           <div className="flex-1 h-3 rounded-full bg-black/50 border border-white/10 overflow-hidden">
-            <div className="h-full transition-all duration-200" style={{ width: `${barricadeHp}%`, background: barricadeHp > 50 ? '#22c55e' : barricadeHp > 25 ? '#eab308' : '#ef4444' }} />
+            <div className="h-full transition-all duration-200" style={{ width: `${(castleHp / CASTLE_MAX_HP) * 100}%`, background: castleHp > 50 ? '#22c55e' : castleHp > 25 ? '#eab308' : '#ef4444' }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-[10px] font-bold text-white/60">TORRES</span>
+          <div className="flex-1 h-2 rounded-full bg-black/50 border border-white/10 overflow-hidden">
+            <div className="h-full transition-all duration-200" style={{ width: `${((leftTowerHp + rightTowerHp) / (TOWER_MAX_HP * 2)) * 100}%`, background: '#8a9b50' }} />
           </div>
         </div>
       </div>
