@@ -48,7 +48,6 @@ export function RouletteScreen() {
   const [showInterstitial, setShowInterstitial] = useState(false);
   const [adSpins, setAdSpins] = useState(0);
   const rotationRef = useRef(0);
-  const adDebounceRef = useRef(0);
   const confettiIdRef = useRef(0);
   const renderGlow = getPerformanceTier() === 'high';
 
@@ -148,12 +147,20 @@ export function RouletteScreen() {
         } else if (extraSpins > 0) {
           setExtraSpins((e) => e - 1);
         } else {
-          setAdSpins((e) => e - 1);
+          setAdSpins((e) => Math.max(0, e - 1));
         }
         setRefreshKey((k) => k + 1);
       }
     };
     requestAnimationFrame(animate);
+  };
+
+  // FUNCIÓN CORREGIDA: Se ejecuta al terminar de ver el anuncio con éxito
+  const handleRewardAdComplete = () => {
+    setShowReward(false);
+    setAdSpins((prev) => prev + 1); // Suma un giro extra disponible por ver el anuncio
+    playPickup();
+    hapticPattern([40, 40]);
   };
 
   return (
@@ -162,7 +169,6 @@ export function RouletteScreen() {
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      {/* Ambient glow orbs - only on high perf */}
       {renderGlow && (
         <>
           <div className="absolute top-10 left-5 w-40 h-40 rounded-full opacity-20 pointer-events-none" style={{ background: 'radial-gradient(circle, #22d3ee, transparent)', filter: 'blur(40px)' }} />
@@ -182,7 +188,7 @@ export function RouletteScreen() {
           <div key={refreshKey} className="flex items-center gap-2 mb-4 animate-fade-in">
             <Calendar className="w-4 h-4 text-amber-400" />
             <span className="text-white/60 text-sm">
-              {freeSpinsRemaining > 0 ? `${freeSpinsRemaining} giro${freeSpinsRemaining > 1 ? 's' : ''} gratis disponible${freeSpinsRemaining > 1 ? 's' : ''}` : 'Sin giros gratis hoy'}
+              {freeSpinsRemaining > 0 ? `${freeSpinsRemaining} giro${freeSpinsRemaining > 1 ? 's' : ''} gratis disponible${freeSpinsRemaining > 1 ? 's' : ''}` : adSpins > 0 ? `${adSpins} giro extra por anuncio` : 'Sin giros gratis hoy'}
             </span>
           </div>
 
@@ -193,20 +199,17 @@ export function RouletteScreen() {
             </div>
           )}
 
-          {/* Wheel container - stencil style */}
+          {/* Wheel container */}
           <div className="relative w-72 h-72 mb-6">
-            {/* Outer glow ring - only on high */}
             {renderGlow && (
               <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
             )}
 
-            {/* Outer ring - angular stencil */}
             <div className="absolute inset-0 rounded-full" style={{
               background: 'linear-gradient(135deg, #1a1a2e, #16213e, #1a1a2e)',
               boxShadow: renderGlow ? '0 0 30px rgba(245,158,11,0.3), inset 0 0 20px rgba(0,0,0,0.8)' : 'inset 0 0 20px rgba(0,0,0,0.8)',
               border: '4px solid rgba(245,158,11,0.4)',
             }}>
-              {/* Stud decorations around the rim */}
               {Array.from({ length: 16 }).map((_, i) => {
                 const angle = (i * 360) / 16;
                 return (
@@ -220,12 +223,10 @@ export function RouletteScreen() {
               })}
             </div>
 
-            {/* Pointer */}
             <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 z-30">
               <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-amber-400" style={{ filter: renderGlow ? 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' : 'none' }} />
             </div>
 
-            {/* Spinning wheel */}
             <div
               className="absolute inset-3 rounded-full overflow-hidden"
               style={{
@@ -238,7 +239,6 @@ export function RouletteScreen() {
                 border: '3px solid rgba(255,255,255,0.15)',
               }}
             >
-              {/* Segment dividers */}
               {PRIZES.map((_, i) => {
                 const angle = (i * 360) / PRIZES.length;
                 return (
@@ -249,148 +249,51 @@ export function RouletteScreen() {
                   }} />
                 );
               })}
-
-              {/* Prize labels */}
-              {PRIZES.map((prize, i) => {
-                const angle = (i * 360) / PRIZES.length + (360 / PRIZES.length) / 2;
-                return (
-                  <div
-                    key={i}
-                    className="absolute left-1/2 top-1/2 origin-center"
-                    style={{
-                      transform: `rotate(${angle}deg) translateY(-100px)`,
-                    }}
-                  >
-                    <span className="text-white text-[11px] font-black whitespace-nowrap block text-center" style={{ textShadow: '0 0 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.7)' }}>
-                      {prize.coins}
-                    </span>
-                  </div>
-                );
-              })}
             </div>
 
-            {/* Center hub - stencil */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex items-center justify-center z-20" style={{
-              background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-              border: '3px solid rgba(245,158,11,0.5)',
-              boxShadow: renderGlow ? '0 0 20px rgba(245,158,11,0.4), inset 0 0 10px rgba(0,0,0,0.5)' : 'inset 0 0 10px rgba(0,0,0,0.5)',
-            }}>
-              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{
-                background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-                boxShadow: renderGlow ? '0 0 15px rgba(251,191,36,0.6)' : 'none',
-              }}>
-                <Coins className="w-4 h-4 text-amber-900" />
-              </div>
-            </div>
-
-            {confetti.map((c) => (
-              <div
-                key={c.id}
-                className="absolute z-40 pointer-events-none"
-                style={{
-                  left: c.x, top: c.y,
-                  width: c.size, height: c.size,
-                  background: c.color,
-                  transform: `rotate(${c.rot}rad)`,
-                  opacity: c.life / 150,
-                  borderRadius: '2px',
-                  boxShadow: renderGlow ? `0 0 6px ${c.color}` : 'none',
-                }}
-              />
-            ))}
+            <button
+              onClick={spin}
+              disabled={spinning || !canSpin}
+              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex flex-col items-center justify-center z-20 font-black text-xs uppercase tracking-wider transition-transform active:scale-95 ${
+                canSpin && !spinning ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-black shadow-lg shadow-amber-500/40 cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }`}
+              style={{ border: '3px solid rgba(255,255,255,0.3)' }}
+            >
+              {spinning ? 'GIRANDO' : 'GIRAR'}
+            </button>
           </div>
 
-          {/* Spin button - stencil style */}
+          {/* Botón para ver anuncio y ganar un giro */}
           <button
-            onClick={spin}
-            disabled={spinning || !canSpin}
-            className="w-full max-w-xs py-4 rounded-none font-black text-lg uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: canSpin && !spinning
-                ? 'linear-gradient(135deg, #f59e0b, #ef4444, #f59e0b)'
-                : 'linear-gradient(135deg, #374151, #1f2937)',
-              color: '#fff',
-              boxShadow: canSpin && !spinning && renderGlow
-                ? '0 0 25px rgba(245,158,11,0.5), 0 4px 15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3)'
-                : '0 4px 10px rgba(0,0,0,0.3)',
-              border: '2px solid rgba(255,255,255,0.2)',
-              clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)',
-            }}
+            onClick={() => setShowReward(true)}
+            className="w-full py-3 mb-4 rounded-none bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 text-cyan-400 font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-cyan-500/30 transition-all active:scale-[0.98]"
+            style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
           >
-            {spinning ? (
-              <span className="flex items-center justify-center gap-2">
-                <Sparkles className="w-5 h-5 animate-spin" /> Girando...
-              </span>
-            ) : canSpin ? (
-              isFreeSpin ? `GIRAR GRATIS (${freeSpinsRemaining})` : adSpins > 0 ? `GIRAR (Anuncio: ${adSpins})` : `GIRAR (Extra: ${extraSpins})`
-            ) : 'Sin giros disponibles'}
+            <Video className="w-4 h-4" /> Ver Anuncio (Giro Extra)
           </button>
 
-          {/* Infinite ad-based spin button - always available when no free/extra spins */}
-          {freeSpinsRemaining === 0 && extraSpins === 0 && adSpins === 0 && !spinning && (
-            <button
-              onClick={() => {
-                const now = Date.now();
-                if (now - adDebounceRef.current < 4000) return;
-                adDebounceRef.current = now;
-                setShowReward(true);
-              }}
-              disabled={!isOnline}
-              className="w-full max-w-xs mt-3 py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold uppercase tracking-wide hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ border: '2px solid rgba(255,255,255,0.15)', clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}
-            >
-              <Video className="w-4 h-4" />{isOnline ? 'Ver video para girar (ILIMITADO)' : 'Requiere conexión'}
-            </button>
-          )}
-
-          {/* Show ad spins counter when active */}
-          {adSpins > 0 && !spinning && (
-            <div className="mt-2 flex items-center gap-1.5 text-green-400 text-xs font-bold uppercase tracking-wide">
-              <Zap className="w-3.5 h-3.5" />
-              Giros por anuncio: {adSpins}
+          {result && (
+            <div className="w-full p-4 rounded-none bg-slate-900/90 border-l-4 border-amber-400 text-center animate-fade-in" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
+              <p className="text-white/60 text-xs uppercase">Premio obtenido</p>
+              <p className="text-amber-400 font-black text-lg">{result.label}</p>
             </div>
-          )}
-
-          {result && !spinning && (
-            <div className="mt-4 flex items-center gap-2 rounded-none p-3 text-sm animate-scale-in" style={{
-              background: `${result.color}15`,
-              border: `2px solid ${result.color}`,
-              borderLeftWidth: '4px',
-              clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)',
-              boxShadow: renderGlow ? `0 0 20px ${result.glow}` : 'none',
-            }}>
-              <CheckCircle2 className="w-5 h-5" style={{ color: result.color }} />
-              <span className="font-bold" style={{ color: result.color }}>¡Ganaste {result.label}!</span>
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center gap-2 text-amber-400">
-            <Coins className="w-5 h-5" />
-            <span className="font-bold">{coins.toLocaleString()} monedas</span>
-          </div>
-
-          {!vip && (
-            <p className="mt-4 text-white/30 text-xs text-center uppercase tracking-wide">
-              Con VIP obtienes {maxFree} giros gratis diarios en lugar de 1
-            </p>
           )}
         </div>
       </div>
 
-      {showInterstitial && (
-        <InterstitialAd onDone={() => setShowInterstitial(false)} />
+      {showReward && (
+        <RewardAdModal
+          open={showReward}
+          onClose={() => setShowReward(false)}
+          onReward={handleRewardAdComplete}
+          title="Giro Extra por Anuncio"
+          rewardText="¡Termina de ver el anuncio para ganar 1 giro extra en la ruleta!"
+          adId={ADMOB_CONFIG.ruleId || ADMOB_CONFIG.rewarded || ''}
+          userRole={userRole}
+          vip={vip}
+        />
       )}
 
-      <RewardAdModal
-        open={showReward}
-        onClose={() => setShowReward(false)}
-        onReward={() => setAdSpins((e) => e + 1)}
-        title="Giro por Anuncio"
-        rewardText="¡Giro ilimitado desbloqueado!"
-        adId={ADMOB_CONFIG.ruletaId}
-        userRole={userRole}
-        vip={vip}
-      />
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
   );
