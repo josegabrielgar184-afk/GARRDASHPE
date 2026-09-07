@@ -155,10 +155,9 @@ export function RouletteScreen() {
     requestAnimationFrame(animate);
   };
 
-  // FUNCIÓN CORREGIDA: Se ejecuta al terminar de ver el anuncio con éxito
   const handleRewardAdComplete = () => {
     setShowReward(false);
-    setAdSpins((prev) => prev + 1); // Suma un giro extra disponible por ver el anuncio
+    setAdSpins((prev) => prev + 1);
     playPickup();
     hapticPattern([40, 40]);
   };
@@ -263,7 +262,6 @@ export function RouletteScreen() {
             </button>
           </div>
 
-          {/* Botón para ver anuncio y ganar un giro */}
           <button
             onClick={() => setShowReward(true)}
             className="w-full py-3 mb-4 rounded-none bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 text-cyan-400 font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-cyan-500/30 transition-all active:scale-[0.98]"
@@ -288,7 +286,7 @@ export function RouletteScreen() {
           onReward={handleRewardAdComplete}
           title="Giro Extra por Anuncio"
           rewardText="¡Termina de ver el anuncio para ganar 1 giro extra en la ruleta!"
-          adId={ADMOB_CONFIG.ruleId || ADMOB_CONFIG.rewarded || ''}
+          adId={ADMOB_CONFIG.rewarded || ''}
           userRole={userRole}
           vip={vip}
         />
