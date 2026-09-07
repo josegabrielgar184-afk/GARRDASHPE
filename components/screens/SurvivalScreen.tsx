@@ -11,7 +11,7 @@ import {
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle,
   drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
-  getArenaLaneX, getArenaLaneBounds,
+  getArenaLaneX, getArenaLaneBounds, getArenaTheme, type ArenaTheme,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -73,6 +73,7 @@ export function SurvivalScreen() {
   const difficultyRef = useRef(1);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
   const scrollYRef = useRef(0);
+  const arenaThemeRef = useRef<ArenaTheme>(getArenaTheme(1));
   const fpsMonitorRef = useRef<FPSMonitor>(new FPSMonitor());
   const startTimeRef = useRef(0);
 
@@ -297,7 +298,7 @@ export function SurvivalScreen() {
 
         for (const b of bulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-          if (b.life <= 0 || b.y < -10) { bulletPoolRef.current.release(b); continue; }
+          if (b.life <= 0 || b.y < -10 || b.y < h * 0.46) { bulletPoolRef.current.release(b); continue; }
 
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
@@ -342,7 +343,7 @@ export function SurvivalScreen() {
       ctx.translate(shake.x, shake.y);
 
       // Background
-      drawTacticalArena(ctx, w, h, scrollYRef.current);
+      drawTacticalArena(ctx, w, h, scrollYRef.current, arenaThemeRef.current);
 
       // Draw towers and castle
       const leftTowerX = w * 0.15;

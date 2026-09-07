@@ -327,17 +327,23 @@ export function drawZombie2D(
 
   ctx.rotate(angle);
 
-  const legSwing = Math.sin(walkCycle) * (size * 0.2);
-  const bodyBob = Math.abs(Math.sin(walkCycle * 2)) * size * 0.04;
+  const legSwing = Math.sin(walkCycle) * (size * 0.22);
+  const bodyBob = Math.abs(Math.sin(walkCycle * 2)) * size * 0.05;
+  const torsoSway = Math.sin(walkCycle) * 0.06;
+  const armSwing = Math.sin(walkCycle + Math.PI) * (size * 0.08);
 
-  // Legs (marching animation — pronounced stride)
+  // Legs (marching animation — pronounced stride with hip swing)
   ctx.fillStyle = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2a2a1a';
   ctx.fillRect(-size * 0.15, -size * 0.1 + legSwing, size * 0.12, size * 0.35);
   ctx.fillRect(size * 0.03, size * 0.1 - legSwing, size * 0.12, size * 0.35);
+  // Feet (small boots for marching feel)
+  ctx.fillStyle = isTank ? '#2a0a0a' : isMutant ? '#1a1a2a' : '#0a1804';
+  ctx.fillRect(-size * 0.17, -size * 0.1 + legSwing + size * 0.3, size * 0.14, size * 0.06);
+  ctx.fillRect(size * 0.01, size * 0.1 - legSwing + size * 0.3, size * 0.14, size * 0.06);
 
-  // Torso (slightly hunched, defined silhouette, with body bob)
+  // Torso (swaying with walk cycle, bobbing vertically)
   ctx.save();
-  ctx.rotate(0.08);
+  ctx.rotate(0.08 + torsoSway);
   ctx.translate(0, -bodyBob);
   // Dark military green body
   const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2d4010';
@@ -355,16 +361,16 @@ export function drawZombie2D(
   ctx.ellipse(0, 0, size * 0.32, size * 0.38, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Arms reaching forward (defined)
+  // Arms reaching forward (swinging with walk cycle)
   ctx.fillStyle = bodyColor;
   const armReach = size * 0.42;
-  ctx.fillRect(size * 0.1, -size * 0.22, armReach, size * 0.07);
-  ctx.fillRect(size * 0.1, size * 0.15, armReach, size * 0.07);
+  ctx.fillRect(size * 0.1, -size * 0.22 + armSwing, armReach, size * 0.07);
+  ctx.fillRect(size * 0.1, size * 0.15 - armSwing, armReach, size * 0.07);
   // Arm outlines
   ctx.strokeStyle = isTank ? '#5a2a2a' : isMutant ? '#4a4a5a' : '#3a5018';
   ctx.lineWidth = 0.5;
-  ctx.strokeRect(size * 0.1, -size * 0.22, armReach, size * 0.07);
-  ctx.strokeRect(size * 0.1, size * 0.15, armReach, size * 0.07);
+  ctx.strokeRect(size * 0.1, -size * 0.22 + armSwing, armReach, size * 0.07);
+  ctx.strokeRect(size * 0.1, size * 0.15 - armSwing, armReach, size * 0.07);
 
   // Head (darker green, defined)
   ctx.fillStyle = isTank ? '#5a2020' : isMutant ? '#4a2a5a' : '#2a4008';
@@ -2341,6 +2347,106 @@ export const ARENA_LANE_W_RATIO = 0.28;
 export const ARENA_RIVER_Y_RATIO = 0.42;
 export const ARENA_RIVER_H_RATIO = 0.08;
 
+export interface ArenaTheme {
+  name: string;
+  ground: [string, string, string];
+  lane: [string, string, string];
+  laneEdge: string;
+  laneDash: string;
+  center: [string, string, string];
+  divider: string;
+  river: [string, string, string, string, string];
+  riverGlow: string;
+  bridgeDeck: string;
+  bridgeDeckLight: string;
+  bridgePlank: string;
+  bridgeRailing: string;
+  bridgeRailingTop: string;
+  nest: string;
+  nestRing: string;
+  nestCore: string;
+  trench: string;
+  trenchSand: string;
+  trenchSandLight: string;
+  vignette: number;
+}
+
+export const ARENA_THEMES: ArenaTheme[] = [
+  {
+    name: 'Pista Urbana',
+    ground: ['#1a1812', '#15130e', '#0e0c08'],
+    lane: ['#1a1a1e', '#222226', '#1a1a1e'],
+    laneEdge: 'rgba(138,155,80,0.5)',
+    laneDash: 'rgba(250,204,60,0.35)',
+    center: ['#0a0a0c', '#0e0e12', '#0a0a0c'],
+    divider: 'rgba(34,211,238,0.2)',
+    river: ['#0891b2', '#06b6d4', '#22d3ee', '#06b6d4', '#0891b2'],
+    riverGlow: '#22d3ee',
+    bridgeDeck: '#c8956a',
+    bridgeDeckLight: '#d4a574',
+    bridgePlank: '#7a5230',
+    bridgeRailing: '#5a3a18',
+    bridgeRailingTop: '#7a5230',
+    nest: '#2a1a0a',
+    nestRing: 'rgba(180,60,40,0.4)',
+    nestCore: 'rgba(220,60,40,0.18)',
+    trench: '#2a2820',
+    trenchSand: '#3a3528',
+    trenchSandLight: '#4a4530',
+    vignette: 0.5,
+  },
+  {
+    name: 'Arena de Desierto',
+    ground: ['#3a2e1a', '#2e2412', '#1e1808'],
+    lane: ['#4a3a20', '#5a4a2a', '#4a3a20'],
+    laneEdge: 'rgba(200,170,80,0.5)',
+    laneDash: 'rgba(250,220,100,0.4)',
+    center: ['#2a1e0a', '#32260e', '#2a1e0a'],
+    divider: 'rgba(34,211,238,0.2)',
+    river: ['#0891b2', '#06b6d4', '#22d3ee', '#06b6d4', '#0891b2'],
+    riverGlow: '#22d3ee',
+    bridgeDeck: '#c8956a',
+    bridgeDeckLight: '#d4a574',
+    bridgePlank: '#7a5230',
+    bridgeRailing: '#5a3a18',
+    bridgeRailingTop: '#7a5230',
+    nest: '#3a2a14',
+    nestRing: 'rgba(200,120,40,0.4)',
+    nestCore: 'rgba(220,140,40,0.18)',
+    trench: '#4a3a20',
+    trenchSand: '#5a4a2a',
+    trenchSandLight: '#6a5a3a',
+    vignette: 0.4,
+  },
+  {
+    name: 'Zona Militar',
+    ground: ['#1a1e14', '#141810', '#0a0e06'],
+    lane: ['#1e2a1a', '#262e20', '#1e2a1a'],
+    laneEdge: 'rgba(120,160,80,0.5)',
+    laneDash: 'rgba(180,220,100,0.35)',
+    center: ['#0a0e08', '#0e120a', '#0a0e08'],
+    divider: 'rgba(34,211,238,0.2)',
+    river: ['#0891b2', '#06b6d4', '#22d3ee', '#06b6d4', '#0891b2'],
+    riverGlow: '#22d3ee',
+    bridgeDeck: '#8a7a5a',
+    bridgeDeckLight: '#9a8a6a',
+    bridgePlank: '#5a4a30',
+    bridgeRailing: '#3a2a18',
+    bridgeRailingTop: '#5a4a30',
+    nest: '#1a1e10',
+    nestRing: 'rgba(160,80,40,0.4)',
+    nestCore: 'rgba(180,80,40,0.18)',
+    trench: '#1e2a1a',
+    trenchSand: '#2e3a26',
+    trenchSandLight: '#3e4a36',
+    vignette: 0.55,
+  },
+];
+
+export function getArenaTheme(level: number): ArenaTheme {
+  return ARENA_THEMES[level % ARENA_THEMES.length];
+}
+
 export function getArenaLaneX(lane: number, w: number): number {
   const laneW = w * ARENA_LANE_W_RATIO;
   if (lane === 0) return laneW * 0.5;
@@ -2358,6 +2464,7 @@ export function drawTacticalArena(
   w: number,
   h: number,
   scrollY: number,
+  theme: ArenaTheme = ARENA_THEMES[0],
 ) {
   const laneW = w * ARENA_LANE_W_RATIO;
   const leftCx = laneW * 0.5;
@@ -2365,34 +2472,33 @@ export function drawTacticalArena(
   const riverY = h * ARENA_RIVER_Y_RATIO;
   const riverH = h * ARENA_RIVER_H_RATIO;
 
-  // Base ground — dark earth
+  // Base ground — full width, no black edges
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#1a1812');
-  grad.addColorStop(0.5, '#15130e');
-  grad.addColorStop(1, '#0e0c08');
+  grad.addColorStop(0, theme.ground[0]);
+  grad.addColorStop(0.5, theme.ground[1]);
+  grad.addColorStop(1, theme.ground[2]);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  // ── Side lanes (asphalt roads) ──
+  // ── Side lanes (themed roads) ──
   const laneGrad = ctx.createLinearGradient(0, 0, laneW, 0);
-  laneGrad.addColorStop(0, '#1a1a1e');
-  laneGrad.addColorStop(0.5, '#222226');
-  laneGrad.addColorStop(1, '#1a1a1e');
+  laneGrad.addColorStop(0, theme.lane[0]);
+  laneGrad.addColorStop(0.5, theme.lane[1]);
+  laneGrad.addColorStop(1, theme.lane[2]);
   ctx.fillStyle = laneGrad;
   ctx.fillRect(0, 0, laneW, h);
-  ctx.fillStyle = laneGrad;
   ctx.fillRect(w - laneW, 0, laneW, h);
 
-  // Lane edge lines (bright tactical markings)
-  ctx.strokeStyle = 'rgba(138,155,80,0.5)';
+  // Lane edge lines
+  ctx.strokeStyle = theme.laneEdge;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(laneW, 0); ctx.lineTo(laneW, h);
   ctx.moveTo(w - laneW, 0); ctx.lineTo(w - laneW, h);
   ctx.stroke();
 
-  // Lane dashed center lines (scrolling, bright yellow)
-  ctx.fillStyle = 'rgba(250,204,60,0.35)';
+  // Lane dashed center lines (scrolling)
+  ctx.fillStyle = theme.laneDash;
   for (let i = 0; i < h; i += 36) {
     const dy = ((i + scrollY * 0.5) % (h + 36)) - 18;
     if (dy > 0 && dy < h) {
@@ -2404,34 +2510,33 @@ export function drawTacticalArena(
   // ── Center zone (clean, despejado) ──
   const centerX = w / 2;
   const centerW = w - laneW * 2;
-  // Dark concrete base
   const centerGrad = ctx.createLinearGradient(laneW, 0, w - laneW, 0);
-  centerGrad.addColorStop(0, '#0a0a0c');
-  centerGrad.addColorStop(0.5, '#0e0e12');
-  centerGrad.addColorStop(1, '#0a0a0c');
+  centerGrad.addColorStop(0, theme.center[0]);
+  centerGrad.addColorStop(0.5, theme.center[1]);
+  centerGrad.addColorStop(1, theme.center[2]);
   ctx.fillStyle = centerGrad;
   ctx.fillRect(laneW, 0, centerW, h);
 
-  // Single subtle neon divider line (not saturated)
+  // Subtle neon divider line
   const barrierPulse = 0.3 + Math.sin(scrollY * 0.04) * 0.1;
-  ctx.strokeStyle = `rgba(34,211,238,${barrierPulse * 0.5})`;
+  ctx.strokeStyle = theme.divider;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(centerX, 35); ctx.lineTo(centerX, h - 20);
   ctx.stroke();
 
-  // ── River (bright cyan neon water) ──
+  // ── River (bright cyan neon water — always cyan) ──
   const riverGrad = ctx.createLinearGradient(0, riverY, 0, riverY + riverH);
-  riverGrad.addColorStop(0, '#0891b2');
-  riverGrad.addColorStop(0.3, '#06b6d4');
-  riverGrad.addColorStop(0.5, '#22d3ee');
-  riverGrad.addColorStop(0.7, '#06b6d4');
-  riverGrad.addColorStop(1, '#0891b2');
+  riverGrad.addColorStop(0, theme.river[0]);
+  riverGrad.addColorStop(0.3, theme.river[1]);
+  riverGrad.addColorStop(0.5, theme.river[2]);
+  riverGrad.addColorStop(0.7, theme.river[3]);
+  riverGrad.addColorStop(1, theme.river[4]);
   ctx.fillStyle = riverGrad;
   ctx.fillRect(0, riverY, w, riverH);
 
   // River glow edges
-  ctx.shadowColor = '#22d3ee';
+  ctx.shadowColor = theme.riverGlow;
   ctx.shadowBlur = 10;
   ctx.strokeStyle = 'rgba(165,243,252,0.6)';
   ctx.lineWidth = 1.5;
@@ -2441,7 +2546,7 @@ export function drawTacticalArena(
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // River wave ripples (bright animated)
+  // River wave ripples
   ctx.strokeStyle = 'rgba(207,250,254,0.4)';
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i++) {
@@ -2462,20 +2567,17 @@ export function drawTacticalArena(
     ctx.fillRect(sx, sy, 2, 2);
   }
 
-  // ── Wooden bridges over river (detailed planks) ──
+  // ── Wooden bridges over river ──
   for (const cx of [leftCx, rightCx]) {
     const bw = laneW * 0.92;
     const bx = cx - bw * 0.5;
-    // Bridge shadow on water
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fillRect(bx, riverY + riverH - 3, bw, 3);
-    // Bridge deck — light brown wood
-    ctx.fillStyle = '#c8956a';
+    ctx.fillStyle = theme.bridgeDeck;
     ctx.fillRect(bx, riverY - 3, bw, riverH + 6);
-    ctx.fillStyle = '#d4a574';
+    ctx.fillStyle = theme.bridgeDeckLight;
     ctx.fillRect(bx + 1, riverY - 2, bw - 2, riverH + 4);
-    // Plank grooves (dark separations)
-    ctx.strokeStyle = '#7a5230';
+    ctx.strokeStyle = theme.bridgePlank;
     ctx.lineWidth = 1.5;
     const plankCount = 7;
     for (let i = 1; i < plankCount; i++) {
@@ -2485,7 +2587,6 @@ export function drawTacticalArena(
       ctx.lineTo(px, riverY + riverH + 2);
       ctx.stroke();
     }
-    // Wood grain lines
     ctx.strokeStyle = 'rgba(180,130,80,0.3)';
     ctx.lineWidth = 0.5;
     for (let i = 0; i < 3; i++) {
@@ -2494,15 +2595,12 @@ export function drawTacticalArena(
       ctx.moveTo(bx + 2, gy); ctx.lineTo(bx + bw - 2, gy);
       ctx.stroke();
     }
-    // Bridge railings — dark brown posts
-    ctx.fillStyle = '#5a3a18';
+    ctx.fillStyle = theme.bridgeRailing;
     ctx.fillRect(bx - 2, riverY - 5, 4, riverH + 10);
     ctx.fillRect(bx + bw - 2, riverY - 5, 4, riverH + 10);
-    // Railing top bar
-    ctx.fillStyle = '#7a5230';
+    ctx.fillStyle = theme.bridgeRailingTop;
     ctx.fillRect(bx - 2, riverY - 5, bw + 4, 3);
     ctx.fillRect(bx - 2, riverY + riverH + 2, bw + 4, 3);
-    // Metal bolts on planks
     ctx.fillStyle = '#4a3010';
     for (let i = 0; i <= plankCount; i++) {
       const px = bx + i * (bw / plankCount);
@@ -2512,9 +2610,8 @@ export function drawTacticalArena(
   }
 
   // Center barrier at river (no bridge — energy wall)
-  ctx.fillStyle = '#0a0a0c';
+  ctx.fillStyle = theme.center[0];
   ctx.fillRect(laneW, riverY - 4, centerW, riverH + 8);
-  // Neon energy field across center river section
   ctx.fillStyle = `rgba(34,211,238,${0.15 + barrierPulse * 0.1})`;
   ctx.fillRect(laneW, riverY - 2, centerW, riverH + 4);
   ctx.strokeStyle = `rgba(165,243,252,${0.3 + barrierPulse * 0.2})`;
@@ -2525,16 +2622,15 @@ export function drawTacticalArena(
   ctx.stroke();
 
   // ── Zombie nest (top center) ──
-  ctx.fillStyle = '#2a1a0a';
+  ctx.fillStyle = theme.nest;
   ctx.beginPath();
   ctx.ellipse(centerX, 20, w * 0.22, 18, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(180,60,40,0.4)';
+  ctx.strokeStyle = theme.nestRing;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.ellipse(centerX, 20, w * 0.22, 18, 0, 0, Math.PI * 2);
   ctx.stroke();
-  // Nest spikes
   ctx.fillStyle = '#1a0a04';
   for (let i = 0; i < 8; i++) {
     const angle = (i / 8) * Math.PI * 2;
@@ -2547,23 +2643,22 @@ export function drawTacticalArena(
     ctx.closePath();
     ctx.fill();
   }
-  // Pulsing core
   const pulse = 0.6 + Math.sin(scrollY * 0.05) * 0.2;
-  ctx.fillStyle = `rgba(220,60,40,${pulse * 0.3})`;
+  ctx.fillStyle = theme.nestCore.replace(/0\.\d+/, String(pulse * 0.3));
   ctx.beginPath();
   ctx.arc(centerX, 20, 10, 0, Math.PI * 2);
   ctx.fill();
 
   // ── Bottom trench (sandbags) ──
-  ctx.fillStyle = '#2a2820';
+  ctx.fillStyle = theme.trench;
   ctx.fillRect(0, h - 16, w, 16);
-  ctx.fillStyle = '#3a3528';
+  ctx.fillStyle = theme.trenchSand;
   for (let i = 0; i < w; i += 12) {
     ctx.beginPath();
     ctx.arc(i + 6, h - 10, 7, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = '#4a4530';
+  ctx.fillStyle = theme.trenchSandLight;
   for (let i = 6; i < w; i += 12) {
     ctx.beginPath();
     ctx.arc(i + 6, h - 6, 6, 0, Math.PI * 2);
@@ -2580,7 +2675,7 @@ export function drawTacticalArena(
   // Vignette
   const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, h * 0.8);
   vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, 'rgba(0,0,0,0.5)');
+  vig.addColorStop(1, `rgba(0,0,0,${theme.vignette})`);
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, w, h);
 }

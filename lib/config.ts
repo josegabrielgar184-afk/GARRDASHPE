@@ -65,10 +65,10 @@ export const TOTAL_CAMPAIGN_LEVELS = 999;
 // Beyond level 30, capped at 10-15 to keep resource acquisition very difficult.
 export function getCampaignCoinReward(level: number): { min: number; max: number } {
   if (level <= 0) level = 1;
-  if (level >= 30) return { min: 10, max: 15 };
-  const min = Math.round(2 + (level - 1) * 0.28);
-  const max = Math.round(2 + (level - 1) * 0.45);
-  return { min, max };
+  if (level === 1) return { min: 5, max: 10 };
+  if (level <= 5) return { min: 8, max: 18 };
+  if (level <= 15) return { min: 12, max: 25 };
+  return { min: 15, max: 30 };
 }
 
 export const INTERSTITIAL_COOLDOWN_SECONDS = 300;

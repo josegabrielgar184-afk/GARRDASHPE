@@ -13,7 +13,7 @@ import {
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle, drawMetallicCoin,
   drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
-  getArenaLaneX, getArenaLaneBounds,
+  getArenaLaneX, getArenaLaneBounds, getArenaTheme, type ArenaTheme,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -69,6 +69,8 @@ const COLOR_THEMES = [
   { name: 'Azul Neón', road: '#1a1a2a', fog: 'rgba(50,150,255,0.12)', border: '#3b82f6', dash: 'rgba(200,230,255,0.6)' },
   { name: 'Morado Oscuro', road: '#1a0a1a', fog: 'rgba(150,50,255,0.12)', border: '#7c3aed', dash: 'rgba(220,200,255,0.6)' },
 ];
+
+const BULLET_MAX_Y_RATIO = 0.46;
 
 const MILESTONES: Record<number, { title: string; coins?: number; shield?: boolean; scoreBoost?: boolean; color: string }> = {
   4: { title: '¡4 AÑOS DE AMOR ETERNO!', coins: 15, color: '#ec4899' },
@@ -189,6 +191,7 @@ export function ZombieGameScreen() {
   const themeTimerRef = useRef(0);
   const reviveShieldTimerRef = useRef(0);
   const campaignLevelRef = useRef(1);
+  const arenaThemeRef = useRef<ArenaTheme>(getArenaTheme(1));
 
   // Companion refs
   const companionBulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 40));
@@ -337,6 +340,7 @@ export function ZombieGameScreen() {
     themeIndexRef.current = 0; themeTimerRef.current = 0; setThemeName(COLOR_THEMES[0].name);
     const cl = getCurrentCampaignLevel();
     campaignLevelRef.current = cl; setCampaignLevel(cl);
+    arenaThemeRef.current = getArenaTheme(cl);
     reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
@@ -384,6 +388,12 @@ export function ZombieGameScreen() {
       b.x = tx + ox; b.y = turretY - 30;
       b.vx = vxMod; b.vy = -speed;
       b.life = 80; b.damage = dmg; b.color = color;
+      // Bullet range limit: dissipate above the bridges (river is at ~0.42h, bridges slightly above)
+      // life is in frames; at speed 12 and turretY ~0.88h, we want bullets to reach ~0.40h
+      // distance = turretY - 0.40h ≈ 0.48h pixels; frames = distance / speed
+      const bulletRangeY = h * BULLET_MAX_Y_RATIO;
+      const maxBulletLife = Math.max(20, (turretY - bulletRangeY) / speed);
+      b.life = Math.min(b.life, maxBulletLife);
     };
 
     const weapon = weaponRef.current;
@@ -707,8 +717,8 @@ export function ZombieGameScreen() {
         ctx.strokeRect(8, 8, w - 16, h - 16);
       }
 
-      // Tactical arena background
-      drawTacticalArena(ctx, w, h, scrollYRef.current);
+      // Tactical arena background (themed)
+      drawTacticalArena(ctx, w, h, scrollYRef.current, arenaThemeRef.current);
 
       // Draw towers and castle
       const leftTowerX = w * 0.15;
@@ -954,7 +964,15 @@ export function ZombieGameScreen() {
 
         for (const b of bulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-          if (b.life <= 0 || b.y < -10) { bulletPoolRef.current.release(b); continue; }
+          // Bullets dissipate at the river line (just above bridges)
+          const bulletMaxY = h * BULLET_MAX_Y_RATIO;
+          if (b.life <= 0 || b.y < -10 || b.y < bulletMaxY) {
+            // Spawn small dissipate particle when bullet fades at range
+            if (b.y >= bulletMaxY - 5 && b.y <= bulletMaxY + 5) {
+              spawnParticles2D(particlesRef.current, b.x, b.y, 3, b.color, 2);
+            }
+            bulletPoolRef.current.release(b); continue;
+          }
 
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
@@ -1412,7 +1430,8 @@ export function ZombieGameScreen() {
               onClick={() => {
                 endGameBatch();
                 submitZombieScore(killCountRef.current);
-                completeLevel(campaignLevel, campaignLevel * 6, Math.min(campaignLevel * 5, 80));
+                const lvlCoins = randomCoinCap(campaignLevel);
+                completeLevel(campaignLevel, campaignLevel * 6, lvlCoins);
                 setVictory(false);
                 setScreen('campaign');
               }}

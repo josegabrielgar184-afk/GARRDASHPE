@@ -17,7 +17,7 @@ import {
 import {
   cacheGet, cacheSet, cacheInvalidatePattern, getStartOfWeek, getDaysAgo,
 } from '@/lib/firebase-optimization';
-import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, WELCOME_BONUS_KEYS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice } from '@/lib/config';
+import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, WELCOME_BONUS_KEYS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice, getCampaignCoinReward } from '@/lib/config';
 import { setupDailyNotifications } from '@/lib/notifications';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
@@ -1055,7 +1055,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const completeLevel = useCallback((level: number, stars: number, coinsEarned: number) => {
     const isFirstClear = !campaignProgress.stars[level];
-    const guaranteedCoins = Math.max(10, Math.min(30, coinsEarned || 10));
+    const rewardRange = getCampaignCoinReward(level);
+    const guaranteedCoins = Math.max(rewardRange.min, Math.min(rewardRange.max, coinsEarned || Math.floor((rewardRange.min + rewardRange.max) / 2)));
     addCoins(guaranteedCoins);
     setCampaignProgress((prev) => {
       const newStars = { ...prev.stars, [level]: Math.max(prev.stars[level] ?? 0, stars) };
