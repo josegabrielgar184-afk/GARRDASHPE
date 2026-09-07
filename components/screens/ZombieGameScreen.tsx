@@ -418,9 +418,10 @@ export function ZombieGameScreen() {
     else if (type === 'tank') { zHp = Math.floor(100 * levelScale); size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = (0.3 + difficultyRef.current * 0.08) * Math.min(1.5, levelScale); }
     else { zHp = Math.floor(30 * levelScale); size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = (0.45 + difficultyRef.current * 0.1) * Math.min(2, levelScale); }
 
+    const { w: sw } = canvasSizeRef.current;
     const z = zombiePoolRef.current.acquire();
-    z.x = getLaneX(lane); z.y = -30;
-    z.vx = 0;
+    z.x = sw / 2; z.y = -30;
+    z.vx = lane === 0 ? -1.5 : 1.5;
     z.vy = vy * speedMultRef.current; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, []);
@@ -433,7 +434,8 @@ export function ZombieGameScreen() {
     const waveMult = 1 + waveIdx * 0.35;
     const zHp = Math.floor((2000 + (level - 1) * 500) * waveMult);
     const boss = zombiePoolRef.current.acquire();
-    boss.x = getLaneX(Math.random() < 0.5 ? 0 : 1); boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02) * (1 + waveIdx * 0.15); boss.vx = 0; boss.walkCycle = 0;
+    const bossLane = Math.random() < 0.5 ? 0 : 1;
+    boss.x = w / 2; boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02) * (1 + waveIdx * 0.15); boss.vx = bossLane === 0 ? -1.5 : 1.5; boss.walkCycle = 0;
     boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#65a30d'; boss.type = 'boss'; boss.hitFlash = 0;
     bossRef.current = boss;
     setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp);
@@ -842,11 +844,20 @@ export function ZombieGameScreen() {
 
         for (const z of zombiePoolRef.current.getActive()) {
           z.y += z.vy * dt;
-          z.walkCycle += dt * 0.35;
+          z.walkCycle += dt * 0.45;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
-          // Keep zombies in their lane
-          const bounds = getArenaLaneBounds(z.x < canvasSizeRef.current.w / 2 ? 0 : 1, canvasSizeRef.current.w);
-          z.x = clamp(z.x, bounds.min, bounds.max);
+          // Bifurcation: steer toward assigned lane from center spawn
+          if (z.vx !== 0) {
+            z.x += z.vx * dt;
+            const targetX = getArenaLaneX(z.vx < 0 ? 0 : 1, w);
+            if ((z.vx < 0 && z.x <= targetX) || (z.vx > 0 && z.x >= targetX)) {
+              z.x = targetX;
+              z.vx = 0;
+            }
+          } else {
+            const bounds = getArenaLaneBounds(z.x < w / 2 ? 0 : 1, w);
+            z.x = clamp(z.x, bounds.min, bounds.max);
+          }
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;

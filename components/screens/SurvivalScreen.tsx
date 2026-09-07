@@ -156,9 +156,10 @@ export function SurvivalScreen() {
     else if (type === 'tank') { zHp = 300; size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = 0.8 + difficultyRef.current * 0.1; }
     else { zHp = 100; size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = 1.2 + difficultyRef.current * 0.15; }
 
+    const { w: sw } = canvasSizeRef.current;
     const z = zombiePoolRef.current.acquire();
-    z.x = getLaneX(lane); z.y = -30;
-    z.vx = 0;
+    z.x = sw / 2; z.y = -30;
+    z.vx = lane === 0 ? -1.5 : 1.5;
     z.vy = vy * char.speedMult; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, [char]);
@@ -232,11 +233,20 @@ export function SurvivalScreen() {
 
         for (const z of zombiePoolRef.current.getActive()) {
           z.y += z.vy * dt;
-          z.walkCycle += dt * 0.35;
+          z.walkCycle += dt * 0.45;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
-          // Keep zombies in their lane
-          const bounds = getArenaLaneBounds(z.x < canvasSizeRef.current.w / 2 ? 0 : 1, canvasSizeRef.current.w);
-          z.x = clamp(z.x, bounds.min, bounds.max);
+          // Bifurcation: steer toward assigned lane from center spawn
+          if (z.vx !== 0) {
+            z.x += z.vx * dt;
+            const targetX = getArenaLaneX(z.vx < 0 ? 0 : 1, w);
+            if ((z.vx < 0 && z.x <= targetX) || (z.vx > 0 && z.x >= targetX)) {
+              z.x = targetX;
+              z.vx = 0;
+            }
+          } else {
+            const bounds = getArenaLaneBounds(z.x < w / 2 ? 0 : 1, w);
+            z.x = clamp(z.x, bounds.min, bounds.max);
+          }
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : 15;

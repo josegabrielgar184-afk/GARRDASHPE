@@ -327,16 +327,18 @@ export function drawZombie2D(
 
   ctx.rotate(angle);
 
-  const legSwing = Math.sin(walkCycle) * (size * 0.12);
+  const legSwing = Math.sin(walkCycle) * (size * 0.2);
+  const bodyBob = Math.abs(Math.sin(walkCycle * 2)) * size * 0.04;
 
-  // Legs (running animation)
+  // Legs (marching animation — pronounced stride)
   ctx.fillStyle = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2a2a1a';
   ctx.fillRect(-size * 0.15, -size * 0.1 + legSwing, size * 0.12, size * 0.35);
   ctx.fillRect(size * 0.03, size * 0.1 - legSwing, size * 0.12, size * 0.35);
 
-  // Torso (slightly hunched, defined silhouette)
+  // Torso (slightly hunched, defined silhouette, with body bob)
   ctx.save();
   ctx.rotate(0.08);
+  ctx.translate(0, -bodyBob);
   // Dark military green body
   const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2d4010';
   ctx.fillStyle = bodyColor;
@@ -2335,7 +2337,7 @@ export function drawDebugFooter(
 
 // ─── Tactical Arena Background (Dual-Lane with River & Bridges) ────────────────
 
-export const ARENA_LANE_W_RATIO = 0.18;
+export const ARENA_LANE_W_RATIO = 0.28;
 export const ARENA_RIVER_Y_RATIO = 0.42;
 export const ARENA_RIVER_H_RATIO = 0.08;
 
@@ -2399,7 +2401,7 @@ export function drawTacticalArena(
     }
   }
 
-  // ── Center zone (blocked — clean tech barrier) ──
+  // ── Center zone (clean, despejado) ──
   const centerX = w / 2;
   const centerW = w - laneW * 2;
   // Dark concrete base
@@ -2410,38 +2412,13 @@ export function drawTacticalArena(
   ctx.fillStyle = centerGrad;
   ctx.fillRect(laneW, 0, centerW, h);
 
-  // Neon energy barrier line down the center (pulsing)
-  const barrierPulse = 0.4 + Math.sin(scrollY * 0.04) * 0.15;
-  ctx.strokeStyle = `rgba(34,211,238,${barrierPulse})`;
-  ctx.lineWidth = 2;
-  ctx.shadowColor = '#22d3ee';
-  ctx.shadowBlur = 12;
+  // Single subtle neon divider line (not saturated)
+  const barrierPulse = 0.3 + Math.sin(scrollY * 0.04) * 0.1;
+  ctx.strokeStyle = `rgba(34,211,238,${barrierPulse * 0.5})`;
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(centerX, 35); ctx.lineTo(centerX, h - 20);
   ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Barrier segments (tech pillars every ~80px)
-  ctx.fillStyle = '#1a1a20';
-  for (let py = 45; py < h - 25; py += 80) {
-    ctx.fillRect(centerX - 6, py, 12, 30);
-    ctx.fillStyle = '#2a2a30';
-    ctx.fillRect(centerX - 5, py + 1, 10, 28);
-    // Neon core dot
-    ctx.fillStyle = `rgba(34,211,238,${barrierPulse * 0.8})`;
-    ctx.fillRect(centerX - 2, py + 12, 4, 6);
-    ctx.fillStyle = '#1a1a20';
-  }
-  // Faint hex pattern overlay
-  ctx.strokeStyle = 'rgba(34,211,238,0.04)';
-  ctx.lineWidth = 1;
-  for (let py = 0; py < h; py += 20) {
-    for (let px = laneW + 10; px < w - laneW - 10; px += 18) {
-      ctx.beginPath();
-      ctx.arc(px, py, 5, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-  }
 
   // ── River (bright cyan neon water) ──
   const riverGrad = ctx.createLinearGradient(0, riverY, 0, riverY + riverH);
