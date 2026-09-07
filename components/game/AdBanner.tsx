@@ -91,7 +91,7 @@ export function AdBanner() {
 
   if (!adsAllowed || !adLoaded) return null;
 
-  return <div style={{ height: '50px', flexShrink: 0 }} className="admob-banner-container" />;
+  return <div style={{ height: '50px', flexShrink: 0, background: 'transparent' }} className="admob-banner-container" />;
 }
 
 function isProduction(): boolean {

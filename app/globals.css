@@ -70,6 +70,11 @@ body {
   .ad-safe-bottom {
     padding-bottom: calc(var(--ad-banner-height) + env(safe-area-inset-bottom));
   }
+  .admob-banner-container {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
 }
 
 @keyframes blink {

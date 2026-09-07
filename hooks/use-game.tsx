@@ -587,34 +587,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         // Schedule 3 daily push notifications to remind user to play
         setupDailyNotifications();
 
-        userDocUnsubRef.current = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (data.coins !== undefined) setCoins(data.coins);
-          if (data.puntos !== undefined) setPoints(data.puntos);
-          if (data.vip !== undefined) setVip(data.vip);
-          if (data.vipExpiry) {
-            const expiryDate = data.vipExpiry instanceof Timestamp ? data.vipExpiry.toDate().toISOString() : String(data.vipExpiry);
-            setVipExpiry(expiryDate);
+        // One-time read instead of onSnapshot to avoid burning Firestore reads
+        try {
+          const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.coins !== undefined) setCoins(data.coins);
+            if (data.puntos !== undefined) setPoints(data.puntos);
+            if (data.vip !== undefined) setVip(data.vip);
+            if (data.vipExpiry) {
+              const expiryDate = data.vipExpiry instanceof Timestamp ? data.vipExpiry.toDate().toISOString() : String(data.vipExpiry);
+              setVipExpiry(expiryDate);
+            }
+            const name = data.nombre || data.email?.split('@')[0] || 'Player';
+            setPlayerName(name);
+            if (data.campaignLevel !== undefined) {
+              setCampaignProgress(prev => ({ ...prev, currentLevel: data.campaignLevel ?? prev.currentLevel, keys: data.campaignKeys ?? prev.keys, diamondsClaimed: data.diamondsClaimed ?? false }));
+            }
+            if (data.towerLevels !== undefined) setTowerLevels(data.towerLevels);
+            if (data.survivalBestTime !== undefined) setSurvivalBestTime(data.survivalBestTime);
+            if (data.welcomeBonusClaimed !== true) {
+              try {
+                await updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(WELCOME_BONUS_COINS), welcomeBonusClaimed: true });
+                setShowWelcomeBonus(true);
+              } catch {}
+            }
+            saveData({
+              coins: data.coins ?? 0, points: data.puntos ?? 0, vip: data.vip ?? false,
+              playerName: name, email: data.email ?? user.email ?? '',
+              vipExpiry: data.vipExpiry instanceof Timestamp ? data.vipExpiry.toDate().toISOString() : null,
+            });
           }
-          const name = data.nombre || data.email?.split('@')[0] || 'Player';
-          setPlayerName(name);
-          if (data.campaignLevel !== undefined) {
-            setCampaignProgress(prev => ({ ...prev, currentLevel: data.campaignLevel ?? prev.currentLevel, keys: data.campaignKeys ?? prev.keys, diamondsClaimed: data.diamondsClaimed ?? false }));
-          }
-          if (data.towerLevels !== undefined) setTowerLevels(data.towerLevels);
-          if (data.survivalBestTime !== undefined) setSurvivalBestTime(data.survivalBestTime);
-          if (data.welcomeBonusClaimed !== true) {
-            try {
-              updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(WELCOME_BONUS_COINS), welcomeBonusClaimed: true }).then(() => setShowWelcomeBonus(true));
-            } catch {}
-          }
-          saveData({
-            coins: data.coins ?? 0, points: data.puntos ?? 0, vip: data.vip ?? false,
-            playerName: name, email: data.email ?? user.email ?? '',
-            vipExpiry: data.vipExpiry instanceof Timestamp ? data.vipExpiry.toDate().toISOString() : null,
-          });
-        }, () => {});
+        } catch {}
       } else {
         setLoggedInState(false);
         setUserRole('user');
@@ -654,10 +658,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pendingCoins]);
 
+  // One-time read for top player (cached) instead of onSnapshot
   useEffect(() => {
-    try {
-      const topRef = doc(db, 'global', 'top1');
-      const unsub = onSnapshot(topRef, (snap) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cached = cacheGet<{ name: string; score: number; avatar?: string }>('top1');
+        if (cached && cached.score > 0 && !cancelled) {
+          setTopPlayerName(cached.name);
+          setTopPlayerScore(cached.score);
+          setAbsoluteRecord(cached.score);
+          if (cached.avatar) setTopPlayerAvatar(cached.avatar);
+        }
+        const topRef = doc(db, 'global', 'top1');
+        const snap = await getDoc(topRef);
+        if (cancelled) return;
         if (snap.exists()) {
           const data = snap.data();
           const name = data.name || data.nickname || 'Carlos';
@@ -668,18 +683,29 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             setTopPlayerScore(score);
             setAbsoluteRecord(score);
             if (avatar) setTopPlayerAvatar(avatar);
+            cacheSet('top1', { name, score, avatar }, 5 * 60 * 1000);
           }
         }
-      });
-      return () => unsub();
-    } catch {}
+      } catch {}
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Real-time query: top player by bestScore across all usuarios
+  // One-time query for top player by bestScore (cached) instead of onSnapshot
   useEffect(() => {
-    try {
-      const topQ = query(collection(db, 'usuarios'), orderBy('bestScore', 'desc'), limit(1));
-      const unsub = onSnapshot(topQ, (snap) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cached = cacheGet<{ name: string; score: number; avatar?: string }>('topBestScore');
+        if (cached && cached.score > 0 && !cancelled) {
+          setTopPlayerName(cached.name);
+          setTopPlayerScore(cached.score);
+          setAbsoluteRecord(cached.score);
+          if (cached.avatar) setTopPlayerAvatar(cached.avatar);
+        }
+        const topQ = query(collection(db, 'usuarios'), orderBy('bestScore', 'desc'), limit(1));
+        const snap = await getDocs(topQ);
+        if (cancelled) return;
         if (!snap.empty) {
           const data = snap.docs[0].data();
           const name = data.nombre || data.email?.split('@')[0] || 'Jugador';
@@ -689,11 +715,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             setTopPlayerScore(score);
             setAbsoluteRecord(score);
             if (data.avatar) setTopPlayerAvatar(data.avatar);
+            cacheSet('topBestScore', { name, score, avatar: data.avatar }, 5 * 60 * 1000);
           }
         }
-      }, () => {});
-      return () => unsub();
-    } catch {}
+      } catch {}
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {

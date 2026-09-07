@@ -46,6 +46,7 @@ export function IntroScreen() {
       <div className="relative z-10 flex flex-col items-center justify-center flex-1 w-full max-w-sm px-6">
         {/* Logo */}
         <div className="mb-2 text-center">
+          <img src="/app-icon-diamond.webp" alt="GarrDash" className="w-24 h-24 mx-auto mb-3 rounded-2xl shadow-lg" style={{ boxShadow: '0 0 30px rgba(34,211,238,0.4)' }} />
           <h1
             className="font-black tracking-[0.15em] select-none text-5xl sm:text-6xl"
             style={{

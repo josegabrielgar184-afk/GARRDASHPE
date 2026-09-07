@@ -143,6 +143,12 @@ export function RewardAdModal({ open, onClose, onReward, title, rewardText, adId
           </div>
           <p className="text-white font-bold text-lg mb-1">Anuncio en reproduccion</p>
           <p className="text-white/50 text-sm">Espera a que termine para recibir tu recompensa</p>
+          <button
+            onClick={() => { try { AdMob.showRewardVideoAd().catch(() => {}); } catch {} onCloseRef.current(); }}
+            className="mt-6 w-full py-2.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-sm hover:bg-red-500/30 transition-colors"
+          >
+            Cancelar anuncio
+          </button>
         </div>
       ) : phase === 'error' ? (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-red-900/40 to-gray-900 border border-red-500/40 p-8 text-center animate-scale-in">

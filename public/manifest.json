@@ -7,5 +7,10 @@
   "orientation": "portrait",
   "background_color": "#0a0e1a",
   "theme_color": "#0a0e1a",
-  "icons": []
+  "icons": [
+    { "src": "/app-icon-diamond.webp", "sizes": "192x192", "type": "image/webp", "purpose": "any" },
+    { "src": "/app-icon-diamond.webp", "sizes": "512x512", "type": "image/webp", "purpose": "any" },
+    { "src": "/app-icon-diamond.webp", "sizes": "192x192", "type": "image/webp", "purpose": "maskable" },
+    { "src": "/app-icon-diamond.webp", "sizes": "512x512", "type": "image/webp", "purpose": "maskable" }
+  ]
 }
