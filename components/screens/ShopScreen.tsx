@@ -54,6 +54,7 @@ export function ShopScreen() {
   const companionCost = (key: 'turret' | 'drone' | 'medic') => companionDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
 
   const handleCoinAdReward = () => {
+    setShowCoinAd(false); // Cierra el modal de forma limpia al terminar
     const ok = recordCoinAd();
     if (ok) {
       const reward = getCoinAdReward();
@@ -66,6 +67,7 @@ export function ShopScreen() {
   };
 
   const handleKeyAdReward = () => {
+    setShowKeyAd(false); // Cierra el modal de forma limpia al terminar
     const result = recordKeyAd();
     if (result.earnedKey) {
       addCampaignKeyFromAd();
@@ -92,7 +94,7 @@ export function ShopScreen() {
         </div>
 
         <div className="max-w-md mx-auto">
-          {/* Balance card - stencil style */}
+          {/* Balance card */}
           <div className="mb-4">
             <div className="rounded-none bg-gradient-to-r from-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
               <div className="w-9 h-9 rounded-none bg-amber-500/20 flex items-center justify-center" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 4px 100%, 0 calc(100% - 4px))' }}><Coins className="w-4 h-4 text-amber-400" /></div>
@@ -134,14 +136,12 @@ export function ShopScreen() {
           </div>
           )}
 
-          {/* Tabs - stencil style */}
+          {/* Tabs */}
           <div className="flex gap-2 mb-4">
             <button onClick={() => setTab('companions')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'companions' ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Compañeros</button>
             <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'keys' ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Llaves</button>
             <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Héroes</button>
           </div>
-
-          {/* Performance tier selector moved to Settings */}
 
           {tab === 'companions' && (
             <div className="grid grid-cols-1 gap-3">
@@ -264,7 +264,6 @@ export function ShopScreen() {
                   </div>
                 </div>
 
-                {/* Progress bar */}
                 <div className="mb-3">
                   <div className="flex justify-between mb-1">
                     <span className="text-cyan-400 text-xs font-bold uppercase">Progreso</span>
@@ -299,7 +298,6 @@ export function ShopScreen() {
                   </div>
                 </div>
 
-                {/* Daily limit bar */}
                 <div className="mb-3">
                   <div className="flex justify-between mb-1">
                     <span className="text-green-400 text-xs font-bold uppercase">Hoy</span>
@@ -340,7 +338,7 @@ export function ShopScreen() {
         onReward={handleCoinAdReward}
         title="Monedas por Anuncio"
         rewardText={`¡+${getCoinAdReward()} monedas!`}
-        adId={ADMOB_CONFIG.ruletaId}
+        adId={ADMOB_CONFIG.rewarded || ADMOB_CONFIG.ruletaId}
         userRole={userRole}
         vip={vip}
       />
@@ -350,7 +348,7 @@ export function ShopScreen() {
         onReward={handleKeyAdReward}
         title="Llave por Anuncio"
         rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
-        adId={ADMOB_CONFIG.ruletaId}
+        adId={ADMOB_CONFIG.rewarded || ADMOB_CONFIG.ruletaId}
         userRole={userRole}
         vip={vip}
       />
