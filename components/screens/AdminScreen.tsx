@@ -133,18 +133,18 @@ export function AdminScreen() {
   }
 
   const tabs = [
-    { id: 'balance', label: 'Balanza', icon: TrendingUp },
-    { id: 'finance', label: 'Finanzas', icon: Wallet },
-    { id: 'requests', label: 'Solicitudes', icon: CheckCircle2 },
-    { id: 'canjes', label: 'Canjes', icon: RefreshCw },
-    { id: 'near', label: 'Casi Listos', icon: TrendingUp },
-    { id: 'users', label: 'Usuarios', icon: Users },
-    { id: 'dusers', label: 'Detallados', icon: List },
-    { id: 'su', label: 'SU', icon: Shield },
-    { id: 'control', label: 'Control', icon: Settings2 },
-    { id: 'observer', label: 'Observador', icon: Eye },
-    { id: 'stats', label: 'Estadisticas', icon: BarChart3 },
-    { id: 'levels', label: 'Niveles', icon: BarChart3 },
+    { id: 'balance', label: 'Balanza', icon: TrendingUp, group: 'Finanzas' },
+    { id: 'finance', label: 'Finanzas', icon: Wallet, group: 'Finanzas' },
+    { id: 'requests', label: 'Solicitudes', icon: CheckCircle2, group: 'Operaciones' },
+    { id: 'canjes', label: 'Canjes', icon: RefreshCw, group: 'Operaciones' },
+    { id: 'near', label: 'Casi Listos', icon: TrendingUp, group: 'Operaciones' },
+    { id: 'users', label: 'Usuarios', icon: Users, group: 'Gestion' },
+    { id: 'dusers', label: 'Detallados', icon: List, group: 'Gestion' },
+    { id: 'su', label: 'SU', icon: Shield, group: 'Gestion' },
+    { id: 'control', label: 'Control', icon: Settings2, group: 'Sistema' },
+    { id: 'observer', label: 'Observador', icon: Eye, group: 'Sistema' },
+    { id: 'stats', label: 'Estadisticas', icon: BarChart3, group: 'Sistema' },
+    { id: 'levels', label: 'Niveles', icon: BarChart3, group: 'Sistema' },
   ];
 
   return (
@@ -164,10 +164,12 @@ export function AdminScreen() {
 
         <div className="max-w-md mx-auto">
           {/* Delegation Switch */}
-          <div className="rounded-2xl bg-card border border-amber-500/30 p-4 mb-4 shadow-lg">
+          <div className="rounded-2xl bg-gradient-to-br from-card to-secondary/10 border border-amber-500/20 p-4 mb-3 shadow-lg">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-amber-400" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                  <UserCheck className="w-5 h-5 text-amber-400" />
+                </div>
                 <div>
                   <p className="text-white font-bold text-sm">Delegar Trabajo</p>
                   <p className="text-white/40 text-xs">{delegateWork ? 'Operador activo - Admin supervisa' : 'Admin asume todo el trabajo'}</p>
@@ -183,34 +185,48 @@ export function AdminScreen() {
           </div>
 
           {/* Transactional Semaphore */}
-          <div className="rounded-xl bg-card border border-border p-3 mb-4 flex items-center gap-3">
-            <div className={`w-4 h-4 rounded-full ${transactionLight === 'green' ? 'bg-green-400' : transactionLight === 'yellow' ? 'bg-yellow-400' : 'bg-red-400'} animate-pulse`} />
+          <div className="rounded-2xl bg-gradient-to-br from-card to-secondary/10 border border-border p-4 mb-3 shadow-lg flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${transactionLight === 'green' ? 'bg-green-500/15' : transactionLight === 'yellow' ? 'bg-yellow-500/15' : 'bg-red-500/15'}`}>
+              <div className={`w-5 h-5 rounded-full ${transactionLight === 'green' ? 'bg-green-400' : transactionLight === 'yellow' ? 'bg-yellow-400' : 'bg-red-400'} animate-pulse`} />
+            </div>
             <div className="flex-1">
-              <p className="text-white font-bold text-xs">Semaforo Transaccional</p>
-              <p className="text-white/40 text-[10px]">
+              <p className="text-white font-bold text-sm">Semaforo Transaccional</p>
+              <p className="text-white/40 text-xs">
                 {transactionLight === 'green' ? 'Sistema saludable - Reserva activa > 80%' : transactionLight === 'yellow' ? 'Precaucion - Reserva activa 50-80%' : 'Critico - Reserva activa < 50%'}
               </p>
             </div>
-            <span className={`text-xs font-bold ${transactionLight === 'green' ? 'text-green-400' : transactionLight === 'yellow' ? 'text-yellow-400' : 'text-red-400'}`}>
+            <span className={`text-sm font-black px-3 py-1 rounded-lg ${transactionLight === 'green' ? 'text-green-400 bg-green-500/10' : transactionLight === 'yellow' ? 'text-yellow-400 bg-yellow-500/10' : 'text-red-400 bg-red-500/10'}`}>
               {transactionLight === 'green' ? 'VERDE' : transactionLight === 'yellow' ? 'AMARILLO' : 'ROJO'}
             </span>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1.5 mb-4 overflow-x-auto no-scrollbar">
-            {tabs.map((t) => {
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id as Tab)}
-                  className={`shrink-0 px-3 py-2 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 ${tab === t.id ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-card border border-border text-white/50'}`}
-                >
-                  <Icon className="w-3.5 h-3.5" />{t.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Tabs - grouped clean layout */}
+          {(() => {
+            const groups = ['Finanzas', 'Operaciones', 'Gestion', 'Sistema'];
+            return (
+              <div className="mb-4 space-y-2">
+                {groups.map((group) => (
+                  <div key={group}>
+                    <p className="text-white/30 text-[9px] font-bold uppercase tracking-wider mb-1 px-1">{group}</p>
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                      {tabs.filter((t) => t.group === group).map((t) => {
+                        const Icon = t.icon;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => setTab(t.id as Tab)}
+                            className={`shrink-0 px-3 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${tab === t.id ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm' : 'bg-card border border-border text-white/50 hover:text-white/70 hover:border-white/20'}`}
+                          >
+                            <Icon className="w-3.5 h-3.5" />{t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Campaign Levels Tab - Active players per level */}
           {tab === 'levels' && (

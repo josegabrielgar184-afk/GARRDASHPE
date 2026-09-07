@@ -174,6 +174,8 @@ export function ZombieGameScreen() {
   const nuclearChargeRef = useRef(0);
   const nuclearActiveRef = useRef(false);
   const nuclearTimerRef = useRef(0);
+  const nuclearUsesRef = useRef(0);
+  const [nuclearUsesLeft, setNuclearUsesLeft] = useState(2);
   const hasRevivedRef = useRef(false);
   const scoreMultRef = useRef(1);
   const damageMultRef = useRef(1);
@@ -334,7 +336,7 @@ export function ZombieGameScreen() {
     bossWavesRef.current = 1;
     whiteFlashRef.current = 0; gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
     coinCapRef.current = randomCoinCap(campaignLevelRef.current);
-    nuclearChargeRef.current = 0; nuclearActiveRef.current = false; nuclearTimerRef.current = 0;
+    nuclearChargeRef.current = 0; nuclearActiveRef.current = false; nuclearTimerRef.current = 0; nuclearUsesRef.current = 0; setNuclearUsesLeft(2);
     hasRevivedRef.current = false; setHasRevived(false);
     comboRef.current = 0; comboTimerRef.current = 0; setComboDisplay(0);
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
@@ -489,7 +491,9 @@ export function ZombieGameScreen() {
   };
 
   const activateNuclear = () => {
-    if (!nuclearReady || gameOverRef.current) return;
+    if (!nuclearReady || gameOverRef.current || nuclearUsesRef.current >= 2) return;
+    nuclearUsesRef.current++;
+    setNuclearUsesLeft(2 - nuclearUsesRef.current);
     nuclearActiveRef.current = true;
     nuclearTimerRef.current = 180;
     nuclearChargeRef.current = 0;
@@ -1081,7 +1085,13 @@ export function ZombieGameScreen() {
         // Companion bullets update + collision
         for (const b of companionBulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-          if (b.life <= 0 || b.y < -10 || b.y > h + 10 || b.x < -10 || b.x > w + 10) { companionBulletPoolRef.current.release(b); continue; }
+          const bulletMaxY = h * BULLET_MAX_Y_RATIO;
+          if (b.life <= 0 || b.y < -10 || b.y > h + 10 || b.x < -10 || b.x > w + 10 || b.y < bulletMaxY) {
+            if (b.y >= bulletMaxY - 5 && b.y <= bulletMaxY + 5) {
+              spawnParticles2D(particlesRef.current, b.x, b.y, 2, b.color, 2);
+            }
+            companionBulletPoolRef.current.release(b); continue;
+          }
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
             if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
@@ -1117,7 +1127,7 @@ export function ZombieGameScreen() {
         }
 
         nuclearChargeRef.current += dt * 0.25;
-        if (nuclearChargeRef.current >= 100 && !nuclearReady) setNuclearReady(true);
+        if (nuclearChargeRef.current >= 100 && !nuclearReady && nuclearUsesRef.current < 2) setNuclearReady(true);
         if (nuclearActiveRef.current) { nuclearTimerRef.current -= dt; if (nuclearTimerRef.current <= 0) nuclearActiveRef.current = false; }
 
         playTimeRef.current += dt * 16.67;
@@ -1392,9 +1402,12 @@ export function ZombieGameScreen() {
         </div>
       )}
       {!gameOver && (
-        <button onClick={activateNuclear} disabled={!nuclearReady} className={`absolute bottom-24 right-6 z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}>
-          <Radiation className={`w-7 h-7 ${nuclearReady ? 'text-amber-400' : 'text-white/30'}`} />
-        </button>
+        <div className="absolute bottom-24 right-6 z-10 flex flex-col items-center gap-1">
+          <button onClick={activateNuclear} disabled={!nuclearReady} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}>
+            <Radiation className={`w-7 h-7 ${nuclearReady ? 'text-amber-400' : 'text-white/30'}`} />
+          </button>
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-black/60 text-amber-400/80 border border-amber-500/30">{nuclearUsesLeft}/2</span>
+        </div>
       )}
       {!gameOver && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
