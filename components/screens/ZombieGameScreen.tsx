@@ -47,7 +47,7 @@ function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'shi
 const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
-const SPRITE_SCALE = 1.9;
+const SPRITE_SCALE = 3.8;
 const TOWER_MAX_HP = 350;
 const CASTLE_MAX_HP = 500;
 
@@ -883,7 +883,7 @@ export function ZombieGameScreen() {
             z.x = clamp(z.x, bounds.min, bounds.max);
           }
 
-          if (z.y > barricadeY - z.size) {
+          if (z.y > barricadeY - z.size * 0.8) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
             const leftTowerX = w * 0.15;
             const rightTowerX = w * 0.85;
@@ -990,7 +990,7 @@ export function ZombieGameScreen() {
 
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
-            if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
+            if (dist(b.x, b.y, z.x, z.y) < z.size + 14) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
               spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(4), b.color, 3);
               addFloatText(`${Math.floor(b.damage)}`, b.x, b.y - 10, '#fbbf24', 11);
@@ -1094,7 +1094,7 @@ export function ZombieGameScreen() {
           }
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
-            if (dist(b.x, b.y, z.x, z.y) < z.size + 6) {
+            if (dist(b.x, b.y, z.x, z.y) < z.size + 14) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
               spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
               if (z.hp <= 0) {
