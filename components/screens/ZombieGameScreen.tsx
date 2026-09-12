@@ -41,7 +41,7 @@ function makeZombie(): Zombie { return { x: 0, y: 0, vy: 0, vx: 0, walkCycle: 0,
 function makeBullet(): Bullet { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, damage: 0, color: '', active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; this.damage = 0; this.color = ''; } }; }
 const WEAPONS: WeaponType[] = ['rifle', 'shotgun', 'minigun', 'laser'];
 function makeBarrel(): Barrel { return { x: 0, y: 0, vy: 0, hp: 44, maxHp: 44, weapon: 'rifle', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.hp = 44; this.maxHp = 44; this.weapon = 'rifle'; } }; }
-function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, reset() { this.x = 0; this.y = 0; this.vx = 0; this.vy = 0; this.life = 0; } }; }
+function makeFloatingCoin(): FloatingCoin { return { x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.vx = 0; this.life = 0; } }; }
 function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'shield', active: false, reset() { this.x = 0; this.y = 0; this.vy = 0; this.type = 'shield'; } }; }
 
 const LANE_COUNT = 2;
@@ -466,13 +466,6 @@ export function ZombieGameScreen() {
     b.weapon = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
   }, []);
 
-  const spawnPowerUpDrop = (x: number, y: number) => {
-    const types: PowerUpType[] = ['shield', 'doubleShot', 'coinMagnet'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const pu = powerUpPoolRef.current.acquire();
-    pu.x = x; pu.y = y; pu.vy = 1.5; pu.type = type;
-  };
-
   const equipWeapon = (weapon: WeaponType) => {
     weaponRef.current = weapon;
     setCurrentWeapon(weapon);
@@ -762,7 +755,6 @@ export function ZombieGameScreen() {
         ctx.strokeRect(8, 8, w - 16, h - 16);
       }
 
-      // Renderizado del mapa / arena táctica
       drawTacticalArena(ctx, w, h, scrollYRef.current, arenaThemeRef.current);
 
       const leftTowerX = w * 0.15;
@@ -1163,7 +1155,6 @@ export function ZombieGameScreen() {
         if (bs.alpha <= 0) splats.splice(i, 1);
       }
 
-      // Dibujar horda de zombies mejorados
       for (const z of zombiePoolRef.current.getActive()) drawCartoonZombie(ctx, z, now);
 
       for (const br of barrelPoolRef.current.getActive()) drawBarrel(ctx, br, now);
