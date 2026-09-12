@@ -8,14 +8,13 @@ import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
-  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell, UserPlus, Copy, Check,
+  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell,
 } from 'lucide-react';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
 } from '@/lib/config';
 import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/lib/performance';
 import { UI_THEMES, type UITheme } from '@/hooks/use-game';
-import { auth } from '@/lib/firebase';
 
 export function MenuScreen() {
   const {
@@ -31,7 +30,7 @@ export function MenuScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
   const [customColor, setCustomColor] = useState('#8a9b50');
-  const [showReferral, setShowReferral] = useState(false);
+
 
   const applyCustomColor = (hex: string) => {
     const root = document.documentElement;
@@ -79,10 +78,7 @@ export function MenuScreen() {
     root.style.setProperty('--tac-accent', hex);
     root.style.setProperty('--tac-bg', `hsl(${bgHsl})`);
   };
-  const [referralCode, setReferralCode] = useState<string | null>(null);
-  const [referralCopied, setReferralCopied] = useState(false);
-  const [referralCount, setReferralCount] = useState(0);
-  const [referralLoading, setReferralLoading] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const [canScrollUp, setCanScrollUp] = useState(false);
@@ -128,73 +124,6 @@ export function MenuScreen() {
 
   const handleOfferwall = () => {
     setScreen('offerwall');
-  };
-
-  const handleReferral = async () => {
-    if (referralCode) { setShowReferral(true); return; }
-    setReferralLoading(true);
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-      const user = auth.currentUser;
-      if (!user) { showToast('Debes iniciar sesion'); return; }
-      const code = `GARR-${user.uid.slice(0, 8).toUpperCase()}`;
-      const res = await fetch(`${supabaseUrl}/rest/v1/referrals?select=referral_code,referrer_uid,status`, {
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (res.ok) {
-        const rows = await res.json() as Array<{ referral_code: string; referrer_uid: string; status: string }>;
-        const existing = rows.find((r) => r.referrer_uid === user.uid && r.referral_code === code);
-        if (existing) {
-          setReferralCode(code);
-          const completed = rows.filter((r) => r.referrer_uid === user.uid && (r.status === 'completed' || r.status === 'rewarded')).length;
-          setReferralCount(completed);
-          setShowReferral(true);
-          return;
-        }
-      }
-      await fetch(`${supabaseUrl}/rest/v1/referrals`, {
-        method: 'POST',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ referrer_uid: user.uid, referral_code: code, status: 'pending' }),
-      });
-      setReferralCode(code);
-      setShowReferral(true);
-    } catch {
-      showToast('Error al generar enlace');
-    } finally {
-      setReferralLoading(false);
-    }
-  };
-
-  const copyReferralLink = async () => {
-    if (!referralCode) return;
-    const link = `https://garrdash.web.app/registro?ref=${referralCode}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'GarrDash', text: '¡Únete a GarrDash y gana monedas!', url: link });
-        return;
-      }
-      navigator.clipboard.writeText(link);
-      setReferralCopied(true);
-      setTimeout(() => setReferralCopied(false), 2000);
-    } catch {
-      try {
-        navigator.clipboard.writeText(link);
-        setReferralCopied(true);
-        setTimeout(() => setReferralCopied(false), 2000);
-      } catch {
-        showToast('No se pudo copiar');
-      }
-    }
   };
 
   const handleInfluencer = () => {
@@ -357,18 +286,6 @@ export function MenuScreen() {
             </div>
           )}
 
-          {/* Invite friend button */}
-          <div className="mt-3">
-            <button
-              onClick={handleReferral}
-              disabled={referralLoading}
-              className="w-full tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs transition-all active:scale-95 tac-btn text-[#8a9b50] hover:text-[#d4d8b8]"
-            >
-              <UserPlus className="w-4 h-4" />
-              {referralLoading ? 'GENERANDO...' : 'INVITAR AMIGO (+200)'}
-            </button>
-          </div>
-
           {/* Logout */}
           <div className="mt-6 flex items-center justify-center">
             <button onClick={() => { logOut(); }} className="px-4 py-3 tac-btn rounded-lg text-[#6b7280] hover:text-[#d4d8b8] transition-colors flex items-center justify-center gap-2 font-bold text-sm">
@@ -440,29 +357,6 @@ export function MenuScreen() {
       )}
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
-
-      {showReferral && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setShowReferral(false)}>
-          <div className="w-full max-w-xs mx-4 tac-panel tac-stencil rounded-lg p-6 text-center animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[#d4d8b8] font-bold text-lg flex items-center gap-2"><UserPlus className="w-5 h-5 text-[#8a9b50]" />Invitar Amigo</h2>
-              <button onClick={() => setShowReferral(false)} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
-            </div>
-            <p className="text-[#d4d8b8]/70 text-xs mb-4">Comparte este enlace con tu amigo. Cuando instale el juego y cree su cuenta, recibiras <span className="text-[#f59e0b] font-bold">+200 monedas</span>.</p>
-            <div className="tac-btn rounded-lg p-3 mb-4">
-              <p className="text-[#8a9b50] text-[10px] font-bold uppercase mb-1">Tu codigo</p>
-              <p className="text-[#d4d8b8] font-mono font-bold text-sm break-all">{referralCode}</p>
-            </div>
-            <button onClick={copyReferralLink} className="w-full py-3 tac-btn-accent tac-stencil rounded-lg text-[#fbbf24] font-bold mb-2 flex items-center justify-center gap-2">
-              {referralCopied ? <><Check className="w-4 h-4" /> Copiado!</> : <><Copy className="w-4 h-4" /> Copiar Enlace</>}
-            </button>
-            <div className="flex items-center justify-center gap-2 mt-3">
-              <div className="text-[10px] text-[#6b7280]">Amigos invitados: <span className="text-[#8a9b50] font-bold">{referralCount}</span></div>
-            </div>
-            <p className="text-[#6b7280] text-[10px] mt-3">Anti-trampas: No puedes invitarte a ti mismo. Un dispositivo solo puede ser invitado una vez.</p>
-          </div>
-        </div>
-      )}
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setShowSettings(false)}>

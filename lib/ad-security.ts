@@ -39,9 +39,9 @@ export function isDevMode(): boolean {
 }
 
 export function isProduction(): boolean {
-  // TEMPORARY: Force test ad IDs while AdMob account is in approval process.
-  // Once approved, change this back to: return isNative && !isDevMode();
-  return false;
+  const Capacitor = (typeof window !== 'undefined' ? (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor : undefined);
+  const isNative = Capacitor?.isNativePlatform?.() ?? false;
+  return isNative && !isDevMode();
 }
 
 export function getActiveAdIds() {

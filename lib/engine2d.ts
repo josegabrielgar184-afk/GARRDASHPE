@@ -257,12 +257,12 @@ export function drawSoldier2D(
   ctx.roundRect(s * 0.08, s * 0.4, s * 0.22, s * 0.06, 2);
   ctx.fill();
 
-  // Utility vest (olive/camo) with pouches
+  // Utility vest with pouches — uses character color for team identity
   const vestGrad = ctx.createLinearGradient(-s * 0.35, -s * 0.25, s * 0.35, s * 0.25);
-  vestGrad.addColorStop(0, '#4a5a30');
-  vestGrad.addColorStop(0.3, '#3a4a20');
-  vestGrad.addColorStop(0.7, '#3a4a20');
-  vestGrad.addColorStop(1, '#2a3a18');
+  vestGrad.addColorStop(0, color);
+  vestGrad.addColorStop(0.3, color);
+  vestGrad.addColorStop(0.7, color);
+  vestGrad.addColorStop(1, '#1a1a12');
   ctx.fillStyle = vestGrad;
   ctx.beginPath();
   ctx.moveTo(-s * 0.35, -s * 0.05 + breath);
@@ -570,18 +570,24 @@ export function drawZombie2D(
   const cloth = isMutant ? '#2a3a1a' : isTank ? '#3a2a20' : '#3a3020';
   const clothD = isMutant ? '#1a2a0a' : isTank ? '#2a1a10' : '#2a2010';
 
-  // Legs (blocky, pixel-art)
+  // Walk animation offsets
+  const legSwingL = glow ? Math.sin(walkCycle) * px * 1.5 : 0;
+  const legSwingR = glow ? Math.sin(walkCycle + Math.PI) * px * 1.5 : 0;
+  const armSwingL = glow ? Math.sin(walkCycle + Math.PI) * px * 1.2 : 0;
+  const armSwingR = glow ? Math.sin(walkCycle) * px * 1.2 : 0;
+
+  // Legs (blocky, pixel-art) with walk swing
   ctx.fillStyle = clothD;
-  ctx.fillRect(-size * 0.3, size * 0.15, size * 0.22, size * 0.35);
-  ctx.fillRect(size * 0.08, size * 0.15, size * 0.22, size * 0.35);
+  ctx.fillRect(-size * 0.3, size * 0.15 + legSwingL, size * 0.22, size * 0.35);
+  ctx.fillRect(size * 0.08, size * 0.15 + legSwingR, size * 0.22, size * 0.35);
   // Jagged torn pants bottom
   ctx.fillStyle = skin;
-  ctx.fillRect(-size * 0.28, size * 0.4, size * 0.06, size * 0.08);
-  ctx.fillRect(size * 0.1, size * 0.4, size * 0.06, size * 0.08);
+  ctx.fillRect(-size * 0.28, size * 0.4 + legSwingL, size * 0.06, size * 0.08);
+  ctx.fillRect(size * 0.1, size * 0.4 + legSwingR, size * 0.06, size * 0.08);
   // Feet
   ctx.fillStyle = '#1a1408';
-  ctx.fillRect(-size * 0.3, size * 0.48, size * 0.22, size * 0.06);
-  ctx.fillRect(size * 0.08, size * 0.48, size * 0.22, size * 0.06);
+  ctx.fillRect(-size * 0.3, size * 0.48 + legSwingL, size * 0.22, size * 0.06);
+  ctx.fillRect(size * 0.08, size * 0.48 + legSwingR, size * 0.22, size * 0.06);
 
   // Torso (blocky with torn edges)
   ctx.fillStyle = cloth;
@@ -596,28 +602,28 @@ export function drawZombie2D(
   ctx.fillRect(-size * 0.2, -size * 0.05, size * 0.08, size * 0.1);
   ctx.fillRect(size * 0.1, 0, size * 0.06, size * 0.08);
 
-  // Arms (asymmetric, reaching forward — blocky)
+  // Arms (asymmetric, reaching forward — blocky) with walk swing
   ctx.fillStyle = skin;
-  // Left arm (longer, lower)
-  ctx.fillRect(-size * 0.45, -size * 0.05, size * 0.12, size * 0.3);
+  // Left arm (longer, lower) — swings opposite to left leg
+  ctx.fillRect(-size * 0.45, -size * 0.05 + armSwingL, size * 0.12, size * 0.3);
   ctx.fillStyle = clothD;
-  ctx.fillRect(-size * 0.45, -size * 0.05, size * 0.12, size * 0.08);
-  // Right arm (shorter, higher)
+  ctx.fillRect(-size * 0.45, -size * 0.05 + armSwingL, size * 0.12, size * 0.08);
+  // Right arm (shorter, higher) — swings opposite to right leg
   ctx.fillStyle = skin;
-  ctx.fillRect(size * 0.3, -size * 0.12, size * 0.12, size * 0.25);
+  ctx.fillRect(size * 0.3, -size * 0.12 + armSwingR, size * 0.12, size * 0.25);
   ctx.fillStyle = clothD;
-  ctx.fillRect(size * 0.3, -size * 0.12, size * 0.12, size * 0.06);
-  // Clawed hands (pixel blocks)
+  ctx.fillRect(size * 0.3, -size * 0.12 + armSwingR, size * 0.12, size * 0.06);
+  // Clawed hands (pixel blocks) — follow arm swing
   ctx.fillStyle = isTank ? '#5a3020' : isMutant ? '#3a5a2a' : '#5a6a3a';
-  ctx.fillRect(-size * 0.48, size * 0.22, size * 0.14, size * 0.08);
-  ctx.fillRect(size * 0.3, size * 0.1, size * 0.12, size * 0.06);
-  // Claws (pixel lines)
+  ctx.fillRect(-size * 0.48, size * 0.22 + armSwingL, size * 0.14, size * 0.08);
+  ctx.fillRect(size * 0.3, size * 0.1 + armSwingR, size * 0.12, size * 0.06);
+  // Claws (pixel lines) — follow arm swing
   ctx.fillStyle = isTank ? '#3a1a10' : isMutant ? '#1a3a0a' : '#3a4a1a';
-  ctx.fillRect(-size * 0.48, size * 0.28, size * 0.02, size * 0.06);
-  ctx.fillRect(-size * 0.42, size * 0.28, size * 0.02, size * 0.06);
-  ctx.fillRect(-size * 0.38, size * 0.28, size * 0.02, size * 0.06);
-  ctx.fillRect(size * 0.3, size * 0.16, size * 0.02, size * 0.04);
-  ctx.fillRect(size * 0.36, size * 0.16, size * 0.02, size * 0.04);
+  ctx.fillRect(-size * 0.48, size * 0.28 + armSwingL, size * 0.02, size * 0.06);
+  ctx.fillRect(-size * 0.42, size * 0.28 + armSwingL, size * 0.02, size * 0.06);
+  ctx.fillRect(-size * 0.38, size * 0.28 + armSwingL, size * 0.02, size * 0.06);
+  ctx.fillRect(size * 0.3, size * 0.16 + armSwingR, size * 0.02, size * 0.04);
+  ctx.fillRect(size * 0.36, size * 0.16 + armSwingR, size * 0.02, size * 0.04);
 
   // === HEAD (big, blocky, facing down — BOTH red eyes visible) ===
   ctx.fillStyle = skin;

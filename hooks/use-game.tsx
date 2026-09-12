@@ -1329,11 +1329,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshRanking = useCallback(async () => {
-    return Promise.resolve();
+    try {
+      const spaceQ = query(collection(db, 'usuarios'), orderBy('puntos_espacio', 'desc'), limit(RANKING_PAGE_SIZE));
+      const spaceSnap = await getDocs(spaceQ);
+      const spaceEntries: RankEntry[] = [];
+      spaceSnap.forEach((d) => {
+        const data = d.data();
+        spaceEntries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_espacio ?? 0, uid: d.id });
+      });
+      setSpaceRanking(fillWithBots(spaceEntries, 'space'));
+
+      const zombieQ = query(collection(db, 'usuarios'), orderBy('puntos_zombies', 'desc'), limit(RANKING_PAGE_SIZE));
+      const zombieSnap = await getDocs(zombieQ);
+      const zombieEntries: RankEntry[] = [];
+      zombieSnap.forEach((d) => {
+        const data = d.data();
+        zombieEntries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_zombies ?? 0, uid: d.id });
+      });
+      setZombieRanking(fillWithBots(zombieEntries, 'zombie'));
+    } catch {}
   }, []);
 
   const refreshWeeklyRanking = useCallback(async () => {
-    return Promise.resolve();
+    try {
+      const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
+      const weeklySnap = await getDocs(weeklyQ);
+      const weeklyEntries: RankEntry[] = [];
+      weeklySnap.forEach((d) => {
+        const data = d.data();
+        weeklyEntries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_semanales ?? 0, uid: d.id });
+      });
+      setWeeklyRanking(fillWithBots(weeklyEntries, 'weekly'));
+    } catch {}
   }, []);
 
   const loadMoreRanking = useCallback(async (_type: 'space' | 'zombie' | 'weekly') => {
@@ -1380,7 +1407,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }, () => setWeeklyRanking(fillWithBots([], 'weekly'))));
     } catch {}
     return () => unsubs.forEach((u) => u());
-  }, [fillWithBots]);
+  }, []);
 
   // Real-time listener for all users (admin panel)
   useEffect(() => {
