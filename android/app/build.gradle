@@ -7,8 +7,8 @@ android {
         applicationId "com.garricraft.garrdash"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion 36
-        versionCode 44
-        versionName "1.0.0.16"
+        versionCode 45
+        versionName "1.0.0.17"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
