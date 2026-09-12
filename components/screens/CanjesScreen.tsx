@@ -23,6 +23,7 @@ export function CanjesScreen() {
   const [now, setNow] = useState(Date.now());
   const [tickerIdx, setTickerIdx] = useState(0);
   const [tickerMsg, setTickerMsg] = useState('');
+  const [tickerVisible, setTickerVisible] = useState(false);
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctPlayerId, setCorrectPlayerId] = useState('');
   const [showApproved, setShowApproved] = useState(false);
@@ -58,12 +59,25 @@ export function CanjesScreen() {
       const time = timeFormats[Math.floor(Math.random() * timeFormats.length)]();
       return `${mask} ${verb} ${pkg} Diamantes ${time}`;
     };
-    setTickerMsg(generate());
-    const interval = setInterval(() => {
+    let hideTimer: ReturnType<typeof setTimeout>;
+    let cycleTimer: ReturnType<typeof setTimeout>;
+    const showTicker = (msg: string, verified: boolean) => {
+      setTickerMsg(verified ? `${msg} - Verificado` : msg);
       setTickerIdx((i) => i + 1);
-      setTickerMsg(generate());
-    }, 6000);
-    return () => clearInterval(interval);
+      setTickerVisible(true);
+      hideTimer = setTimeout(() => setTickerVisible(false), 8000);
+    };
+    const cycle = () => {
+      showTicker(generate(), false);
+      const gap = 180000 + Math.floor(Math.random() * 120000);
+      cycleTimer = setTimeout(cycle, gap + 8000);
+    };
+    const initialDelay = 5000 + Math.floor(Math.random() * 10000);
+    cycleTimer = setTimeout(cycle, initialDelay);
+    return () => {
+      clearTimeout(hideTimer);
+      clearTimeout(cycleTimer);
+    };
   }, []);
 
   const activeCanjes = canjes.filter((c) => c.status === 'pending_review' || c.status === 'waiting_correction');
@@ -78,6 +92,13 @@ export function CanjesScreen() {
     setSubmitting(false);
     if (result.ok) {
       setSuccess('¡Canje exitoso! Los diamantes están en camino a tu cuenta');
+      const r = CANJE_REWARDS.find((rr) => rr.id === selectedReward);
+      const pkgLabel = r ? r.label.replace(' Diamantes', '') : '100';
+      const userNick = nick.trim() || 'Usuario';
+      const masked = userNick.length > 3 ? userNick.slice(0, 3) + '***' : userNick + '***';
+      setTickerMsg(`${masked} reclamo ${pkgLabel} Diamantes hace 1 min - Verificado`);
+      setTickerIdx((i) => i + 1);
+      setTickerVisible(true);
       setPlayerId(''); setNick('');
     } else {
       setError(result.error || 'Error al enviar canje');
@@ -121,20 +142,22 @@ export function CanjesScreen() {
           </button>
         </div>
 
-        {/* Live claims ticker */}
-        <div className="max-w-md mx-auto mb-3 overflow-hidden rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/20">
-          <div className="flex items-center gap-2 px-3 py-1.5">
-            <span className="text-green-400 text-[10px] font-bold shrink-0 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              EN VIVO
-            </span>
-            <div className="flex-1 overflow-hidden">
-              <div key={tickerIdx} className="animate-ticker whitespace-nowrap">
-                <span className="text-green-300/80 text-xs">{tickerMsg}</span>
+        {/* Live claims ticker - subtle, appears briefly every few minutes */}
+        {tickerVisible && (
+          <div className="max-w-md mx-auto mb-3 overflow-hidden rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/20 animate-fade-in">
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <span className="text-green-400 text-[10px] font-bold shrink-0 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                EN VIVO
+              </span>
+              <div className="flex-1 overflow-hidden">
+                <div key={tickerIdx} className="animate-ticker whitespace-nowrap">
+                  <span className="text-green-300/80 text-xs">{tickerMsg}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="max-w-md mx-auto">
           <div className="grid grid-cols-2 gap-3 mb-5">
