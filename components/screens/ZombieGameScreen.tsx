@@ -84,7 +84,6 @@ const SPECIAL_LEVEL_THEMES: Record<number, Partial<ArenaTheme>> = {
   30: { name: 'Bebé de la Suerte', ground: ['#1a1a2e', '#161628', '#101020'], lane: ['#2a2a3e', '#3a3a4e', '#2a2a3e'], laneEdge: 'rgba(96,165,250,0.5)', laneDash: 'rgba(200,220,255,0.4)', center: ['#1a1a2e', '#222238', '#1a1a2e'], divider: 'rgba(96,165,250,0.2)', nest: '#2a2a3e', nestRing: 'rgba(96,165,250,0.4)', nestCore: 'rgba(96,165,250,0.18)' },
 };
 
-
 export function ZombieGameScreen() {
   const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel} = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -201,7 +200,6 @@ export function ZombieGameScreen() {
   const campaignLevelRef = useRef(1);
   const arenaThemeRef = useRef<ArenaTheme>(getArenaTheme(1));
 
-  // Companion refs
   const companionBulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 40));
   const sniperCooldownRef = useRef(0);
   const droneCooldownRef = useRef(0);
@@ -231,7 +229,6 @@ export function ZombieGameScreen() {
     setCoinsEarned(gameCoinsRef.current);
   }, [addCoins]);
 
-  // Abandonment penalty: discard all coins/points earned during this run
   const abandonGame = useCallback(() => {
     if (gameCoinsRef.current > 0) {
       spendCoins(gameCoinsRef.current);
@@ -330,7 +327,6 @@ export function ZombieGameScreen() {
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
     difficultyRef.current = Math.max(0.3, 0.3 + (campaignLevelRef.current - 1) * 0.05); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; victoryTriggeredRef.current = false; setVictory(false); scrollYRef.current = 0;
-    // Multiple bosses: more bosses at higher levels (1 boss per 10 levels, min 1, max 4)
     bossWavesTotalRef.current = Math.min(4, Math.max(1, Math.floor(campaignLevelRef.current / 10) + 1));
     bossWaveIndexRef.current = 0;
     bossWavesRef.current = 1;
@@ -397,9 +393,6 @@ export function ZombieGameScreen() {
       b.x = tx + ox; b.y = turretY - 30;
       b.vx = vxMod; b.vy = -speed;
       b.life = 80; b.damage = dmg; b.color = color;
-      // Bullet range limit: dissipate above the bridges (river is at ~0.42h, bridges slightly above)
-      // life is in frames; at speed 12 and turretY ~0.88h, we want bullets to reach ~0.40h
-      // distance = turretY - 0.40h ≈ 0.48h pixels; frames = distance / speed
       const bulletRangeY = h * BULLET_MAX_Y_RATIO;
       const maxBulletLife = Math.max(20, (turretY - bulletRangeY) / speed);
       b.life = Math.min(b.life, maxBulletLife);
@@ -449,7 +442,6 @@ export function ZombieGameScreen() {
     const { w } = canvasSizeRef.current;
     const level = campaignLevelRef.current;
     const waveIdx = bossWaveIndexRef.current;
-    // Each subsequent boss in the wave is tougher
     const waveMult = 1 + waveIdx * 0.35;
     const zHp = Math.floor((2000 + (level - 1) * 500) * waveMult);
     const boss = zombiePoolRef.current.acquire();
@@ -512,7 +504,6 @@ export function ZombieGameScreen() {
       killCountRef.current++;
     }
     setScore(Math.floor(scoreRef.current)); setZombiesKilled(killCountRef.current);
-    // Instant respawn - no empty screen after bomb
     for (let i = 0; i < Math.min(clearedCount, 6); i++) {
       setTimeout(() => spawnZombie(), i * 50);
     }
@@ -529,77 +520,128 @@ export function ZombieGameScreen() {
     }
   }, [gameOver, canShowInterstitial, recordInterstitial, vip, endGameBatch, submitZombieScore]);
 
-  // Aggressive military zombie drawing (delegates to engine2d)
+  // ==========================================
+  // ZOMBIES MEJORADOS Y OPTIMIZADOS VISUALMENTE
+  // ==========================================
   const drawCartoonZombie = (ctx: CanvasRenderingContext2D, z: Zombie, now: number) => {
     const isTank = z.type === 'tank' || z.type === 'boss';
     const isMutant = z.type === 'fast';
     const angle = Math.PI / 2;
-    drawZombie2D(ctx, z.x, z.y, angle, z.walkCycle, z.size, z.color, isMutant, isTank);
 
-    // Boss overlay: football helmet
+    ctx.save();
+    ctx.translate(z.x, z.y);
+
+    // Sombra elíptica en el suelo para volumen y profundidad
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(0, z.size * 0.6, z.size * 0.7, z.size * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dibujo base del zombi
+    drawZombie2D(ctx, 0, 0, angle, z.walkCycle, z.size, z.color, isMutant, isTank);
+
+    // Efecto de neón o brillo tóxico
+    ctx.shadowColor = isTank ? '#4d7c0f' : isMutant ? '#84cc16' : '#65a30d';
+    ctx.shadowBlur = isTank ? 12 : 8;
+
+    // Detalles tácticos y armadura según el tipo de zombi
+    if (isTank) {
+      ctx.fillStyle = '#365314';
+      ctx.beginPath();
+      ctx.roundRect(-z.size * 0.5, -z.size * 0.8, z.size, z.size * 0.4, 4);
+      ctx.fill();
+      ctx.fillStyle = '#1a2e05';
+      ctx.fillRect(-z.size * 0.2, -z.size * 0.7, z.size * 0.4, z.size * 0.15);
+    } else if (isMutant) {
+      ctx.fillStyle = '#fef08a';
+      ctx.shadowColor = '#eab308';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(-z.size * 0.2, -z.size * 0.3, 3.5, 0, Math.PI * 2);
+      ctx.arc(z.size * 0.2, -z.size * 0.3, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Boss overlay con luces de alerta y armadura pesada
     if (z.type === 'boss') {
-      ctx.save();
-      ctx.translate(z.x, z.y);
       const wobble = Math.sin(z.walkCycle) * 4;
       const s = z.size;
-      ctx.fillStyle = '#dc2626';
+      
+      ctx.shadowColor = '#dc2626';
+      ctx.shadowBlur = 20;
+
+      ctx.fillStyle = '#991b1b';
       ctx.beginPath();
-      ctx.arc(0, wobble - s * 0.35, s * 0.48, Math.PI, 0);
+      ctx.arc(0, wobble - s * 0.35, s * 0.52, Math.PI, 0);
       ctx.fill();
-      ctx.fillRect(-s * 0.48, wobble - s * 0.35, s * 0.96, s * 0.15);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(-s * 0.06, wobble - s * 0.7, s * 0.12, s * 0.4);
-      ctx.strokeStyle = '#7f1d1d';
-      ctx.lineWidth = 2;
+      
+      ctx.fillStyle = '#450a0a';
+      ctx.fillRect(-s * 0.52, wobble - s * 0.35, s * 1.04, s * 0.18);
+      
+      const alertPulse = Math.sin(now * 0.015) > 0 ? '#ef4444' : '#7f1d1d';
+      ctx.fillStyle = alertPulse;
       ctx.beginPath();
-      ctx.moveTo(-s * 0.3, wobble - s * 0.25);
-      ctx.lineTo(s * 0.3, wobble - s * 0.25);
-      ctx.moveTo(-s * 0.25, wobble - s * 0.25);
-      ctx.lineTo(-s * 0.25, wobble - s * 0.1);
-      ctx.moveTo(0, wobble - s * 0.25);
-      ctx.lineTo(0, wobble - s * 0.1);
-      ctx.moveTo(s * 0.25, wobble - s * 0.25);
-      ctx.lineTo(s * 0.25, wobble - s * 0.1);
+      ctx.arc(0, wobble - s * 0.75, s * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.35, wobble - s * 0.25);
+      ctx.lineTo(s * 0.35, wobble - s * 0.25);
+      ctx.moveTo(-s * 0.25, wobble - s * 0.25); ctx.lineTo(-s * 0.25, wobble - s * 0.05);
+      ctx.moveTo(0, wobble - s * 0.25); ctx.lineTo(0, wobble - s * 0.05);
+      ctx.moveTo(s * 0.25, wobble - s * 0.25); ctx.lineTo(s * 0.25, wobble - s * 0.05);
       ctx.stroke();
-      ctx.restore();
     }
 
-    // Hit flash
+    ctx.restore();
+
+    // Destello de impacto al recibir daño
     if (z.hitFlash > 0) {
       ctx.save();
-      ctx.globalAlpha = z.hitFlash * 0.6;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(z.x, z.y, z.size + 4, 0, Math.PI * 2); ctx.fill();
+      ctx.translate(z.x, z.y);
+      ctx.globalAlpha = z.hitFlash * 0.8;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 15;
+      ctx.beginPath(); 
+      ctx.arc(0, 0, z.size + 6, 0, Math.PI * 2); 
+      ctx.fill();
       ctx.restore();
     }
 
-    // HP bar
+    // Barra de vida superior moderna
     if (z.hp < z.maxHp) {
       const s = z.size;
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(z.x - s, z.y - s - 10, s * 2, 4);
-      ctx.fillStyle = '#ef4444';
-      ctx.fillRect(z.x - s, z.y - s - 10, s * 2 * (z.hp / z.maxHp), 4);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.beginPath();
+      ctx.roundRect(z.x - s, z.y - s - 12, s * 2, 5, 2);
+      ctx.fill();
+      
+      ctx.fillStyle = z.type === 'boss' ? '#dc2626' : '#22c55e';
+      ctx.shadowColor = z.type === 'boss' ? '#dc2626' : '#22c55e';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.roundRect(z.x - s, z.y - s - 12, s * 2 * (z.hp / z.maxHp), 5, 2);
+      ctx.fill();
+      ctx.restore();
     }
   };
 
-  // Cartoon barrel drawing with counter
   const drawBarrel = (ctx: CanvasRenderingContext2D, br: Barrel, now: number) => {
     ctx.save();
     ctx.translate(br.x, br.y);
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath(); ctx.ellipse(0, 22, 20, 5, 0, 0, Math.PI * 2); ctx.fill();
-    // Wood barrel body
     ctx.fillStyle = '#8b4513';
     ctx.beginPath();
     ctx.roundRect(-18, -20, 36, 40, 4);
     ctx.fill();
-    // Metal bands
     ctx.fillStyle = '#a0522d';
     ctx.fillRect(-18, -20, 36, 5);
     ctx.fillRect(-18, 15, 36, 5);
-    // Wood planks
     ctx.strokeStyle = '#654321';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -607,7 +649,6 @@ export function ZombieGameScreen() {
     ctx.moveTo(0, -15); ctx.lineTo(0, 14);
     ctx.moveTo(10, -15); ctx.lineTo(10, 14);
     ctx.stroke();
-    // Yellow badge with counter number
     const pulse = 1 + Math.sin(now * 0.008) * 0.08;
     ctx.save();
     ctx.scale(pulse, pulse);
@@ -625,7 +666,6 @@ export function ZombieGameScreen() {
     ctx.textBaseline = 'middle';
     ctx.fillText(`${Math.ceil(br.hp)}`, 0, 1);
     ctx.restore();
-    // Weapon icon floating above
     ctx.save();
     ctx.translate(0, -30);
     ctx.shadowColor = WEAPON_COLORS[br.weapon];
@@ -642,12 +682,10 @@ export function ZombieGameScreen() {
     ctx.restore();
   };
 
-  // Tactical soldier drawing (delegates to engine2d)
   const drawSurvivor = (ctx: CanvasRenderingContext2D, x: number, y: number, now: number) => {
     const s = 22 * SPRITE_SCALE;
     const breath = Math.sin(now * 0.003) * 1.5;
 
-    // Barricade base (sandbag style)
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = '#2a2820';
@@ -662,11 +700,9 @@ export function ZombieGameScreen() {
     ctx.stroke();
     ctx.restore();
 
-    // Tactical soldier sprite (facing up)
     const walkCycle = now * 0.003;
     drawSoldier2D(ctx, x, y + breath, -Math.PI / 2, walkCycle, char.color, shieldRef.current, weaponRef.current);
 
-    // Muzzle glow when ready
     if (shootCooldownRef.current < 2) {
       ctx.save();
       ctx.translate(x, y + breath);
@@ -698,14 +734,12 @@ export function ZombieGameScreen() {
       const barricadeY = h * BARRICADE_Y_RATIO;
       const turretY = h * TURRET_Y_RATIO;
       const coinsCapped = gameCoinsRef.current >= coinCapRef.current;
-      const theme = COLOR_THEMES[themeIndexRef.current];
 
       screenShakeRef.current.update(dt);
       const shake = screenShakeRef.current.getOffset();
 
       scrollYRef.current += dt * (coinsCapped ? 3 : 1.5);
 
-      // Theme cycling every 30s
       if (!gameOverRef.current && !pausedRef.current) {
         themeTimerRef.current += dt;
         if (themeTimerRef.current >= 1800) {
@@ -718,7 +752,6 @@ export function ZombieGameScreen() {
       ctx.save();
       ctx.translate(shake.x, shake.y);
 
-      // Overdrive border
       if (overdriveRef.current) {
         const pulse = 0.3 + Math.sin(now * 0.01) * 0.2;
         ctx.strokeStyle = `rgba(255,215,0,${pulse})`;
@@ -729,10 +762,9 @@ export function ZombieGameScreen() {
         ctx.strokeRect(8, 8, w - 16, h - 16);
       }
 
-      // Tactical arena background (themed)
+      // Renderizado del mapa / arena táctica
       drawTacticalArena(ctx, w, h, scrollYRef.current, arenaThemeRef.current);
 
-      // Draw towers and castle
       const leftTowerX = w * 0.15;
       const rightTowerX = w * 0.85;
       const castleX = w * 0.5;
@@ -741,15 +773,12 @@ export function ZombieGameScreen() {
       drawArenaTower(ctx, rightTowerX, structureY, rightTowerHpRef.current, TOWER_MAX_HP, 'right');
       drawArenaCastle(ctx, castleX, structureY, castleHpRef.current, CASTLE_MAX_HP);
 
-      // Coins capped red flash
       if (coinsCapped) {
         ctx.fillStyle = `rgba(255,50,50,${0.04 + Math.sin(now * 0.01) * 0.02})`;
         ctx.fillRect(-20, -20, w + 40, h + 40);
       }
 
       if (!gameOverRef.current && !pausedRef.current) {
-
-        // Touch-only horizontal movement (no auto-aim)
         if (touchTargetRef.current.active) {
           turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.25 * dt);
         }
@@ -758,12 +787,10 @@ export function ZombieGameScreen() {
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
         shoot();
 
-        // === Companions ===
         const tl = towerLevelsRef.current;
         const companionBullets = companionBulletPoolRef.current;
         const activeZombies = zombiePoolRef.current.getActive();
 
-        // Francotirador: shoots straight up, high damage, slow fire rate
         if (tl.turret > 0) {
           sniperCooldownRef.current -= dt;
           if (sniperCooldownRef.current <= 0) {
@@ -780,7 +807,6 @@ export function ZombieGameScreen() {
           }
         }
 
-        // Dron: targets nearest zombie, medium damage, faster fire rate
         if (tl.drone > 0) {
           droneCooldownRef.current -= dt;
           if (droneCooldownRef.current <= 0 && activeZombies.length > 0) {
@@ -797,7 +823,6 @@ export function ZombieGameScreen() {
           }
         }
 
-        // Médico: repairs barricade periodically
         if (tl.medic > 0) {
           medicCooldownRef.current -= dt;
           if (medicCooldownRef.current <= 0 && barricadeHpRef.current < barricadeMaxHpRef.current) {
@@ -809,7 +834,6 @@ export function ZombieGameScreen() {
           }
         }
 
-        // Weapon timer countdown
         if (weaponRef.current !== 'pistol') {
           weaponTimerRef.current -= dt;
           setWeaponTimer(Math.ceil(weaponTimerRef.current / 60));
@@ -818,12 +842,10 @@ export function ZombieGameScreen() {
           }
         }
 
-        // Progressive difficulty: increases over time (score-based) + per-level base
         const timeMinutes = playTimeRef.current / 60000;
         difficultyRef.current = 0.3 + scoreRef.current / 1000 + timeMinutes * 0.15;
         if (coinsCapped) difficultyRef.current *= 1.3;
 
-        // Continuous zombie + barrel spawning - never pauses, even during boss or ulti (BLOCK 7)
         if (!victoryTriggeredRef.current && !victory) {
           spawnTimerRef.current += dt;
           const baseInterval = coinsCapped ? 18 : 30;
@@ -842,9 +864,7 @@ export function ZombieGameScreen() {
             addFloatText('¡Mutantes!', w / 2, h / 3, '#a855f7', 16);
             screenShakeRef.current.trigger(4, 15);
           }
-          // Boss waves: spawn next boss when score threshold reached and not all waves defeated
           if (scoreRef.current >= finalBossThresholdRef.current && !finalBossDefeatedRef.current && !bossRef.current) spawnBoss();
-          // Barrels spawn alongside zombies - always simultaneous
           barrelTimerRef.current += dt;
           if (barrelTimerRef.current > 200) { spawnBarrel(); barrelTimerRef.current = 0; }
         }
@@ -870,7 +890,6 @@ export function ZombieGameScreen() {
           z.y += z.vy * dt;
           z.walkCycle += dt * 0.45;
           if (z.hitFlash > 0) z.hitFlash = Math.max(0, z.hitFlash - dt * 0.1);
-          // Bifurcation: steer toward assigned lane from center spawn
           if (z.vx !== 0) {
             z.x += z.vx * dt;
             const targetX = getArenaLaneX(z.vx < 0 ? 0 : 1, w);
@@ -978,10 +997,8 @@ export function ZombieGameScreen() {
 
         for (const b of bulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-          // Bullets dissipate at the river line (just above bridges)
           const bulletMaxY = h * BULLET_MAX_Y_RATIO;
           if (b.life <= 0 || b.y < -10 || b.y < bulletMaxY) {
-            // Spawn small dissipate particle when bullet fades at range
             if (b.y >= bulletMaxY - 5 && b.y <= bulletMaxY + 5) {
               spawnParticles2D(particlesRef.current, b.x, b.y, 3, b.color, 2);
             }
@@ -1014,12 +1031,10 @@ export function ZombieGameScreen() {
                   addFloatText('¡JEFE ELIMINADO!', z.x, z.y - 40, '#dc2626', 16);
                   screenShakeRef.current.trigger(10, 25); hapticPattern([50, 30, 100]);
                   bossWaveIndexRef.current++;
-                  // Check if more boss waves remain
                   if (bossWaveIndexRef.current < bossWavesTotalRef.current) {
                     finalBossThresholdRef.current += 1000;
                     addFloatText(`¡OLEADA ${bossWaveIndexRef.current + 1}/${bossWavesTotalRef.current} ENTRANTE!`, w / 2, h / 3, '#dc2626', 20);
                   } else {
-                    // All bosses defeated - trigger victory
                     finalBossDefeatedRef.current = true;
                     victoryTriggeredRef.current = true;
                     for (const zz of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(zz);
@@ -1082,7 +1097,6 @@ export function ZombieGameScreen() {
           if (hit) bulletPoolRef.current.release(b);
         }
 
-        // Companion bullets update + collision
         for (const b of companionBulletPoolRef.current.getActive()) {
           b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
           const bulletMaxY = h * BULLET_MAX_Y_RATIO;
@@ -1122,7 +1136,7 @@ export function ZombieGameScreen() {
           if (c.life <= 0 || c.y > h + 20) { coinPoolRef.current.release(c); continue; }
           if (dist(c.x, c.y, turretXRef.current, turretY) < 30) {
             coinPoolRef.current.release(c);
-            safeAddCoins(1); playCoin(); hapticFeedback(15); // 1 coin per pickup - but cap is very low
+            safeAddCoins(1); playCoin(); hapticFeedback(15);
           }
         }
 
@@ -1137,7 +1151,6 @@ export function ZombieGameScreen() {
         }
       }
 
-      // Blood splats
       const splats = bloodSplatsRef.current;
       for (let i = splats.length - 1; i >= 0; i--) {
         const bs = splats[i];
@@ -1150,13 +1163,11 @@ export function ZombieGameScreen() {
         if (bs.alpha <= 0) splats.splice(i, 1);
       }
 
-      // Draw zombies
+      // Dibujar horda de zombies mejorados
       for (const z of zombiePoolRef.current.getActive()) drawCartoonZombie(ctx, z, now);
 
-      // Draw barrels
       for (const br of barrelPoolRef.current.getActive()) drawBarrel(ctx, br, now);
 
-      // Draw power-ups
       for (const pu of powerUpPoolRef.current.getActive()) {
         ctx.save();
         ctx.translate(pu.x, pu.y);
@@ -1174,7 +1185,6 @@ export function ZombieGameScreen() {
         ctx.restore();
       }
 
-      // Barricade
       ctx.fillStyle = '#3a2a1a';
       ctx.fillRect(0, barricadeY, w, 10);
       ctx.fillStyle = '#2a1a0a';
@@ -1188,14 +1198,11 @@ export function ZombieGameScreen() {
         ctx.stroke();
       }
 
-      // Survivor
       const tx = turretXRef.current;
       drawSurvivor(ctx, tx, turretY, now);
 
       if (shieldRef.current) drawNeonCircle(ctx, tx, turretY - 15, 40, '#22d3ee', 20);
 
-      // Draw companions next to survivor
-      const tl = towerLevelsRef.current;
       if (tl.turret > 0) {
         const sx = tx - 55; const sy = turretY;
         ctx.save();
@@ -1237,13 +1244,11 @@ export function ZombieGameScreen() {
         ctx.restore();
       }
 
-      // Floating coins
       for (const c of coinPoolRef.current.getActive()) {
         const spin = (c.life * 0.15);
         drawMetallicCoin(ctx, c.x, c.y, 7, spin);
       }
 
-      // Bullets
       for (const b of bulletPoolRef.current.getActive()) {
         ctx.save();
         ctx.strokeStyle = b.color; ctx.lineWidth = 4;
@@ -1254,7 +1259,6 @@ export function ZombieGameScreen() {
         ctx.restore();
       }
 
-      // Companion bullets
       for (const b of companionBulletPoolRef.current.getActive()) {
         ctx.save();
         ctx.fillStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 12;
@@ -1478,7 +1482,7 @@ export function ZombieGameScreen() {
           gameOverRef.current = false; setGameOver(false);
           hasRevivedRef.current = true; setHasRevived(true);
           reviveShieldTimerRef.current = 120; setReviveShieldTimer(2);
-          safeAddCoins(1); // revive gives 1 coin instead of 3
+          safeAddCoins(1);
           const { w, h } = canvasSizeRef.current;
           for (const z of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(z);
           addFloatText('¡ESCUDO DE INMUNIDAD 2s!', w / 2, h / 2, '#22d3ee', 18);
@@ -1489,7 +1493,6 @@ export function ZombieGameScreen() {
       />
       <MuteButton />
 
-      {/* Pause Modal */}
       {showPauseModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
           <div className="rounded-2xl bg-card border border-cyan-500/30 p-6 w-72 shadow-2xl">
