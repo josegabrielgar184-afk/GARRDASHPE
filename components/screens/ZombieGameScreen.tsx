@@ -1246,11 +1246,21 @@ export function ZombieGameScreen() {
       // Bullets
       for (const b of bulletPoolRef.current.getActive()) {
         ctx.save();
-        ctx.strokeStyle = b.color; ctx.lineWidth = 4;
-        ctx.shadowColor = b.color; ctx.shadowBlur = 15;
-        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x, b.y + 16); ctx.stroke();
+        // Neon trail
+        ctx.strokeStyle = b.color; ctx.lineWidth = 3;
+        ctx.shadowColor = b.color; ctx.shadowBlur = 12;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y + 18);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+        // Bright core
+        ctx.shadowBlur = 6;
         ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2); ctx.fill();
+        // Colored tip
+        ctx.fillStyle = b.color;
+        ctx.beginPath(); ctx.arc(b.x, b.y, 1.5, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
       }
 

@@ -220,76 +220,145 @@ export function drawSoldier2D(
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(0, 6, 12, 4, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 8, 14, 5, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.rotate(angle);
 
-  const legSwing = Math.sin(walkCycle) * 4;
+  const breath = Math.sin(walkCycle * 0.5) * 0.8;
+  const s = 14;
 
-  // Boots
-  ctx.fillStyle = '#1a1a16';
-  ctx.fillRect(-4, -2 + legSwing, 4, 5);
-  ctx.fillRect(1, 2 - legSwing, 4, 5);
+  // Thruster flames (yellow sparks below)
+  ctx.save();
+  ctx.shadowColor = '#fbbf24';
+  ctx.shadowBlur = 8;
+  for (let i = 0; i < 3; i++) {
+    const fx = -4 + i * 4;
+    const fl = 3 + Math.sin(walkCycle * 4 + i) * 2;
+    ctx.fillStyle = `rgba(251,191,36,${0.6 - i * 0.15})`;
+    ctx.beginPath();
+    ctx.moveTo(fx - 2, s * 0.4);
+    ctx.lineTo(fx, s * 0.4 + fl);
+    ctx.lineTo(fx + 2, s * 0.4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
 
-  // Legs
-  ctx.fillStyle = '#2a2a20';
-  ctx.fillRect(-3, -1 + legSwing, 3, 7);
-  ctx.fillRect(1, 1 - legSwing, 3, 7);
-
-  // Torso (clean rounded body)
-  ctx.fillStyle = color;
+  // Legs (armored)
+  ctx.fillStyle = '#2a2a30';
   ctx.beginPath();
-  ctx.ellipse(0, 0, 9, 10, 0, 0, Math.PI * 2);
+  ctx.roundRect(-s * 0.3, s * 0.05, s * 0.2, s * 0.35, 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(s * 0.1, s * 0.05, s * 0.2, s * 0.35, 2);
+  ctx.fill();
+  // Knee joints
+  ctx.fillStyle = '#1a1a20';
+  ctx.beginPath();
+  ctx.arc(-s * 0.2, s * 0.22, 2, 0, Math.PI * 2);
+  ctx.arc(s * 0.2, s * 0.22, 2, 0, Math.PI * 2);
   ctx.fill();
 
-  // Vest detail
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(-6, -3, 12, 6);
-
-  // Head (simple clean circle)
-  ctx.fillStyle = '#c4a574';
+  // Torso with metallic gradient
+  const torsoGrad = ctx.createLinearGradient(-s * 0.4, -s * 0.3, s * 0.4, s * 0.3);
+  torsoGrad.addColorStop(0, '#3a3a40');
+  torsoGrad.addColorStop(0.3, color);
+  torsoGrad.addColorStop(0.7, color);
+  torsoGrad.addColorStop(1, '#1a1a20');
+  ctx.fillStyle = torsoGrad;
   ctx.beginPath();
-  ctx.arc(0, 0, 5, 0, Math.PI * 2);
+  ctx.moveTo(-s * 0.35, -s * 0.05 + breath);
+  ctx.bezierCurveTo(-s * 0.4, -s * 0.25, -s * 0.2, -s * 0.35, 0, -s * 0.35 + breath);
+  ctx.bezierCurveTo(s * 0.2, -s * 0.35, s * 0.4, -s * 0.25, s * 0.35, -s * 0.05 + breath);
+  ctx.bezierCurveTo(s * 0.38, s * 0.15, s * 0.3, s * 0.25, 0, s * 0.25 + breath);
+  ctx.bezierCurveTo(-s * 0.3, s * 0.25, -s * 0.38, s * 0.15, -s * 0.35, -s * 0.05 + breath);
+  ctx.closePath();
+  ctx.fill();
+  // Chest plate highlight
+  ctx.strokeStyle = `${color}66`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(-s * 0.25, -s * 0.15 + breath, s * 0.5, s * 0.3, 3);
+  ctx.stroke();
+  // Core light
+  ctx.save();
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#22d3ee';
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.02 + breath, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Arms
+  ctx.fillStyle = '#2a2a30';
+  ctx.beginPath();
+  ctx.roundRect(-s * 0.42, -s * 0.15 + breath, s * 0.12, s * 0.25, 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(s * 0.3, -s * 0.15 + breath, s * 0.12, s * 0.25, 2);
   ctx.fill();
 
-  // Helmet
-  ctx.fillStyle = color;
+  // Astronaut helmet with visor
+  const helmetGrad = ctx.createRadialGradient(-s * 0.08, -s * 0.3 + breath, 0, 0, -s * 0.25 + breath, s * 0.25);
+  helmetGrad.addColorStop(0, color);
+  helmetGrad.addColorStop(0.6, color);
+  helmetGrad.addColorStop(1, '#1a1a20');
+  ctx.fillStyle = helmetGrad;
   ctx.beginPath();
-  ctx.arc(0, -1, 6, Math.PI, 0);
+  ctx.arc(0, -s * 0.25 + breath, s * 0.22, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
-  ctx.fillRect(-6, -1, 12, 1.5);
+  // Visor (cyan reflective)
+  const visorGrad = ctx.createLinearGradient(-s * 0.15, -s * 0.3 + breath, s * 0.15, -s * 0.2 + breath);
+  visorGrad.addColorStop(0, '#0a2a3a');
+  visorGrad.addColorStop(0.5, '#22d3ee');
+  visorGrad.addColorStop(1, '#0a2a3a');
+  ctx.fillStyle = visorGrad;
+  ctx.beginPath();
+  ctx.ellipse(s * 0.02, -s * 0.25 + breath, s * 0.14, s * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Visor shine
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(-s * 0.04, -s * 0.28 + breath, s * 0.04, s * 0.02, -0.3, 0, Math.PI * 2);
+  ctx.fill();
 
   // Weapon pointing forward
   ctx.fillStyle = '#2a2a2a';
   if (weaponType === 'pistol') {
-    ctx.fillRect(7, -1.5, 9, 3);
+    ctx.fillRect(s * 0.3, -1.5, 10, 3);
     ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(7, 1, 3, 4);
+    ctx.fillRect(s * 0.3, 1, 3, 4);
   } else if (weaponType === 'rifle') {
-    ctx.fillRect(7, -1.5, 18, 2.5);
+    ctx.fillRect(s * 0.3, -1.5, 20, 2.5);
     ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(10, 1, 4, 6);
+    ctx.fillRect(s * 0.35, 1, 4, 6);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillRect(s * 0.48, -1, 3, 2);
   } else if (weaponType === 'shotgun') {
-    ctx.fillRect(7, -2, 16, 4);
+    ctx.fillRect(s * 0.3, -2, 18, 4);
     ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(7, 2, 6, 3);
+    ctx.fillRect(s * 0.3, 2, 6, 3);
   } else if (weaponType === 'minigun') {
-    ctx.fillRect(7, -2, 16, 5);
+    ctx.fillRect(s * 0.3, -2.5, 18, 5);
     ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(7, 3, 4, 4);
+    ctx.fillRect(s * 0.3, 2.5, 4, 4);
     ctx.fillStyle = '#555';
-    ctx.fillRect(20, -1, 4, 2);
+    ctx.fillRect(s * 0.46, -1, 4, 2);
   } else if (weaponType === 'laser') {
     ctx.fillStyle = '#555';
-    ctx.fillRect(7, -1.5, 16, 3);
+    ctx.fillRect(s * 0.3, -1.5, 18, 3);
+    ctx.save();
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 8;
     ctx.fillStyle = '#22d3ee';
-    ctx.fillRect(20, -1, 4, 2);
+    ctx.fillRect(s * 0.46, -1, 4, 2);
+    ctx.restore();
   } else if (weaponType === 'grenade') {
-    ctx.fillRect(7, -2, 14, 5);
+    ctx.fillRect(s * 0.3, -2, 16, 5);
     ctx.fillStyle = '#666';
-    ctx.fillRect(18, -3, 5, 7);
+    ctx.fillRect(s * 0.44, -3, 5, 7);
   }
 
   ctx.restore();
@@ -320,108 +389,260 @@ export function drawZombie2D(
   ctx.translate(x, y);
 
   // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(0, 5, size * 0.5, size * 0.18, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, size * 0.45, size * 0.5, size * 0.16, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.rotate(angle);
 
-  // Classic PvZ-style walk: slow lurching sway, arms stretched forward
   const legSwing = Math.sin(walkCycle) * (size * 0.18);
   const bodyBob = Math.abs(Math.sin(walkCycle)) * size * 0.06;
-  const torsoSway = Math.sin(walkCycle) * 0.04;
-  const armSway = Math.sin(walkCycle) * (size * 0.03);
+  const torsoSway = Math.sin(walkCycle) * 0.06;
+  const armSway = Math.sin(walkCycle) * (size * 0.04);
 
-  // Legs (classic shuffling walk — alternating stride)
-  ctx.fillStyle = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2a2a1a';
-  ctx.fillRect(-size * 0.15, -size * 0.1 + legSwing, size * 0.12, size * 0.35);
-  ctx.fillRect(size * 0.03, size * 0.1 - legSwing, size * 0.12, size * 0.35);
-  // Feet (small boots)
-  ctx.fillStyle = isTank ? '#2a0a0a' : isMutant ? '#1a1a2a' : '#0a1804';
-  ctx.fillRect(-size * 0.17, -size * 0.1 + legSwing + size * 0.3, size * 0.14, size * 0.06);
-  ctx.fillRect(size * 0.01, size * 0.1 - legSwing + size * 0.3, size * 0.14, size * 0.06);
+  // Acid trail particles for mutant zombies
+  if (isMutant) {
+    ctx.save();
+    ctx.shadowColor = '#22c55e';
+    ctx.shadowBlur = 15;
+    for (let i = 0; i < 3; i++) {
+      const bx = -size * 0.3 - i * size * 0.15;
+      const by = (Math.sin(walkCycle * 2 + i) * size * 0.1);
+      const br = size * 0.06 * (1 - i * 0.2);
+      ctx.fillStyle = `rgba(34,197,94,${0.4 - i * 0.1})`;
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 
-  // Torso (slight hunch, swaying with walk cycle)
+  // Legs drawn with bezier curves for organic shape
   ctx.save();
   ctx.rotate(0.06 + torsoSway);
   ctx.translate(0, -bodyBob);
-  // Dark military green body
-  const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#2a2a3a' : '#2d4010';
-  ctx.fillStyle = bodyColor;
+
+  const legColor = isTank ? '#2a1010' : isMutant ? '#1a2a1a' : '#1a2208';
+  const legDark = isTank ? '#1a0808' : isMutant ? '#0a1a0a' : '#0a1404';
+
+  // Left leg
+  ctx.fillStyle = legColor;
   ctx.beginPath();
-  ctx.ellipse(0, 0, size * 0.32, size * 0.38, 0, 0, Math.PI * 2);
+  ctx.moveTo(-size * 0.12, 0);
+  ctx.bezierCurveTo(-size * 0.18, size * 0.15, -size * 0.22, size * 0.3, -size * 0.14, size * 0.4 + legSwing);
+  ctx.bezierCurveTo(-size * 0.08, size * 0.3, -size * 0.06, size * 0.15, -size * 0.04, 0);
+  ctx.closePath();
   ctx.fill();
-  // Darker chest detail
-  ctx.fillStyle = isTank ? '#2a0a0a' : isMutant ? '#1a1a2a' : '#1a2a08';
-  ctx.fillRect(-size * 0.18, -size * 0.12, size * 0.36, size * 0.1);
-  // Body outline for definition
-  ctx.strokeStyle = isTank ? '#5a2a2a' : isMutant ? '#4a4a5a' : '#3a5018';
+  // Right leg
+  ctx.beginPath();
+  ctx.moveTo(size * 0.08, 0);
+  ctx.bezierCurveTo(size * 0.14, size * 0.15, size * 0.22, size * 0.3, size * 0.16, size * 0.4 - legSwing);
+  ctx.bezierCurveTo(size * 0.1, size * 0.3, size * 0.06, size * 0.15, size * 0.04, 0);
+  ctx.closePath();
+  ctx.fill();
+  // Feet
+  ctx.fillStyle = legDark;
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.14, size * 0.42 + legSwing, size * 0.08, size * 0.04, 0, 0, Math.PI * 2);
+  ctx.ellipse(size * 0.16, size * 0.42 - legSwing, size * 0.08, size * 0.04, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Torso with gradient for volume
+  const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#1a3a1a' : '#2d4010';
+  const bodyLight = isTank ? '#5a2a2a' : isMutant ? '#3a5a2a' : '#4a6018';
+  const grad = ctx.createLinearGradient(-size * 0.3, -size * 0.3, size * 0.3, size * 0.3);
+  grad.addColorStop(0, bodyLight);
+  grad.addColorStop(0.5, bodyColor);
+  grad.addColorStop(1, isTank ? '#1a0808' : isMutant ? '#0a2a0a' : '#1a2a08');
+  ctx.fillStyle = grad;
+
+  // Torso shape via bezier
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.28, -size * 0.05);
+  ctx.bezierCurveTo(-size * 0.35, -size * 0.2, -size * 0.2, -size * 0.35, 0, -size * 0.32);
+  ctx.bezierCurveTo(size * 0.2, -size * 0.35, size * 0.35, -size * 0.2, size * 0.28, -size * 0.05);
+  ctx.bezierCurveTo(size * 0.32, size * 0.15, size * 0.25, size * 0.25, 0, size * 0.28);
+  ctx.bezierCurveTo(-size * 0.25, size * 0.25, -size * 0.32, size * 0.15, -size * 0.28, -size * 0.05);
+  ctx.closePath();
+  ctx.fill();
+
+  // Chest ribcage detail
+  ctx.strokeStyle = isTank ? '#1a0404' : isMutant ? '#0a2a0a' : '#0a1804';
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, size * 0.32, size * 0.38, 0, 0, Math.PI * 2);
-  ctx.stroke();
+  for (let r = 0; r < 3; r++) {
+    const ry = -size * 0.1 + r * size * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.2, ry);
+    ctx.bezierCurveTo(-size * 0.1, ry + size * 0.02, size * 0.1, ry + size * 0.02, size * 0.2, ry);
+    ctx.stroke();
+  }
 
-  // Arms stretched forward (classic PvZ zombie pose — both arms reaching ahead)
+  // Arms reaching forward with bezier curves
+  const armReach = size * 0.5;
+  const armW = size * 0.09;
   ctx.fillStyle = bodyColor;
-  const armReach = size * 0.45;
-  const armW = size * 0.08;
-  // Both arms reach forward (slight sway for walking feel)
-  ctx.fillRect(size * 0.08, -size * 0.18 + armSway, armReach, armW);
-  ctx.fillRect(size * 0.08, size * 0.10 - armSway, armReach, armW);
-  // Arm outlines
-  ctx.strokeStyle = isTank ? '#5a2a2a' : isMutant ? '#4a4a5a' : '#3a5018';
-  ctx.lineWidth = 0.5;
-  ctx.strokeRect(size * 0.08, -size * 0.18 + armSway, armReach, armW);
-  ctx.strokeRect(size * 0.08, size * 0.10 - armSway, armReach, armW);
-  // Hands (small circles at end of arms)
-  ctx.fillStyle = isTank ? '#5a2020' : isMutant ? '#4a2a5a' : '#2a4008';
+  // Upper arm
   ctx.beginPath();
-  ctx.arc(size * 0.08 + armReach, -size * 0.18 + armSway + armW * 0.5, armW * 0.6, 0, Math.PI * 2);
-  ctx.arc(size * 0.08 + armReach, size * 0.10 - armSway + armW * 0.5, armW * 0.6, 0, Math.PI * 2);
+  ctx.moveTo(size * 0.05, -size * 0.2 + armSway);
+  ctx.bezierCurveTo(size * 0.2, -size * 0.22 + armSway, size * 0.35, -size * 0.18 + armSway, size * 0.45, -size * 0.14 + armSway);
+  ctx.lineTo(size * 0.5, -size * 0.14 + armSway + armW);
+  ctx.bezierCurveTo(size * 0.35, -size * 0.12 + armSway + armW, size * 0.2, -size * 0.12 + armSway + armW, size * 0.05, -size * 0.12 + armSway + armW);
+  ctx.closePath();
+  ctx.fill();
+  // Lower arm
+  ctx.beginPath();
+  ctx.moveTo(size * 0.05, size * 0.08 - armSway);
+  ctx.bezierCurveTo(size * 0.2, size * 0.06 - armSway, size * 0.35, size * 0.1 - armSway, size * 0.45, size * 0.14 - armSway);
+  ctx.lineTo(size * 0.5, size * 0.14 - armSway + armW);
+  ctx.bezierCurveTo(size * 0.35, size * 0.16 - armSway + armW, size * 0.2, size * 0.16 - armSway + armW, size * 0.05, size * 0.16 - armSway + armW);
+  ctx.closePath();
   ctx.fill();
 
-  // Head (darker green, defined)
-  ctx.fillStyle = isTank ? '#5a2020' : isMutant ? '#4a2a5a' : '#2a4008';
+  // Clawed hands
+  const handColor = isTank ? '#5a2020' : isMutant ? '#2a4a2a' : '#2a4008';
+  ctx.fillStyle = handColor;
   ctx.beginPath();
-  ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
+  ctx.arc(size * 0.5, -size * 0.12 + armSway + armW * 0.5, armW * 0.7, 0, Math.PI * 2);
+  ctx.arc(size * 0.5, size * 0.14 - armSway + armW * 0.5, armW * 0.7, 0, Math.PI * 2);
   ctx.fill();
-  // Head outline
-  ctx.strokeStyle = isTank ? '#7a3030' : isMutant ? '#6a3a7a' : '#3a5018';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
-  ctx.stroke();
+  // Claws
+  ctx.strokeStyle = handColor;
+  ctx.lineWidth = 1.5;
+  for (let c = 0; c < 3; c++) {
+    const cy = -size * 0.16 + c * size * 0.04 + armSway;
+    ctx.beginPath();
+    ctx.moveTo(size * 0.52, cy);
+    ctx.lineTo(size * 0.58, cy + size * 0.01);
+    ctx.stroke();
+    const cy2 = size * 0.1 + c * size * 0.04 - armSway;
+    ctx.beginPath();
+    ctx.moveTo(size * 0.52, cy2);
+    ctx.lineTo(size * 0.58, cy2 + size * 0.01);
+    ctx.stroke();
+  }
 
-  // Jaw (dark)
-  ctx.fillStyle = isTank ? '#1a0404' : isMutant ? '#0a0a1a' : '#0a1804';
+  // Head with gradient
+  const headGrad = ctx.createRadialGradient(-size * 0.05, -size * 0.22, 0, 0, -size * 0.2, size * 0.22);
+  headGrad.addColorStop(0, isTank ? '#6a3030' : isMutant ? '#3a5a3a' : '#3a5018');
+  headGrad.addColorStop(1, isTank ? '#3a1010' : isMutant ? '#1a3a1a' : '#1a2a08');
+  ctx.fillStyle = headGrad;
   ctx.beginPath();
-  ctx.arc(size * 0.05, size * 0.04, size * 0.09, 0, Math.PI * 2);
+  ctx.arc(0, -size * 0.2, size * 0.2, 0, Math.PI * 2);
   ctx.fill();
 
-  // Glowing red eyes (bright, defined)
-  const eyeColor = isTank ? '#fbbf24' : isMutant ? '#c084fc' : '#ff1744';
+  // Jaw / mouth
+  ctx.fillStyle = '#0a0a04';
+  ctx.beginPath();
+  ctx.moveTo(size * 0.03, -size * 0.15);
+  ctx.bezierCurveTo(size * 0.08, -size * 0.12, size * 0.12, -size * 0.08, size * 0.1, -size * 0.05);
+  ctx.bezierCurveTo(size * 0.06, -size * 0.08, size * 0.02, -size * 0.1, -size * 0.02, -size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  // Teeth
+  ctx.fillStyle = '#c0c0a0';
+  for (let t = 0; t < 3; t++) {
+    ctx.fillRect(size * 0.02 + t * size * 0.025, -size * 0.11, size * 0.015, size * 0.03);
+  }
+
+  // Glowing eyes with neon shadow
+  const eyeColor = isTank ? '#fbbf24' : isMutant ? '#22c55e' : '#ff1744';
+  ctx.save();
+  ctx.shadowColor = eyeColor;
+  ctx.shadowBlur = isTank ? 12 : isMutant ? 14 : 10;
   ctx.fillStyle = eyeColor;
   ctx.beginPath();
-  ctx.arc(size * 0.07, -size * 0.05, size * 0.045, 0, Math.PI * 2);
-  ctx.arc(size * 0.07, size * 0.05, size * 0.045, 0, Math.PI * 2);
+  ctx.arc(size * 0.06, -size * 0.25, size * 0.05, 0, Math.PI * 2);
+  ctx.arc(size * 0.06, -size * 0.15, size * 0.05, 0, Math.PI * 2);
   ctx.fill();
-  // Eye glow
-  ctx.fillStyle = `rgba(255,40,80,${isTank ? 0.2 : isMutant ? 0.15 : 0.25})`;
+  // Inner bright pupil
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(size * 0.07, -size * 0.05, size * 0.08, 0, Math.PI * 2);
-  ctx.arc(size * 0.07, size * 0.05, size * 0.08, 0, Math.PI * 2);
+  ctx.arc(size * 0.07, -size * 0.25, size * 0.02, 0, Math.PI * 2);
+  ctx.arc(size * 0.07, -size * 0.15, size * 0.02, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.restore();
 
-  // Tank aura ring
+  // Tank armor: massive shoulder pads with spikes
   if (isTank) {
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 1.5;
+    ctx.save();
+    // Left shoulder pad
+    const armorGrad = ctx.createLinearGradient(-size * 0.4, -size * 0.2, -size * 0.2, 0);
+    armorGrad.addColorStop(0, '#4a4a4a');
+    armorGrad.addColorStop(0.5, '#2a2a2a');
+    armorGrad.addColorStop(1, '#1a1a1a');
+    ctx.fillStyle = armorGrad;
     ctx.beginPath();
-    ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+    ctx.moveTo(-size * 0.3, -size * 0.15);
+    ctx.bezierCurveTo(-size * 0.45, -size * 0.2, -size * 0.48, 0, -size * 0.38, size * 0.05);
+    ctx.bezierCurveTo(-size * 0.3, size * 0.08, -size * 0.22, 0, -size * 0.2, -size * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    // Right shoulder pad
+    ctx.beginPath();
+    ctx.moveTo(size * 0.3, -size * 0.15);
+    ctx.bezierCurveTo(size * 0.45, -size * 0.2, size * 0.48, 0, size * 0.38, size * 0.05);
+    ctx.bezierCurveTo(size * 0.3, size * 0.08, size * 0.22, 0, size * 0.2, -size * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    // Spikes on shoulders
+    ctx.fillStyle = '#1a1a1a';
+    for (const sx of [-1, 1]) {
+      for (let sp = 0; sp < 3; sp++) {
+        const spx = sx * (size * 0.35 - sp * size * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(spx, -size * 0.18);
+        ctx.lineTo(spx - sx * size * 0.02, -size * 0.28);
+        ctx.lineTo(spx + sx * size * 0.02, -size * 0.18);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    // Chest plate
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath();
+    ctx.roundRect(-size * 0.22, -size * 0.1, size * 0.44, size * 0.2, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#5a5a5a';
+    ctx.lineWidth = 1;
     ctx.stroke();
+
+    // Holographic "66" badge - cyan, flickering
+    const flicker = 0.7 + Math.sin(walkCycle * 8) * 0.3;
+    ctx.save();
+    ctx.shadowColor = '#06b6d4';
+    ctx.shadowBlur = 12 * flicker;
+    ctx.fillStyle = `rgba(6,182,212,${0.85 * flicker})`;
+    ctx.beginPath();
+    ctx.roundRect(-size * 0.12, -size * 0.08, size * 0.24, size * 0.12, 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(165,243,252,${flicker})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${size * 0.1}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('66', 0, -size * 0.02);
+    ctx.restore();
+    ctx.restore();
+  }
+
+  ctx.restore(); // end torsoSway
+
+  // Mutant green aura
+  if (isMutant) {
+    ctx.save();
+    ctx.shadowColor = '#22c55e';
+    ctx.shadowBlur = 15;
+    ctx.strokeStyle = 'rgba(34,197,94,0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   ctx.restore();
@@ -2701,32 +2922,87 @@ export function drawArenaTower(
   ctx.translate(x, y);
 
   // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(0, 18, 16, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 18, 18, 6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Tower base
-  ctx.fillStyle = '#2a2a22';
-  ctx.fillRect(-12, -20, 24, 38);
-  ctx.fillStyle = '#3a3a30';
-  ctx.fillRect(-10, -18, 20, 34);
-  // Battlements
-  ctx.fillStyle = '#1a1a14';
-  ctx.fillRect(-12, -22, 5, 4);
-  ctx.fillRect(-2, -22, 5, 4);
-  ctx.fillRect(8, -22, 5, 4);
+  // Stone base with gradient
+  const stoneGrad = ctx.createLinearGradient(-14, -20, 14, 18);
+  stoneGrad.addColorStop(0, '#3a3a32');
+  stoneGrad.addColorStop(0.5, '#2a2a22');
+  stoneGrad.addColorStop(1, '#1a1a14');
+  ctx.fillStyle = stoneGrad;
+  ctx.beginPath();
+  ctx.roundRect(-14, -20, 28, 38, 3);
+  ctx.fill();
 
-  // Neon accent
+  // Stone texture lines
+  ctx.strokeStyle = 'rgba(60,55,45,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-14, -8); ctx.lineTo(14, -8);
+  ctx.moveTo(-14, 4); ctx.lineTo(14, 4);
+  ctx.moveTo(-7, -20); ctx.lineTo(-7, -8);
+  ctx.moveTo(7, -8); ctx.lineTo(7, 4);
+  ctx.moveTo(0, 4); ctx.lineTo(0, 18);
+  ctx.stroke();
+
+  // Metal corner reinforcement
+  ctx.fillStyle = '#4a4a40';
+  ctx.fillRect(-14, -20, 3, 38);
+  ctx.fillRect(11, -20, 3, 38);
+
+  // Battlements (detailed crenellations)
+  ctx.fillStyle = '#1a1a14';
+  for (let i = -2; i <= 2; i++) {
+    ctx.fillRect(i * 6 - 2, -24, 4, 5);
+  }
+  ctx.fillStyle = '#3a3a30';
+  ctx.fillRect(-14, -20, 28, 3);
+
+  // Micro-cannon on top
+  ctx.save();
+  ctx.fillStyle = '#2a2a2a';
+  ctx.beginPath();
+  ctx.arc(0, -20, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(-1.5, -28, 3, 8);
+  // Cannon tip glow
+  ctx.shadowColor = side === 'left' ? '#8a9b50' : '#22d3ee';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = side === 'left' ? '#8a9b50' : '#22d3ee';
+  ctx.beginPath();
+  ctx.arc(0, -28, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Neon accent strip
+  ctx.save();
+  ctx.shadowColor = side === 'left' ? '#8a9b50' : '#22d3ee';
+  ctx.shadowBlur = 8;
   ctx.fillStyle = side === 'left' ? '#8a9b50' : '#22d3ee';
   ctx.fillRect(-8, -10, 16, 2);
+  ctx.restore();
+
+  // Neon shield bar (always visible, green)
+  ctx.save();
+  ctx.shadowColor = '#22c55e';
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = 'rgba(34,197,94,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-10, 14); ctx.lineTo(10, 14);
+  ctx.stroke();
+  ctx.restore();
 
   // HP bar
   if (hp < maxHp) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(-14, -28, 28, 4);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(-16, -32, 32, 4);
     ctx.fillStyle = hp > maxHp * 0.5 ? '#22c55e' : hp > maxHp * 0.25 ? '#eab308' : '#ef4444';
-    ctx.fillRect(-14, -28, 28 * (hp / maxHp), 4);
+    ctx.fillRect(-16, -32, 32 * (hp / maxHp), 4);
   }
 
   ctx.restore();
@@ -2743,54 +3019,149 @@ export function drawArenaCastle(
   ctx.translate(x, y);
 
   // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.ellipse(0, 24, 28, 7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 24, 30, 8, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Main structure
-  ctx.fillStyle = '#2a2a20';
-  ctx.fillRect(-22, -28, 44, 50);
-  ctx.fillStyle = '#3a3a2c';
-  ctx.fillRect(-20, -26, 40, 46);
+  // Main fortress with stone gradient
+  const fortGrad = ctx.createLinearGradient(-24, -28, 24, 22);
+  fortGrad.addColorStop(0, '#3a3a30');
+  fortGrad.addColorStop(0.5, '#2a2a20');
+  fortGrad.addColorStop(1, '#1a1a14');
+  ctx.fillStyle = fortGrad;
+  ctx.beginPath();
+  ctx.roundRect(-24, -28, 48, 50, 3);
+  ctx.fill();
 
-  // Central tower
-  ctx.fillStyle = '#2a2a20';
-  ctx.fillRect(-8, -38, 16, 14);
-  ctx.fillStyle = '#3a3a2c';
-  ctx.fillRect(-7, -37, 14, 12);
-
-  // Battlements on tower
-  ctx.fillStyle = '#1a1a14';
-  ctx.fillRect(-8, -40, 4, 3);
-  ctx.fillRect(-1, -40, 4, 3);
-  ctx.fillRect(5, -40, 4, 3);
-
-  // Neon flag
-  ctx.fillStyle = '#8a9b50';
-  ctx.fillRect(-1, -46, 2, 8);
-  ctx.fillRect(1, -46, 8, 4);
-
-  // Door
-  ctx.fillStyle = '#1a1a10';
-  ctx.fillRect(-6, -8, 12, 20);
-  ctx.strokeStyle = '#4a4a36';
+  // Stone block texture
+  ctx.strokeStyle = 'rgba(60,55,45,0.35)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(0, -8, 6, 0, Math.PI, true);
+  ctx.moveTo(-24, -14); ctx.lineTo(24, -14);
+  ctx.moveTo(-24, 0); ctx.lineTo(24, 0);
+  ctx.moveTo(-24, 12); ctx.lineTo(24, 12);
+  ctx.moveTo(-12, -28); ctx.lineTo(-12, -14);
+  ctx.moveTo(12, -28); ctx.lineTo(12, -14);
+  ctx.moveTo(-8, -14); ctx.lineTo(-8, 0);
+  ctx.moveTo(8, -14); ctx.lineTo(8, 0);
+  ctx.moveTo(0, 0); ctx.lineTo(0, 12);
+  ctx.moveTo(-12, 12); ctx.lineTo(-12, 22);
+  ctx.moveTo(12, 12); ctx.lineTo(12, 22);
   ctx.stroke();
 
-  // Windows
-  ctx.fillStyle = '#8a9b50';
-  ctx.fillRect(-14, -18, 4, 6);
-  ctx.fillRect(10, -18, 4, 6);
+  // Metal corner reinforcements
+  ctx.fillStyle = '#4a4a40';
+  ctx.fillRect(-24, -28, 4, 50);
+  ctx.fillRect(20, -28, 4, 50);
+
+  // Central tower
+  ctx.fillStyle = fortGrad;
+  ctx.beginPath();
+  ctx.roundRect(-9, -40, 18, 14, 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(60,55,45,0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-9, -33); ctx.lineTo(9, -33);
+  ctx.stroke();
+
+  // Detailed battlements on tower
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(-9, -42, 4, 3);
+  ctx.fillRect(-2, -42, 4, 3);
+  ctx.fillRect(5, -42, 4, 3);
+  ctx.fillStyle = '#3a3a30';
+  ctx.fillRect(-9, -40, 18, 2);
+
+  // Wine-colored flag (waving)
+  const flagWave = Math.sin(Date.now() * 0.004) * 2;
+  ctx.fillStyle = '#7c2d12';
+  ctx.fillRect(-1, -52, 2, 10);
+  ctx.beginPath();
+  ctx.moveTo(1, -52);
+  ctx.lineTo(10 + flagWave, -50);
+  ctx.lineTo(1, -46);
+  ctx.closePath();
+  ctx.fill();
+  // Flag highlight
+  ctx.fillStyle = '#9a3412';
+  ctx.beginPath();
+  ctx.moveTo(1, -52);
+  ctx.lineTo(6 + flagWave * 0.5, -51);
+  ctx.lineTo(1, -49);
+  ctx.closePath();
+  ctx.fill();
+
+  // Two micro-cannons on corners pointing up
+  for (const cx of [-18, 18]) {
+    ctx.save();
+    ctx.translate(cx, -28);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-1.5, -8, 3, 8);
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.arc(0, -8, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Door (arched, reinforced)
+  ctx.fillStyle = '#1a1a10';
+  ctx.beginPath();
+  ctx.moveTo(-7, 22);
+  ctx.lineTo(-7, -2);
+  ctx.arc(0, -2, 7, Math.PI, 0);
+  ctx.lineTo(7, 22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#4a4a36';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Door rivets
+  ctx.fillStyle = '#5a5a40';
+  ctx.beginPath();
+  ctx.arc(-4, 8, 1.5, 0, Math.PI * 2);
+  ctx.arc(4, 8, 1.5, 0, Math.PI * 2);
+  ctx.arc(-4, 18, 1.5, 0, Math.PI * 2);
+  ctx.arc(4, 18, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Glowing windows
+  ctx.save();
+  ctx.shadowColor = '#fbbf24';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = 'rgba(251,191,36,0.6)';
+  ctx.fillRect(-16, -18, 4, 6);
+  ctx.fillRect(12, -18, 4, 6);
+  ctx.restore();
+
+  // Neon shield bar above castle
+  ctx.save();
+  ctx.shadowColor = '#22c55e';
+  ctx.shadowBlur = 10;
+  const shieldPulse = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
+  ctx.strokeStyle = `rgba(34,197,94,${shieldPulse})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-26, -56, 52, 6, 2);
+  ctx.stroke();
+  ctx.fillStyle = `rgba(34,197,94,${shieldPulse * 0.2})`;
+  ctx.fillRect(-26, -56, 52, 6);
+  ctx.restore();
 
   // HP bar
   if (hp < maxHp) {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(-24, -52, 48, 5);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(-26, -64, 52, 5);
     ctx.fillStyle = hp > maxHp * 0.5 ? '#22c55e' : hp > maxHp * 0.25 ? '#eab308' : '#ef4444';
-    ctx.fillRect(-24, -52, 48 * (hp / maxHp), 5);
+    ctx.fillRect(-26, -64, 52 * (hp / maxHp), 5);
   }
 
   ctx.restore();
