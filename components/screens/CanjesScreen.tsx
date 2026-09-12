@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { CANJE_GAMES, CANJE_REWARDS, formatElapsed, formatCountdown, getDayLabel } from '@/lib/canjes';
@@ -24,6 +24,10 @@ export function CanjesScreen() {
   const [tickerIdx, setTickerIdx] = useState(0);
   const [tickerMsg, setTickerMsg] = useState('');
   const [tickerVisible, setTickerVisible] = useState(false);
+  const [tickerFading, setTickerFading] = useState(false);
+  const realCanjeQueueRef = useRef<string[]>([]);
+  const cycleRefRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctPlayerId, setCorrectPlayerId] = useState('');
   const [showApproved, setShowApproved] = useState(false);
@@ -59,24 +63,28 @@ export function CanjesScreen() {
       const time = timeFormats[Math.floor(Math.random() * timeFormats.length)]();
       return `${mask} ${verb} ${pkg} Diamantes ${time}`;
     };
-    let hideTimer: ReturnType<typeof setTimeout>;
-    let cycleTimer: ReturnType<typeof setTimeout>;
-    const showTicker = (msg: string, verified: boolean) => {
-      setTickerMsg(verified ? `${msg} - Verificado` : msg);
+    const showTicker = (msg: string) => {
+      setTickerFading(false);
+      setTickerMsg(msg);
       setTickerIdx((i) => i + 1);
       setTickerVisible(true);
-      hideTimer = setTimeout(() => setTickerVisible(false), 8000);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
+        setTickerFading(true);
+        hideTimerRef.current = setTimeout(() => setTickerVisible(false), 600);
+      }, 7000);
     };
     const cycle = () => {
-      showTicker(generate(), false);
-      const gap = 180000 + Math.floor(Math.random() * 120000);
-      cycleTimer = setTimeout(cycle, gap + 8000);
+      const queued = realCanjeQueueRef.current.shift();
+      showTicker(queued || generate());
+      const gap = 120000 + Math.floor(Math.random() * 120000);
+      cycleRefRef.current = setTimeout(cycle, gap + 7600);
     };
-    const initialDelay = 5000 + Math.floor(Math.random() * 10000);
-    cycleTimer = setTimeout(cycle, initialDelay);
+    const initialDelay = 4000 + Math.floor(Math.random() * 8000);
+    cycleRefRef.current = setTimeout(cycle, initialDelay);
     return () => {
-      clearTimeout(hideTimer);
-      clearTimeout(cycleTimer);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (cycleRefRef.current) clearTimeout(cycleRefRef.current);
     };
   }, []);
 
@@ -96,9 +104,38 @@ export function CanjesScreen() {
       const pkgLabel = r ? r.label.replace(' Diamantes', '') : '100';
       const userNick = nick.trim() || 'Usuario';
       const masked = userNick.length > 3 ? userNick.slice(0, 3) + '***' : userNick + '***';
-      setTickerMsg(`${masked} reclamo ${pkgLabel} Diamantes hace 1 min - Verificado`);
+      const verifiedMsg = `${masked} reclamo ${pkgLabel} Diamantes hace 1 min - Verificado`;
+      realCanjeQueueRef.current.push(verifiedMsg);
+      if (cycleRefRef.current) { clearTimeout(cycleRefRef.current); cycleRefRef.current = null; }
+      const queued = realCanjeQueueRef.current.shift()!;
+      setTickerFading(false);
+      setTickerMsg(queued);
       setTickerIdx((i) => i + 1);
       setTickerVisible(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
+        setTickerFading(true);
+        hideTimerRef.current = setTimeout(() => setTickerVisible(false), 600);
+      }, 7000);
+      const gap = 120000 + Math.floor(Math.random() * 120000);
+      cycleRefRef.current = setTimeout(() => {
+        const next = realCanjeQueueRef.current.shift();
+        const names = ['Carlos', 'Maria', 'Pedro', 'Ana', 'Luis', 'Sofia', 'Diego', 'Valeria'];
+        const pkgs = [100, 310, 520, 1060];
+        const n = names[Math.floor(Math.random() * names.length)];
+        const mask = n.slice(0, 3) + '***';
+        const pkg = pkgs[Math.floor(Math.random() * pkgs.length)];
+        const fallback = `${mask} reclamo ${pkg} Diamantes hace ${Math.floor(Math.random() * 50 + 3)} min`;
+        setTickerFading(false);
+        setTickerMsg(next || fallback);
+        setTickerIdx((i) => i + 1);
+        setTickerVisible(true);
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = setTimeout(() => {
+          setTickerFading(true);
+          hideTimerRef.current = setTimeout(() => setTickerVisible(false), 600);
+        }, 7000);
+      }, gap + 7600);
       setPlayerId(''); setNick('');
     } else {
       setError(result.error || 'Error al enviar canje');
@@ -144,7 +181,7 @@ export function CanjesScreen() {
 
         {/* Live claims ticker - subtle, appears briefly every few minutes */}
         {tickerVisible && (
-          <div className="max-w-md mx-auto mb-3 overflow-hidden rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/20 animate-fade-in">
+          <div className={`max-w-md mx-auto mb-3 overflow-hidden rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/20 transition-opacity duration-500 ${tickerFading ? 'opacity-0' : 'opacity-100 animate-fade-in'}`}>
             <div className="flex items-center gap-2 px-3 py-1.5">
               <span className="text-green-400 text-[10px] font-bold shrink-0 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
