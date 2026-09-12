@@ -19,6 +19,7 @@ import {
 } from '@/lib/firebase-optimization';
 import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, WELCOME_BONUS_KEYS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice, getCampaignCoinReward } from '@/lib/config';
 import { setupDailyNotifications } from '@/lib/notifications';
+import { requestNotificationPermissionAndToken, registerServiceWorker } from '@/lib/push-notifications';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
@@ -540,6 +541,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         await verificarYCrearUsuario(user);
         setLoggedInState(true);
         setEmail(user.email ?? '');
+        // Register FCM push notification token for this device
+        registerServiceWorker().then(() => requestNotificationPermissionAndToken(user.uid));
         let role: 'user' | 'operador' | 'admin' = 'user';
         try {
           const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
@@ -1998,6 +2001,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           createdAt: now,
           read: false,
         }).catch(() => {});
+
+        // Send FCM push notification to the player's device
+        try {
+          const userRef = doc(db, 'usuarios', data.userId);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const fcmToken = userDoc.data()?.fcmToken;
+            if (fcmToken) {
+              await fetch('https://fcm.googleapis.com/fcm/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `key=913250323167`,
+                },
+                body: JSON.stringify({
+                  to: fcmToken,
+                  notification: {
+                    title: '¡Canje Completado! 💎',
+                    body: 'Tus diamantes han sido canjeados, entra al juego y compruébalos. Gracias por confiar en nosotros.',
+                    icon: '/ic_launcher_foreground.webp',
+                    click_action: '/',
+                  },
+                  data: {
+                    type: 'canje_approved',
+                    canjeId,
+                    userId: data.userId,
+                  },
+                }),
+              }).catch(() => {});
+            }
+          }
+        } catch {}
       }
       await deleteDoc(canjeRef);
       await refreshCanjes();
