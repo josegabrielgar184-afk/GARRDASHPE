@@ -6,7 +6,7 @@ import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
-import { ADMOB_CONFIG } from '@/lib/config';
+import { ADMOB_CONFIG, getRewardedAdId } from '@/lib/config';
 import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video } from 'lucide-react';
 import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
 import { getCoinAdStatus, recordCoinAd, getCoinAdReward, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
@@ -334,9 +334,10 @@ export function ShopScreen() {
         onReward={handleCoinAdReward}
         title="Monedas por Anuncio"
         rewardText={`¡+${getCoinAdReward()} monedas!`}
-        adId={(ADMOB_CONFIG as any).shopRewarded || (ADMOB_CONFIG as any).rewarded || ''}
+        adId={getRewardedAdId('shop')}
         userRole={userRole}
         vip={vip}
+        touchKey="shop_coins"
       />
       <RewardAdModal
         open={showKeyAd}
@@ -344,9 +345,10 @@ export function ShopScreen() {
         onReward={handleKeyAdReward}
         title="Llave por Anuncio"
         rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
-        adId={(ADMOB_CONFIG as any).shopRewarded || (ADMOB_CONFIG as any).rewarded || ''}
+        adId={getRewardedAdId('shop')}
         userRole={userRole}
         vip={vip}
+        touchKey="shop_keys"
       />
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>

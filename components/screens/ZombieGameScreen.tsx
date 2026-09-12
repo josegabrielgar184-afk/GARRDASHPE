@@ -19,7 +19,7 @@ import {
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { getPerformanceTier } from '@/lib/performance';
-import { getCampaignCoinReward } from '@/lib/config';
+import { getCampaignCoinReward, getRewardedAdId } from '@/lib/config';
 
 function randomCoinCap(level: number): number {
   const { min, max } = getCampaignCoinReward(level);
@@ -112,6 +112,7 @@ export function ZombieGameScreen() {
   const pendingExitRef = useRef(false);
   const [nuclearReady, setNuclearReady] = useState(false);
   const [hasRevived, setHasRevived] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(true);
   const [milestoneBanner, setMilestoneBanner] = useState<string | null>(null);
   const [comboDisplay, setComboDisplay] = useState(0);
   const [shieldActive, setShieldActive] = useState(false);
@@ -371,6 +372,12 @@ export function ZombieGameScreen() {
   }, [upgrades, startGameBatch, checkMilestone]);
 
   useEffect(() => { initGame(); }, [initGame]);
+
+  useEffect(() => {
+    setShowTutorial(true);
+    const t = setTimeout(() => setShowTutorial(false), 3000);
+    return () => clearTimeout(t);
+  }, [initGame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1450,9 +1457,9 @@ export function ZombieGameScreen() {
           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-black/60 text-amber-400/80 border border-amber-500/30">{nuclearUsesLeft}/2</span>
         </div>
       )}
-      {!gameOver && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10 animate-tutorial-fade">DESPLAZA PARA MOVER · AUTO-DISPARO</span>
+      {!gameOver && showTutorial && (
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-fade-in">
+          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10">DESPLAZA PARA MOVER · AUTO-DISPARO</span>
         </div>
       )}
       {gameOver && (
@@ -1527,6 +1534,7 @@ export function ZombieGameScreen() {
         }}
         title="Revivir"
         rewardText="¡Has revivido! Barricada reparada, vidas restauradas y 3 monedas extra."
+        adId={getRewardedAdId('revivir')}
       />
       <MuteButton />
 

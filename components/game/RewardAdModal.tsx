@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video, Loader2, CheckCircle2, XCircle, Flame } from 'lucide-react';
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
-import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
+import { getActiveAdIds, shouldShowAds, checkRateLimit, shouldSkipAd } from '@/lib/ad-security';
+import { getFallbackRewardedId } from '@/lib/config';
 
 interface RewardAdModalProps {
   open: boolean;
@@ -16,13 +17,14 @@ interface RewardAdModalProps {
   vip?: boolean;
   marathonMode?: boolean;
   marathonReward?: number;
+  touchKey?: string;
 }
 
 const MARATHON_CHAIN_LENGTH = 4;
 
 export function RewardAdModal({
   open, onClose, onReward, title, rewardText, adId, userRole = 'user', vip = false,
-  marathonMode = false, marathonReward = 100,
+  marathonMode = false, marathonReward = 100, touchKey,
 }: RewardAdModalProps) {
   const [phase, setPhase] = useState<'loading' | 'ad' | 'reward' | 'error' | 'marathon' | 'marathon_ad' | 'marathon_reward'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
@@ -51,6 +53,12 @@ export function RewardAdModal({
       return;
     }
 
+    if (touchKey && shouldSkipAd(touchKey)) {
+      rewardedRef.current = true;
+      setPhase('reward');
+      return;
+    }
+
     if (!checkRateLimit()) {
       setErrorMsg('Has alcanzado el limite de anuncios por minuto. Intenta de nuevo mas tarde.');
       setPhase('error');
@@ -68,7 +76,7 @@ export function RewardAdModal({
       setErrorMsg('');
       loadAndShowAd();
     }
-  }, [open, adId, userRole, vip, marathonMode]);
+  }, [open, adId, userRole, vip, marathonMode, touchKey]);
 
   const loadAndShowAd = async (isMarathonStep = false) => {
     let cancelled = false;
@@ -79,7 +87,6 @@ export function RewardAdModal({
 
     if (!isNative) {
       if (marathonMode) {
-        // Simulate marathon ad on non-native (web/dev)
         setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
         setTimeout(() => {
           if (cancelled) return;
@@ -93,46 +100,70 @@ export function RewardAdModal({
       return;
     }
 
-    try {
-      const ids = getActiveAdIds();
-      const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
-        rewardedRef.current = true;
-      });
+    const tryLoadAd = async (useAdId: string): Promise<boolean> => {
+      try {
+        const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+          rewardedRef.current = true;
+        });
 
-      const dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-        if (cancelled) return;
-        if (rewardedRef.current) {
-          handleAdComplete(isMarathonStep);
-        } else {
-          closedRef.current = true;
-          onCloseRef.current();
+        const dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
+          if (cancelled) return;
+          if (rewardedRef.current) {
+            handleAdComplete(isMarathonStep);
+          } else {
+            closedRef.current = true;
+            onCloseRef.current();
+          }
+        });
+
+        timeoutHandle = setTimeout(() => {
+          if (cancelled) return;
+          try { rewardListener.remove(); dismissListener.remove(); } catch {}
+          setErrorMsg('El anuncio tardó demasiado en cargar. Revisa tu conexión e intenta de nuevo.');
+          setPhase('error');
+        }, 12000);
+
+        await AdMob.prepareRewardVideoAd({ adId: useAdId });
+
+        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
+
+        if (cancelled) {
+          rewardListener.remove();
+          dismissListener.remove();
+          return false;
         }
-      });
 
-      const useAdId = adId || ids.ruletaId || ids.revivirId;
+        setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
+        await AdMob.showRewardVideoAd();
 
-      timeoutHandle = setTimeout(() => {
-        if (cancelled) return;
-        try { rewardListener.remove(); dismissListener.remove(); } catch {}
-        setErrorMsg('El anuncio tardó demasiado en cargar. Revisa tu conexión e intenta de nuevo.');
-        setPhase('error');
-      }, 12000);
-
-      await AdMob.prepareRewardVideoAd({ adId: useAdId });
-
-      if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
-
-      if (cancelled) {
         rewardListener.remove();
         dismissListener.remove();
-        return;
+        return true;
+      } catch {
+        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
+        return false;
       }
+    };
 
-      setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
-      await AdMob.showRewardVideoAd();
+    try {
+      const ids = getActiveAdIds();
+      const primaryAdId = adId || ids.ruletaId || ids.revivirId;
 
-      rewardListener.remove();
-      dismissListener.remove();
+      const success = await tryLoadAd(primaryAdId);
+
+      if (!success && !cancelled) {
+        const fallbackId = getFallbackRewardedId();
+        if (fallbackId && fallbackId !== primaryAdId) {
+          const retrySuccess = await tryLoadAd(fallbackId);
+          if (!retrySuccess && !cancelled) {
+            setErrorMsg('No se pudo cargar el anuncio. Verifica tu conexión a internet e intenta de nuevo.');
+            setPhase('error');
+          }
+        } else {
+          setErrorMsg('No se pudo cargar el anuncio. Verifica tu conexión a internet e intenta de nuevo.');
+          setPhase('error');
+        }
+      }
     } catch {
       if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
       if (!cancelled) {
@@ -166,7 +197,6 @@ export function RewardAdModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 animate-fade-in">
-      {/* Loading */}
       {(phase === 'loading') && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
           <div className="flex items-center justify-center mb-4">
@@ -177,7 +207,6 @@ export function RewardAdModal({
         </div>
       )}
 
-      {/* Single ad playing */}
       {phase === 'ad' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
           <div className="flex items-center justify-center mb-4">
@@ -194,7 +223,6 @@ export function RewardAdModal({
         </div>
       )}
 
-      {/* Error */}
       {phase === 'error' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-red-900/40 to-gray-900 border border-red-500/40 p-8 text-center animate-scale-in">
           <div className="flex items-center justify-center mb-3">
@@ -208,7 +236,6 @@ export function RewardAdModal({
         </div>
       )}
 
-      {/* Single reward */}
       {phase === 'reward' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-gray-900 border border-green-500/40 p-8 text-center animate-scale-in">
           <div className="flex items-center justify-center mb-3">
@@ -225,7 +252,6 @@ export function RewardAdModal({
         </div>
       )}
 
-      {/* Marathon intro / progress */}
       {phase === 'marathon' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-gray-900 border border-amber-500/40 p-8 text-center animate-scale-in">
           <div className="flex items-center justify-center mb-4">
@@ -234,7 +260,6 @@ export function RewardAdModal({
           <p className="text-white font-bold text-xl mb-2">MARATON DE ANUNCIOS</p>
           <p className="text-amber-300/70 text-sm mb-4">Mira {MARATHON_CHAIN_LENGTH} videos consecutivos para ganar {marathonReward} monedas</p>
 
-          {/* Chain progress dots */}
           <div className="flex items-center justify-center gap-3 mb-6">
             {Array.from({ length: MARATHON_CHAIN_LENGTH }, (_, i) => (
               <div
@@ -276,7 +301,6 @@ export function RewardAdModal({
         </div>
       )}
 
-      {/* Marathon ad playing */}
       {phase === 'marathon_ad' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-gray-900 border border-amber-500/40 p-8 text-center">
           <div className="flex items-center justify-center mb-4">
@@ -295,7 +319,6 @@ export function RewardAdModal({
         </div>
       )}
 
-      {/* Marathon complete reward */}
       {phase === 'marathon_reward' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-amber-900/50 to-gray-900 border border-amber-500/60 p-8 text-center animate-scale-in">
           <div className="flex items-center justify-center mb-3">

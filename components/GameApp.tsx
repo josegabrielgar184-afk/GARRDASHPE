@@ -30,6 +30,8 @@ import { ForceUpdateModal } from '@/components/game/ForceUpdateModal';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
+const INTERSTITIAL_INTERVAL_MS = 5 * 60 * 1000;
+const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -144,6 +146,7 @@ function AppShell() {
   const [showInterstitial, setShowInterstitial] = useState(false);
   const [forceUpdate, setForceUpdate] = useState<{ minVersion: number; currentVersion: number } | null>(null);
   const lastScreenRef = useRef(screen);
+  const lastInterstitialTimeRef = useRef<number>(0);
   const menuScreens = ['menu', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
 
   useEffect(() => {
@@ -162,12 +165,33 @@ function AppShell() {
   useEffect(() => {
     const fromMenu = menuScreens.includes(lastScreenRef.current);
     const toMenu = menuScreens.includes(screen);
-    if (fromMenu && toMenu && lastScreenRef.current !== screen && !vip && canShowInterstitial()) {
+    const isCampaignNav = CAMPAIGN_SCREENS.includes(screen) || CAMPAIGN_SCREENS.includes(lastScreenRef.current);
+    const now = Date.now();
+    const timeSinceLast = now - lastInterstitialTimeRef.current;
+    if (fromMenu && toMenu && lastScreenRef.current !== screen && !vip && canShowInterstitial() && !isCampaignNav && timeSinceLast >= INTERSTITIAL_INTERVAL_MS) {
       setShowInterstitial(true);
       recordInterstitial();
+      lastInterstitialTimeRef.current = now;
     }
     lastScreenRef.current = screen;
   }, [screen]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLast = now - lastInterstitialTimeRef.current;
+      if (timeSinceLast >= INTERSTITIAL_INTERVAL_MS && !vip && !CAMPAIGN_SCREENS.includes(screen)) {
+        const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+        const isNative = Capacitor?.isNativePlatform?.() ?? false;
+        if (isNative && canShowInterstitial()) {
+          setShowInterstitial(true);
+          recordInterstitial();
+          lastInterstitialTimeRef.current = now;
+        }
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [screen, vip, canShowInterstitial, recordInterstitial]);
 
   useEffect(() => {
     (async () => {
@@ -236,7 +260,7 @@ function AppShell() {
 
   return (
     <div className="fixed inset-0 overflow-hidden flex flex-col">
-      <div className="flex-1 relative overflow-hidden min-h-0" style={{ paddingBottom: '50px' }}>
+      <div className="flex-1 relative overflow-hidden min-h-0">
         <GameRouter />
       </div>
       <AdBanner />

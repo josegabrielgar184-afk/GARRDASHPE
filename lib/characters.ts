@@ -232,7 +232,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1.5,
     maxHp: 130,
     damageMult: 1.5,
-    price: 3000,
+    price: 2500,
   },
   {
     id: 'supreme',

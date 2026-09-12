@@ -9,12 +9,26 @@ const TEST_IDS = {
   anuncioTiempoId: 'ca-app-pub-3940256099942544/1033173712',
   revivirId: 'ca-app-pub-3940256099942544/5224354917',
   ruletaId: 'ca-app-pub-3940256099942544/5224354917',
+  shopRewardedId: 'ca-app-pub-3940256099942544/5224354917',
+  fallbackRewardedId: 'ca-app-pub-3940256099942544/5224354917',
 };
 
 // Rate limiting: max 10 ad loads per minute
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const adLoadTimestamps: number[] = [];
+
+const firstTouchSet = new Set<string>();
+
+export function isFirstTouchClean(key: string): boolean {
+  if (firstTouchSet.has(key)) return false;
+  firstTouchSet.add(key);
+  return true;
+}
+
+export function shouldSkipAd(key: string): boolean {
+  return isFirstTouchClean(key);
+}
 
 // Dev mode flag - toggled from admin settings
 let devMode = false;

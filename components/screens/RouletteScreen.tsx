@@ -5,7 +5,7 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
-import { ADMOB_CONFIG } from '@/lib/config';
+import { ADMOB_CONFIG, getRewardedAdId } from '@/lib/config';
 import { ArrowLeft, Calendar, Crown, Video, Sparkles } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
@@ -297,9 +297,10 @@ export function RouletteScreen() {
         onReward={handleRewardAdComplete}
         title="Giro Extra por Anuncio"
         rewardText="Giro extra por ver anuncio"
-        adId={(ADMOB_CONFIG as any).rewarded || ''}
+        adId={getRewardedAdId('ruleta')}
         userRole={userRole}
         vip={vip}
+        touchKey="roulette"
       />
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />

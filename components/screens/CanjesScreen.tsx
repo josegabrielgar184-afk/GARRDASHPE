@@ -77,7 +77,7 @@ export function CanjesScreen() {
     const cycle = () => {
       const queued = realCanjeQueueRef.current.shift();
       showTicker(queued || generate());
-      const gap = 120000 + Math.floor(Math.random() * 120000);
+      const gap = 180000 + Math.floor(Math.random() * 60000);
       cycleRefRef.current = setTimeout(cycle, gap + 7600);
     };
     const initialDelay = 4000 + Math.floor(Math.random() * 8000);
@@ -117,7 +117,7 @@ export function CanjesScreen() {
         setTickerFading(true);
         hideTimerRef.current = setTimeout(() => setTickerVisible(false), 600);
       }, 7000);
-      const gap = 120000 + Math.floor(Math.random() * 120000);
+      const gap = 180000 + Math.floor(Math.random() * 60000);
       cycleRefRef.current = setTimeout(() => {
         const next = realCanjeQueueRef.current.shift();
         const names = ['Carlos', 'Maria', 'Pedro', 'Ana', 'Luis', 'Sofia', 'Diego', 'Valeria'];

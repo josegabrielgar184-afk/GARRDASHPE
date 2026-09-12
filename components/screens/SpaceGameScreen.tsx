@@ -21,6 +21,7 @@ import {
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
+import { getRewardedAdId } from '@/lib/config';
 
 interface Meteor { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotVel: number; hp: number; maxHp: number; active: boolean; reset(): void; }
 interface EnemyShip { x: number; y: number; vx: number; vy: number; angle: number; hp: number; maxHp: number; size: number; shootTimer: number; oscillation: number; active: boolean; reset(): void; }
@@ -68,6 +69,7 @@ export function SpaceGameScreen() {
   const [shieldActive, setShieldActive] = useState(false);
   const [scoreBoostActive, setScoreBoostActive] = useState(false);
   const [hasRevived, setHasRevived] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(true);
 
   const playerRef = useRef({ x: 0, y: 0, vx: 0, vy: 0, angle: -Math.PI / 2 });
   const meteorPoolRef = useRef<ObjectPool<Meteor>>(new ObjectPool(makeMeteor, 20));
@@ -234,6 +236,12 @@ export function SpaceGameScreen() {
   }, [ship, upgrades, startGameBatch, checkMilestone]);
 
   useEffect(() => { initGame(); }, [initGame]);
+
+  useEffect(() => {
+    setShowTutorial(true);
+    const t = setTimeout(() => setShowTutorial(false), 3000);
+    return () => clearTimeout(t);
+  }, [initGame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -858,9 +866,9 @@ export function SpaceGameScreen() {
           </div>
         </div>
       )}
-      {!gameOver && !paused && (
+      {!gameOver && !paused && showTutorial && (
         <>
-          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-fade-in">
             <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-cyan-400 border border-cyan-400/20">ARRASTRA PARA MOVER · AUTO-DISPARO</span>
           </div>
           <button
@@ -914,7 +922,7 @@ export function SpaceGameScreen() {
           </div>
         </div>
       )}
-      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); hasRevivedRef.current = true; setHasRevived(true); safeAddCoins(3); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 3 monedas extra!" userRole={userRole} vip={vip} />
+      <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); hasRevivedRef.current = true; setHasRevived(true); safeAddCoins(3); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 3 monedas extra!" userRole={userRole} vip={vip} adId={getRewardedAdId('revivir')} />
       <MuteButton />
     </div>
   );

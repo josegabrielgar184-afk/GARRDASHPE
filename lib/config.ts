@@ -32,8 +32,32 @@ export const ADMOB_CONFIG = {
   bannerId: "ca-app-pub-4019857759287283/9166507177",
   anuncioTiempoId: "ca-app-pub-4019857759287283/9604799919",
   revivirId: "ca-app-pub-4019857759287283/4624626939",
-  ruletaId: "ca-app-pub-4019857759287283/3914180497",
+  ruletaId: "ca-app-pub-4019857759287283/4408022947",
+  shopRewardedId: "ca-app-pub-4019857759287283/6308262126",
+  fallbackRewardedId: "ca-app-pub-4019857759287283/4624626939",
 };
+
+export function getRewardedAdId(type: 'ruleta' | 'shop' | 'revivir'): string {
+  if (!isProductionEnv()) return '';
+  const ids = ADMOB_CONFIG;
+  switch (type) {
+    case 'ruleta': return ids.ruletaId;
+    case 'shop': return ids.shopRewardedId;
+    case 'revivir': return ids.revivirId;
+  }
+}
+
+export function getFallbackRewardedId(): string {
+  return ADMOB_CONFIG.fallbackRewardedId;
+}
+
+function isProductionEnv(): boolean {
+  try {
+    const Capacitor = (typeof window !== 'undefined' ? (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor : undefined);
+    const isNative = Capacitor?.isNativePlatform?.() ?? false;
+    return isNative && !localStorage.getItem('garrdash_dev_mode');
+  } catch { return false; }
+}
 
 export const AYET_STUDIOS_CONFIG = {
   apiKey: 'a07d2e3f-7b1c-4e2d-9f6a-8b5c3d2e1f0a',
