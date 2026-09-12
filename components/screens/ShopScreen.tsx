@@ -5,6 +5,8 @@ import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
 import { ZOMBIE_CHARACTERS } from '@/lib/characters';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
+import { RewardAdModal } from '@/components/game/RewardAdModal';
+import { ADMOB_CONFIG } from '@/lib/config';
 import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video } from 'lucide-react';
 import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
 import { getCoinAdStatus, recordCoinAd, getCoinAdReward, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
@@ -16,12 +18,14 @@ export function ShopScreen() {
     upgrades, selectedZombie, selectZombie,
     getTowerLevel, campaignProgress,
     buyCampaignKey, getCampaignKeyPrice: getGameCampaignKeyPrice,
-    addCampaignKeyFromAd,
+    addCampaignKeyFromAd, userRole,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [tab, setTab] = useState<'companions' | 'keys' | 'heroes'>('companions');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showCoinAd, setShowCoinAd] = useState(false);
+  const [showKeyAd, setShowKeyAd] = useState(false);
   const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
   const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
   const [perfTier] = useState<PerformanceTier>(getPerformanceTier());
@@ -47,6 +51,7 @@ export function ShopScreen() {
   const companionCost = (key: 'turret' | 'drone' | 'medic') => companionDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
 
   const handleCoinAdReward = () => {
+    setShowCoinAd(false);
     const ok = recordCoinAd();
     if (ok) {
       const reward = getCoinAdReward();
@@ -59,6 +64,7 @@ export function ShopScreen() {
   };
 
   const handleKeyAdReward = () => {
+    setShowKeyAd(false);
     const result = recordKeyAd();
     if (result.earnedKey) {
       addCampaignKeyFromAd();
@@ -267,7 +273,7 @@ export function ShopScreen() {
                 <button
                   onClick={() => {
                     if (!adDebounced()) return;
-                    handleKeyAdReward();
+                    setShowKeyAd(true);
                   }}
                   className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
                   style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
@@ -301,7 +307,7 @@ export function ShopScreen() {
                 <button
                   onClick={() => {
                     if (!adDebounced()) return;
-                    setError(''); setSuccess(''); handleCoinAdReward();
+                    setError(''); setSuccess(''); setShowCoinAd(true);
                   }}
                   disabled={coinAdStatus.remaining <= 0}
                   className="w-full py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
@@ -322,6 +328,26 @@ export function ShopScreen() {
         </div>
       </div>
 
+      <RewardAdModal
+        open={showCoinAd}
+        onClose={() => setShowCoinAd(false)}
+        onReward={handleCoinAdReward}
+        title="Monedas por Anuncio"
+        rewardText={`¡+${getCoinAdReward()} monedas!`}
+        adId={(ADMOB_CONFIG as any).shopRewarded || (ADMOB_CONFIG as any).rewarded || ''}
+        userRole={userRole}
+        vip={vip}
+      />
+      <RewardAdModal
+        open={showKeyAd}
+        onClose={() => setShowKeyAd(false)}
+        onReward={handleKeyAdReward}
+        title="Llave por Anuncio"
+        rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
+        adId={(ADMOB_CONFIG as any).shopRewarded || (ADMOB_CONFIG as any).rewarded || ''}
+        userRole={userRole}
+        vip={vip}
+      />
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
   );
