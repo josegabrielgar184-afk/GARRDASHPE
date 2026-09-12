@@ -214,6 +214,7 @@ export function drawSoldier2D(
   shielded = false,
   weaponType: string = 'pistol',
   glow: boolean = true,
+  biome: 'road' | 'water' = 'road',
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -475,6 +476,30 @@ export function drawSoldier2D(
 
   ctx.restore(); // end main transform
 
+  // Water biome: draw combat boat hull under soldier
+  if (biome === 'water') {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#3a4a5a';
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 28, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2a3a4a';
+    ctx.beginPath();
+    ctx.ellipse(0, 10, 24, 10, 0, 0, Math.PI);
+    ctx.fill();
+    // Boat wake
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-20, 14);
+    ctx.quadraticCurveTo(-28, 18, -34, 14);
+    ctx.moveTo(20, 14);
+    ctx.quadraticCurveTo(28, 18, 34, 14);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   if (shielded) {
     ctx.save();
     ctx.translate(x, y);
@@ -503,433 +528,210 @@ export function drawZombie2D(
   isMutant: boolean,
   isTank: boolean,
   glow: boolean = true,
+  biome: 'road' | 'water' = 'road',
 ) {
   ctx.save();
   ctx.translate(x, y);
 
+  const px = Math.max(2, Math.round(size / 16));
+  const bob = glow ? Math.sin(walkCycle * 0.5) * px * 0.5 : 0;
+  const sway = glow ? Math.sin(walkCycle * 0.3) * px * 0.3 : 0;
+
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(0, size * 0.5, size * 0.55, size * 0.18, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, size * 0.55, size * 0.4, size * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.rotate(angle);
-
-  // Walk oscillation — lateral sway
-  const walkSway = Math.sin(Date.now() * 0.007) * 0.1;
-  ctx.rotate(walkSway);
-
-  const legSwing = Math.sin(walkCycle) * (size * 0.2);
-  const bodyBob = Math.abs(Math.sin(walkCycle)) * size * 0.08;
-  const armSway = Math.sin(walkCycle) * (size * 0.06);
-  const headTilt = Math.sin(walkCycle * 0.5) * 0.15;
-
-  // Tumor pulse for mutants (ctx.scale breathing)
-  const tumorPulse = isMutant ? 1 + Math.sin(Date.now() * 0.005) * 0.15 : 1;
-
-  // Acid trail + radiactive aura for mutant zombies
-  if (isMutant && glow) {
-    ctx.save();
-    const auraGrad = ctx.createRadialGradient(0, 0, size * 0.2, 0, 0, size * 0.7);
-    auraGrad.addColorStop(0, 'rgba(34,197,94,0.25)');
-    auraGrad.addColorStop(0.5, 'rgba(21,128,61,0.15)');
-    auraGrad.addColorStop(1, 'rgba(34,197,94,0)');
-    ctx.fillStyle = auraGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, size * 0.7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowColor = '#22c55e';
-    ctx.shadowBlur = 10;
-    for (let i = 0; i < 5; i++) {
-      const bx = (Math.sin(walkCycle * 1.5 + i * 1.3) - 0.5) * size * 0.6;
-      const by = -size * 0.3 - Math.abs(Math.sin(walkCycle * 2 + i)) * size * 0.4;
-      const br = size * 0.04 * (0.5 + Math.abs(Math.sin(walkCycle + i)) * 0.5);
-      ctx.fillStyle = `rgba(34,197,94,${0.5 - i * 0.08})`;
-      ctx.beginPath();
-      ctx.arc(bx, by, br, 0, Math.PI * 2);
-      ctx.fill();
+  // Water biome: wooden raft under zombie
+  if (biome === 'water') {
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(-size * 0.5, -size * 0.1, size, size * 0.8);
+    ctx.fillStyle = '#3a2a14';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(-size * 0.5 + i * px * 4, -size * 0.1, 1, size * 0.8);
     }
-    ctx.restore();
-  }
-
-  // === TORN CLOTHING TORSO (PvZ/L4D style) ===
-  ctx.save();
-  ctx.translate(0, -bodyBob);
-
-  // Torso — ragged, torn clothing
-  const clothColor = isTank ? '#3a2820' : isMutant ? '#2a3a1a' : '#3a3020';
-  const clothDark = isTank ? '#2a1810' : isMutant ? '#1a2a0a' : '#2a2010';
-  const skinColor = isTank ? '#5a4030' : isMutant ? '#4a6a3a' : '#6a8a4a';
-  const skinDark = isTank ? '#3a2820' : isMutant ? '#2a4a2a' : '#4a6a2a';
-
-  // Torn shirt — irregular jagged edges
-  ctx.fillStyle = clothColor;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.3, -size * 0.05);
-  ctx.bezierCurveTo(-size * 0.38, -size * 0.2, -size * 0.25, -size * 0.35, -size * 0.12, -size * 0.38);
-  ctx.lineTo(-size * 0.08, -size * 0.32);
-  ctx.lineTo(-size * 0.02, -size * 0.38);
-  ctx.lineTo(size * 0.05, -size * 0.32);
-  ctx.lineTo(size * 0.12, -size * 0.38);
-  ctx.bezierCurveTo(size * 0.25, -size * 0.35, size * 0.38, -size * 0.2, size * 0.3, -size * 0.05);
-  // Jagged torn bottom edge
-  ctx.lineTo(size * 0.28, size * 0.05);
-  ctx.lineTo(size * 0.18, size * 0.12);
-  ctx.lineTo(size * 0.25, size * 0.2);
-  ctx.lineTo(size * 0.1, size * 0.25);
-  ctx.lineTo(0, size * 0.18);
-  ctx.lineTo(-size * 0.12, size * 0.25);
-  ctx.lineTo(-size * 0.22, size * 0.2);
-  ctx.lineTo(-size * 0.15, size * 0.12);
-  ctx.lineTo(-size * 0.28, size * 0.05);
-  ctx.closePath();
-  ctx.fill();
-
-  // Torn holes in shirt showing skin
-  ctx.fillStyle = skinColor;
-  ctx.beginPath();
-  ctx.ellipse(-size * 0.1, -size * 0.08, size * 0.06, size * 0.08, 0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(size * 0.12, size * 0.05, size * 0.05, size * 0.06, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Ragged clothing outline
-  ctx.strokeStyle = clothDark;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.3, -size * 0.05);
-  ctx.bezierCurveTo(-size * 0.38, -size * 0.2, -size * 0.25, -size * 0.35, -size * 0.12, -size * 0.38);
-  ctx.lineTo(-size * 0.08, -size * 0.32);
-  ctx.lineTo(-size * 0.02, -size * 0.38);
-  ctx.lineTo(size * 0.05, -size * 0.32);
-  ctx.lineTo(size * 0.12, -size * 0.38);
-  ctx.bezierCurveTo(size * 0.25, -size * 0.35, size * 0.38, -size * 0.2, size * 0.3, -size * 0.05);
-  ctx.stroke();
-
-  // === ASYMMETRIC ARMS REACHING FORWARD (exaggerated) ===
-  // Left arm — longer, reaching more
-  ctx.fillStyle = skinColor;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.15, -size * 0.15);
-  ctx.bezierCurveTo(-size * 0.25, -size * 0.1 + armSway, -size * 0.35, size * 0.05 + armSway, -size * 0.42, size * 0.15 + armSway);
-  ctx.lineTo(-size * 0.38, size * 0.22 + armSway);
-  ctx.bezierCurveTo(-size * 0.3, size * 0.12 + armSway, -size * 0.2, size * 0.0 + armSway, -size * 0.1, -size * 0.08);
-  ctx.closePath();
-  ctx.fill();
-  // Torn sleeve on left arm
-  ctx.fillStyle = clothDark;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.15, -size * 0.15);
-  ctx.lineTo(-size * 0.22, -size * 0.08 + armSway);
-  ctx.lineTo(-size * 0.18, -size * 0.02 + armSway);
-  ctx.lineTo(-size * 0.1, -size * 0.08);
-  ctx.closePath();
-  ctx.fill();
-
-  // Right arm — shorter, different angle
-  ctx.fillStyle = skinColor;
-  ctx.beginPath();
-  ctx.moveTo(size * 0.12, -size * 0.18);
-  ctx.bezierCurveTo(size * 0.28, -size * 0.12 - armSway, size * 0.42, size * 0.0 - armSway, size * 0.48, size * 0.1 - armSway);
-  ctx.lineTo(size * 0.44, size * 0.18 - armSway);
-  ctx.bezierCurveTo(size * 0.35, size * 0.08 - armSway, size * 0.22, size * 0.0 - armSway, size * 0.08, -size * 0.1);
-  ctx.closePath();
-  ctx.fill();
-  // Torn sleeve on right arm
-  ctx.fillStyle = clothDark;
-  ctx.beginPath();
-  ctx.moveTo(size * 0.12, -size * 0.18);
-  ctx.lineTo(size * 0.22, -size * 0.12 - armSway);
-  ctx.lineTo(size * 0.18, -size * 0.05 - armSway);
-  ctx.lineTo(size * 0.08, -size * 0.1);
-  ctx.closePath();
-  ctx.fill();
-
-  // Clawed hands — exaggerated, different sizes
-  const handColor = isTank ? '#5a3020' : isMutant ? '#3a5a2a' : '#5a6a3a';
-  // Left hand (bigger)
-  ctx.fillStyle = handColor;
-  ctx.beginPath();
-  ctx.arc(-size * 0.4, size * 0.2 + armSway, size * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  // Claws left
-  ctx.strokeStyle = handColor;
-  ctx.lineWidth = 2;
-  for (let c = 0; c < 4; c++) {
-    const ca = -0.4 + c * 0.25;
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(-size * 0.42 + Math.cos(ca) * size * 0.07, size * 0.2 + armSway + Math.sin(ca) * size * 0.07);
-    ctx.lineTo(-size * 0.42 + Math.cos(ca) * size * 0.14, size * 0.2 + armSway + Math.sin(ca) * size * 0.14);
-    ctx.stroke();
-  }
-  // Right hand (smaller)
-  ctx.fillStyle = handColor;
-  ctx.beginPath();
-  ctx.arc(size * 0.46, size * 0.14 - armSway, size * 0.06, 0, Math.PI * 2);
-  ctx.fill();
-  // Claws right
-  for (let c = 0; c < 3; c++) {
-    const ca = -0.3 + c * 0.3;
-    ctx.beginPath();
-    ctx.moveTo(size * 0.46 + Math.cos(ca) * size * 0.05, size * 0.14 - armSway + Math.sin(ca) * size * 0.05);
-    ctx.lineTo(size * 0.46 + Math.cos(ca) * size * 0.11, size * 0.14 - armSway + Math.sin(ca) * size * 0.11);
+    ctx.moveTo(-size * 0.5, size * 0.1);
+    ctx.lineTo(size * 0.5, size * 0.1);
     ctx.stroke();
   }
 
-  // === BIG TILTED HEAD (PvZ style) ===
   ctx.save();
-  ctx.translate(0, -size * 0.28);
-  ctx.rotate(headTilt);
+  ctx.translate(sway, bob);
 
-  // Head — large, exaggerated, tilted
-  const headGrad = ctx.createRadialGradient(-size * 0.06, -size * 0.06, 0, 0, 0, size * 0.3);
-  headGrad.addColorStop(0, isTank ? '#7a4838' : isMutant ? '#5a7a4a' : '#7a9a5a');
-  headGrad.addColorStop(1, isTank ? '#4a2818' : isMutant ? '#2a4a2a' : '#4a6a2a');
-  ctx.fillStyle = headGrad;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, size * 0.28, size * 0.32, 0, 0, Math.PI * 2);
-  ctx.fill();
+  // === PIXEL-ART ZOMBIE (facing down toward player) ===
+  // Blocky body with jagged edges
 
-  // Head outline
-  ctx.strokeStyle = skinDark;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, size * 0.28, size * 0.32, 0, 0, Math.PI * 2);
-  ctx.stroke();
+  const skin = isMutant ? '#4a7a3a' : isTank ? '#5a4a3a' : '#6a8a4a';
+  const skinD = isMutant ? '#2a5a1a' : isTank ? '#3a2a1a' : '#4a6a2a';
+  const cloth = isMutant ? '#2a3a1a' : isTank ? '#3a2a20' : '#3a3020';
+  const clothD = isMutant ? '#1a2a0a' : isTank ? '#2a1a10' : '#2a2010';
 
-  // Scars on face
-  ctx.strokeStyle = `${skinDark}88`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.15, -size * 0.1);
-  ctx.lineTo(-size * 0.08, size * 0.05);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(size * 0.1, size * 0.08);
-  ctx.lineTo(size * 0.15, size * 0.18);
-  ctx.stroke();
+  // Legs (blocky, pixel-art)
+  ctx.fillStyle = clothD;
+  ctx.fillRect(-size * 0.3, size * 0.15, size * 0.22, size * 0.35);
+  ctx.fillRect(size * 0.08, size * 0.15, size * 0.22, size * 0.35);
+  // Jagged torn pants bottom
+  ctx.fillStyle = skin;
+  ctx.fillRect(-size * 0.28, size * 0.4, size * 0.06, size * 0.08);
+  ctx.fillRect(size * 0.1, size * 0.4, size * 0.06, size * 0.08);
+  // Feet
+  ctx.fillStyle = '#1a1408';
+  ctx.fillRect(-size * 0.3, size * 0.48, size * 0.22, size * 0.06);
+  ctx.fillRect(size * 0.08, size * 0.48, size * 0.22, size * 0.06);
 
-  // Tumors for mutants — pulsing green lumps using ctx.scale
+  // Torso (blocky with torn edges)
+  ctx.fillStyle = cloth;
+  ctx.fillRect(-size * 0.35, -size * 0.1, size * 0.7, size * 0.3);
+  // Torn shirt bottom (jagged)
+  ctx.fillStyle = skin;
+  ctx.fillRect(-size * 0.3, size * 0.15, size * 0.08, size * 0.06);
+  ctx.fillRect(size * 0.05, size * 0.15, size * 0.08, size * 0.06);
+  ctx.fillRect(-size * 0.1, size * 0.15, size * 0.06, size * 0.04);
+  // Torn holes showing skin
+  ctx.fillStyle = skin;
+  ctx.fillRect(-size * 0.2, -size * 0.05, size * 0.08, size * 0.1);
+  ctx.fillRect(size * 0.1, 0, size * 0.06, size * 0.08);
+
+  // Arms (asymmetric, reaching forward — blocky)
+  ctx.fillStyle = skin;
+  // Left arm (longer, lower)
+  ctx.fillRect(-size * 0.45, -size * 0.05, size * 0.12, size * 0.3);
+  ctx.fillStyle = clothD;
+  ctx.fillRect(-size * 0.45, -size * 0.05, size * 0.12, size * 0.08);
+  // Right arm (shorter, higher)
+  ctx.fillStyle = skin;
+  ctx.fillRect(size * 0.3, -size * 0.12, size * 0.12, size * 0.25);
+  ctx.fillStyle = clothD;
+  ctx.fillRect(size * 0.3, -size * 0.12, size * 0.12, size * 0.06);
+  // Clawed hands (pixel blocks)
+  ctx.fillStyle = isTank ? '#5a3020' : isMutant ? '#3a5a2a' : '#5a6a3a';
+  ctx.fillRect(-size * 0.48, size * 0.22, size * 0.14, size * 0.08);
+  ctx.fillRect(size * 0.3, size * 0.1, size * 0.12, size * 0.06);
+  // Claws (pixel lines)
+  ctx.fillStyle = isTank ? '#3a1a10' : isMutant ? '#1a3a0a' : '#3a4a1a';
+  ctx.fillRect(-size * 0.48, size * 0.28, size * 0.02, size * 0.06);
+  ctx.fillRect(-size * 0.42, size * 0.28, size * 0.02, size * 0.06);
+  ctx.fillRect(-size * 0.38, size * 0.28, size * 0.02, size * 0.06);
+  ctx.fillRect(size * 0.3, size * 0.16, size * 0.02, size * 0.04);
+  ctx.fillRect(size * 0.36, size * 0.16, size * 0.02, size * 0.04);
+
+  // === HEAD (big, blocky, facing down — BOTH red eyes visible) ===
+  ctx.fillStyle = skin;
+  ctx.fillRect(-size * 0.28, -size * 0.45, size * 0.56, size * 0.4);
+  // Head shadow (darker top)
+  ctx.fillStyle = skinD;
+  ctx.fillRect(-size * 0.28, -size * 0.45, size * 0.56, size * 0.08);
+  // Head sides (jaw blocky)
+  ctx.fillRect(-size * 0.28, -size * 0.15, size * 0.06, size * 0.1);
+  ctx.fillRect(size * 0.22, -size * 0.15, size * 0.06, size * 0.1);
+
+  // Scars (pixel lines)
+  ctx.fillStyle = skinD;
+  ctx.fillRect(-size * 0.15, -size * 0.35, size * 0.02, size * 0.12);
+  ctx.fillRect(size * 0.1, -size * 0.2, size * 0.02, size * 0.08);
+
+  // Tumors for mutants (pulsing with scale)
   if (isMutant) {
+    const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.2;
     ctx.save();
-    for (let t = 0; t < 3; t++) {
-      const tx = (t - 1) * size * 0.12;
-      const ty = (t % 2 === 0 ? -1 : 1) * size * 0.08;
-      ctx.save();
-      ctx.translate(tx, ty);
-      ctx.scale(tumorPulse, tumorPulse);
-      ctx.fillStyle = '#22c55e';
-      if (glow) { ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 8; }
-      ctx.beginPath();
-      ctx.arc(0, 0, size * 0.05, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#15803d';
-      ctx.beginPath();
-      ctx.arc(0, 0, size * 0.03, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    ctx.translate(-size * 0.1, -size * 0.3);
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = '#22c55e';
+    if (glow) { ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 6; }
+    ctx.fillRect(-size * 0.05, -size * 0.05, size * 0.1, size * 0.1);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(-size * 0.03, -size * 0.03, size * 0.06, size * 0.06);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(size * 0.12, -size * 0.25);
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = '#22c55e';
+    if (glow) { ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 6; }
+    ctx.fillRect(-size * 0.04, -size * 0.04, size * 0.08, size * 0.08);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(-size * 0.02, -size * 0.02, size * 0.04, size * 0.04);
     ctx.restore();
   }
 
-  // Eyes — one bigger than other (exaggerated)
+  // === BOTH RED EYES (facing forward/down) ===
   const eyeColor = isTank ? '#fbbf24' : isMutant ? '#22c55e' : '#ef4444';
   ctx.save();
   if (glow) {
     ctx.shadowColor = eyeColor;
-    ctx.shadowBlur = isTank ? 16 : isMutant ? 18 : 14;
+    ctx.shadowBlur = 8;
   }
-  // Left eye (bigger)
+  // Left eye
   ctx.fillStyle = eyeColor;
-  ctx.beginPath();
-  ctx.arc(-size * 0.1, -size * 0.05, size * 0.08, 0, Math.PI * 2);
-  ctx.fill();
-  // Right eye (smaller, squinting)
-  ctx.beginPath();
-  ctx.arc(size * 0.08, -size * 0.08, size * 0.05, 0, Math.PI * 2);
-  ctx.fill();
-  // Pupils
+  ctx.fillRect(-size * 0.18, -size * 0.35, size * 0.1, size * 0.08);
+  // Right eye
+  ctx.fillRect(size * 0.08, -size * 0.35, size * 0.1, size * 0.08);
+  // Pupils (white)
   ctx.shadowBlur = 0;
   ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(-size * 0.09, -size * 0.05, size * 0.03, 0, Math.PI * 2);
-  ctx.arc(size * 0.09, -size * 0.08, size * 0.02, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillRect(-size * 0.14, -size * 0.33, size * 0.03, size * 0.03);
+  ctx.fillRect(size * 0.12, -size * 0.33, size * 0.03, size * 0.03);
   ctx.restore();
 
-  // Mouth — wide, jagged teeth, drooling
+  // Mouth (blocky, with pixel teeth)
   ctx.fillStyle = '#0a0a04';
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.18, size * 0.1);
-  ctx.bezierCurveTo(-size * 0.1, size * 0.18, size * 0.1, size * 0.18, size * 0.18, size * 0.1);
-  ctx.bezierCurveTo(size * 0.12, size * 0.15, size * 0.05, size * 0.22, 0, size * 0.18);
-  ctx.bezierCurveTo(-size * 0.05, size * 0.22, -size * 0.12, size * 0.15, -size * 0.18, size * 0.1);
-  ctx.closePath();
-  ctx.fill();
-  // Jagged teeth
+  ctx.fillRect(-size * 0.15, -size * 0.18, size * 0.3, size * 0.08);
   ctx.fillStyle = '#d4d4b0';
-  for (let t = 0; t < 5; t++) {
-    const tx = -size * 0.14 + t * size * 0.07;
-    ctx.beginPath();
-    ctx.moveTo(tx, size * 0.1);
-    ctx.lineTo(tx + size * 0.02, size * 0.16);
-    ctx.lineTo(tx + size * 0.04, size * 0.1);
-    ctx.closePath();
-    ctx.fill();
-  }
-  // Drool
-  ctx.strokeStyle = 'rgba(180,220,100,0.5)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(size * 0.05, size * 0.18);
-  ctx.lineTo(size * 0.05, size * 0.26 + Math.sin(Date.now() * 0.004) * size * 0.02);
-  ctx.stroke();
+  ctx.fillRect(-size * 0.13, -size * 0.18, size * 0.04, size * 0.04);
+  ctx.fillRect(-size * 0.05, -size * 0.18, size * 0.04, size * 0.04);
+  ctx.fillRect(size * 0.03, -size * 0.18, size * 0.04, size * 0.04);
+  ctx.fillRect(size * 0.1, -size * 0.18, size * 0.04, size * 0.04);
 
-  ctx.restore(); // end head
+  ctx.restore(); // end body transform
 
-  // === LEGS (ragged pants) ===
-  ctx.fillStyle = clothDark;
-  // Left leg
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.14, 0);
-  ctx.bezierCurveTo(-size * 0.2, size * 0.15, -size * 0.24, size * 0.32, -size * 0.16, size * 0.44 + legSwing);
-  ctx.bezierCurveTo(-size * 0.08, size * 0.32, -size * 0.06, size * 0.15, -size * 0.04, 0);
-  ctx.closePath();
-  ctx.fill();
-  // Right leg
-  ctx.beginPath();
-  ctx.moveTo(size * 0.08, 0);
-  ctx.bezierCurveTo(size * 0.16, size * 0.15, size * 0.24, size * 0.32, size * 0.18, size * 0.44 - legSwing);
-  ctx.bezierCurveTo(size * 0.1, size * 0.32, size * 0.06, size * 0.15, size * 0.04, 0);
-  ctx.closePath();
-  ctx.fill();
-  // Torn pants edges
-  ctx.fillStyle = skinColor;
-  ctx.beginPath();
-  ctx.ellipse(-size * 0.16, size * 0.3 + legSwing * 0.5, size * 0.04, size * 0.06, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Feet
-  ctx.fillStyle = '#1a1408';
-  ctx.beginPath();
-  ctx.ellipse(-size * 0.16, size * 0.46 + legSwing, size * 0.1, size * 0.05, 0, 0, Math.PI * 2);
-  ctx.ellipse(size * 0.18, size * 0.46 - legSwing, size * 0.1, size * 0.05, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore(); // end body
-
-  // Tank armor: massive, with "66" on back shield
+  // Tank armor
   if (isTank) {
-    ctx.save();
-    // Force shield behind tank (green-blue translucent)
     const shieldPulse = 0.4 + Math.sin(Date.now() * 0.005) * 0.2;
-    if (glow) {
-      ctx.shadowColor = '#06b6d4';
-      ctx.shadowBlur = 18;
-    }
+    if (glow) { ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 12; }
     ctx.strokeStyle = `rgba(6,182,212,${shieldPulse})`;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(-size * 0.15, 0, size * 0.55, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = `rgba(6,182,212,${shieldPulse * 0.1})`;
-    ctx.beginPath();
-    ctx.arc(-size * 0.15, 0, size * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // Massive shoulder pads
-    const armorGrad = ctx.createLinearGradient(-size * 0.45, -size * 0.22, -size * 0.2, 0);
-    armorGrad.addColorStop(0, '#5a5a5a');
-    armorGrad.addColorStop(0.5, '#2a2a2a');
-    armorGrad.addColorStop(1, '#1a1a1a');
-    ctx.fillStyle = armorGrad;
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.32, -size * 0.18);
-    ctx.bezierCurveTo(-size * 0.5, -size * 0.25, -size * 0.52, 0, -size * 0.42, size * 0.08);
-    ctx.bezierCurveTo(-size * 0.32, size * 0.1, -size * 0.24, 0, -size * 0.22, -size * 0.12);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(size * 0.32, -size * 0.18);
-    ctx.bezierCurveTo(size * 0.5, -size * 0.25, size * 0.52, 0, size * 0.42, size * 0.08);
-    ctx.bezierCurveTo(size * 0.32, size * 0.1, size * 0.24, 0, size * 0.22, -size * 0.12);
-    ctx.closePath();
-    ctx.fill();
-    // Spikes
-    ctx.fillStyle = '#1a1a1a';
-    for (const sx of [-1, 1]) {
-      for (let sp = 0; sp < 4; sp++) {
-        const spx = sx * (size * 0.38 - sp * size * 0.08);
-        const sph = size * 0.12 + sp * size * 0.02;
-        ctx.beginPath();
-        ctx.moveTo(spx - size * 0.02, -size * 0.2);
-        ctx.lineTo(spx - sx * size * 0.03, -size * 0.2 - sph);
-        ctx.lineTo(spx + size * 0.02, -size * 0.2);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-    // Chest plate
-    ctx.fillStyle = '#2a2a2a';
-    ctx.beginPath();
-    ctx.roundRect(-size * 0.26, -size * 0.12, size * 0.52, size * 0.24, 4);
-    ctx.fill();
-    ctx.strokeStyle = '#6a6a6a';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // "66" badge on chest
-    const flicker = 0.7 + Math.sin(walkCycle * 8) * 0.3;
-    ctx.save();
-    if (glow) { ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 16 * flicker; }
-    ctx.fillStyle = `rgba(6,182,212,${0.9 * flicker})`;
-    ctx.beginPath();
-    ctx.roundRect(-size * 0.14, -size * 0.1, size * 0.28, size * 0.16, 3);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = `rgba(165,243,252,${flicker})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${size * 0.14}px monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('66', 0, -size * 0.02);
-    ctx.restore();
-
-    // "66" on back shield
-    ctx.save();
-    ctx.translate(-size * 0.3, 0);
-    if (glow) { ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 14 * flicker; }
-    ctx.fillStyle = `rgba(6,182,212,${0.5 * flicker})`;
-    ctx.beginPath();
-    ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = `rgba(165,243,252,${0.8 * flicker})`;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, size * 0.7, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = `rgba(255,255,255,${0.9 * flicker})`;
-    ctx.font = `bold ${size * 0.16}px monospace`;
+    ctx.shadowBlur = 0;
+    // Shoulder pads (blocky)
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(-size * 0.5, -size * 0.15, size * 0.15, size * 0.2);
+    ctx.fillRect(size * 0.35, -size * 0.15, size * 0.15, size * 0.2);
+    // Spikes
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-size * 0.48, -size * 0.25, size * 0.04, size * 0.12);
+    ctx.fillRect(-size * 0.4, -size * 0.22, size * 0.04, size * 0.1);
+    ctx.fillRect(size * 0.37, -size * 0.25, size * 0.04, size * 0.12);
+    ctx.fillRect(size * 0.45, -size * 0.22, size * 0.04, size * 0.1);
+    // Chest plate
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(-size * 0.3, -size * 0.1, size * 0.6, size * 0.22);
+    // "66" badge
+    const flicker = 0.7 + Math.sin(walkCycle * 8) * 0.3;
+    if (glow) { ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 8; }
+    ctx.fillStyle = `rgba(6,182,212,${0.9 * flicker})`;
+    ctx.fillRect(-size * 0.12, -size * 0.06, size * 0.24, size * 0.12);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${size * 0.12}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('66', 0, 0);
-    ctx.restore();
-
-    ctx.restore();
   }
 
-  // Mutant green aura ring
+  // Mutant aura
   if (isMutant && glow) {
     ctx.save();
     ctx.shadowColor = '#22c55e';
-    ctx.shadowBlur = 18;
-    ctx.strokeStyle = 'rgba(34,197,94,0.4)';
-    ctx.lineWidth = 2.5;
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(34,197,94,0.3)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(0, 0, size * 0.6, 0, Math.PI * 2);
     ctx.stroke();
@@ -2962,10 +2764,40 @@ export const ARENA_THEMES: ArenaTheme[] = [
     trenchSandLight: '#3e4a36',
     vignette: 0.55,
   },
+  {
+    name: 'Rio de Combate',
+    ground: ['#0a1a2a', '#081522', '#050f1a'],
+    lane: ['#0a2540', '#0e3550', '#0a2540'],
+    laneEdge: 'rgba(34,211,238,0.5)',
+    laneDash: 'rgba(100,200,255,0.35)',
+    center: ['#061a2e', '#0a2238', '#061a2e'],
+    divider: 'rgba(34,211,238,0.2)',
+    river: ['#0e4a6a', '#0c5a7a', '#22d3ee', '#0c5a7a', '#0e4a6a'],
+    riverGlow: '#22d3ee',
+    bridgeDeck: '#8a6a4a',
+    bridgeDeckLight: '#9a7a5a',
+    bridgePlank: '#5a3a20',
+    bridgeRailing: '#3a2a14',
+    bridgeRailingTop: '#5a3a20',
+    nest: '#0a2a3a',
+    nestRing: 'rgba(34,211,238,0.4)',
+    nestCore: 'rgba(34,211,238,0.18)',
+    trench: '#0a2540',
+    trenchSand: '#0e3550',
+    trenchSandLight: '#1a4560',
+    vignette: 0.5,
+  },
 ];
 
+export type BiomeType = 'road' | 'water';
+
+export function getBiome(level: number): BiomeType {
+  return level >= 10 ? 'water' : 'road';
+}
+
 export function getArenaTheme(level: number): ArenaTheme {
-  return ARENA_THEMES[level % ARENA_THEMES.length];
+  if (level >= 10) return ARENA_THEMES[3];
+  return ARENA_THEMES[level % 3];
 }
 
 export function getArenaLaneX(lane: number, w: number): number {

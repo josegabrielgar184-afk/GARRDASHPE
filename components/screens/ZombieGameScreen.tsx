@@ -13,7 +13,7 @@ import {
   spawnMuzzleFlash, updateMuzzleFlashes, drawMuzzleFlashes,
   drawNeonCircle, drawMetallicCoin,
   drawSoldier2D, drawZombie2D, drawTacticalArena, drawArenaTower, drawArenaCastle,
-  getArenaLaneX, getArenaLaneBounds, getArenaTheme, type ArenaTheme,
+  getArenaLaneX, getArenaLaneBounds, getArenaTheme, getBiome, type ArenaTheme, type BiomeType,
   ScreenShake, hapticFeedback, hapticPattern,
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
@@ -48,7 +48,7 @@ function makePowerUpDrop(): PowerUpDrop { return { x: 0, y: 0, vy: 0, type: 'shi
 const LANE_COUNT = 2;
 const BARRICADE_Y_RATIO = 0.82;
 const TURRET_Y_RATIO = 0.88;
-const SPRITE_SCALE = 3.8;
+const SPRITE_SCALE = 1.7;
 const TOWER_MAX_HP = 350;
 const CASTLE_MAX_HP = 500;
 
@@ -202,6 +202,7 @@ export function ZombieGameScreen() {
   const reviveShieldTimerRef = useRef(0);
   const campaignLevelRef = useRef(1);
   const arenaThemeRef = useRef<ArenaTheme>(getArenaTheme(1));
+  const biomeRef = useRef<BiomeType>(getBiome(1));
 
   // Companion refs
   const companionBulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 40));
@@ -361,6 +362,7 @@ export function ZombieGameScreen() {
     campaignLevelRef.current = cl; setCampaignLevel(cl);
     const specialTheme = SPECIAL_LEVEL_THEMES[cl];
     arenaThemeRef.current = specialTheme ? { ...getArenaTheme(cl), ...specialTheme } : getArenaTheme(cl);
+    biomeRef.current = getBiome(cl);
     reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
     setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
@@ -545,7 +547,7 @@ export function ZombieGameScreen() {
     const isTank = z.type === 'tank' || z.type === 'boss';
     const isMutant = z.type === 'fast';
     const angle = Math.PI / 2;
-    drawZombie2D(ctx, z.x, z.y, angle, z.walkCycle, z.size, z.color, isMutant, isTank, fpsMonitorRef.current.shouldGlow);
+    drawZombie2D(ctx, z.x, z.y, angle, z.walkCycle, z.size, z.color, isMutant, isTank, fpsMonitorRef.current.shouldGlow, biomeRef.current);
 
     // Boss overlay: football helmet
     if (z.type === 'boss') {
@@ -675,7 +677,7 @@ export function ZombieGameScreen() {
 
     // Tactical soldier sprite (facing up)
     const walkCycle = now * 0.003;
-    drawSoldier2D(ctx, x, y + breath, -Math.PI / 2, walkCycle, char.color, shieldRef.current, weaponRef.current, fpsMonitorRef.current.shouldGlow);
+    drawSoldier2D(ctx, x, y + breath, -Math.PI / 2, walkCycle, char.color, shieldRef.current, weaponRef.current, fpsMonitorRef.current.shouldGlow, biomeRef.current);
 
     // Muzzle glow when ready
     if (shootCooldownRef.current < 2) {
@@ -907,7 +909,12 @@ export function ZombieGameScreen() {
             }
           }
 
-          if (z.y > barricadeY - z.size * 0.8) {
+          // Strict X path clamping: zombies NEVER leave visible road
+          const roadMin = 4;
+          const roadMax = w - 4;
+          z.x = Math.max(roadMin, Math.min(roadMax, z.x));
+
+          if (z.y > barricadeY - z.size * 0.6) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
             const leftTowerX = w * 0.15;
             const rightTowerX = w * 0.85;
@@ -1014,7 +1021,7 @@ export function ZombieGameScreen() {
 
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
-            if (dist(b.x, b.y, z.x, z.y) < z.size + 14) {
+            if (dist(b.x, b.y, z.x, z.y) < z.size + 8) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
               spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(4), b.color, 3);
               addFloatText(`${Math.floor(b.damage)}`, b.x, b.y - 10, '#fbbf24', 11);
@@ -1118,7 +1125,7 @@ export function ZombieGameScreen() {
           }
           let hit = false;
           for (const z of zombiePoolRef.current.getActive()) {
-            if (dist(b.x, b.y, z.x, z.y) < z.size + 14) {
+            if (dist(b.x, b.y, z.x, z.y) < z.size + 8) {
               z.hp -= b.damage; z.hitFlash = 1; hit = true;
               spawnParticles2D(particlesRef.current, b.x, b.y, fpsMon.scaleParticleCount(3), b.color, 3);
               if (z.hp <= 0) {

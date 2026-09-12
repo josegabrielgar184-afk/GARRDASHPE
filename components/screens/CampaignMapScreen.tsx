@@ -1,11 +1,26 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { ArrowLeft, Star, Lock, Key, Gem, Heart, Baby, Skull, Infinity as InfinityIcon, Trophy } from 'lucide-react';
 import { TOTAL_CAMPAIGN_LEVELS, SPECIAL_LEVELS, getCampaignCoinReward } from '@/lib/config';
+
+const TILE_H = 90;
+const MAP_WIDTH = 320;
+const ZIGZAG_AMPLITUDE = 80;
+
+function getLevelX(level: number): number {
+  const row = level - 1;
+  const phase = (row % 4);
+  const pattern = phase === 0 ? -1 : phase === 1 ? -0.3 : phase === 2 ? 1 : 0.3;
+  return MAP_WIDTH / 2 + pattern * ZIGZAG_AMPLITUDE;
+}
+
+function getLevelY(level: number): number {
+  return (level - 1) * TILE_H + TILE_H / 2;
+}
 
 export function CampaignMapScreen() {
   const { setScreen, campaignProgress, completeLevel, coins, getCurrentCampaignLevel } = useGame();
@@ -18,16 +33,15 @@ export function CampaignMapScreen() {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const targetLevel = currentLevel;
-    const tileHeight = 80;
-    const targetY = Math.floor(targetLevel / 3) * tileHeight;
+    const targetY = getLevelY(currentLevel);
     setTimeout(() => { el.scrollTo({ top: Math.max(0, targetY - el.clientHeight / 2), behavior: 'smooth' }); }, 200);
   }, [currentLevel]);
 
   const getLevelColor = (level: number): string => {
     const special = SPECIAL_LEVELS[level];
     if (special) return special.color;
-    return '#22d3ee';
+    if (level >= 10) return '#22d3ee';
+    return '#84cc16';
   };
 
   const isLevelUnlocked = (level: number): boolean => level <= maxUnlocked;
@@ -38,61 +52,22 @@ export function CampaignMapScreen() {
     setScreen('zombie-game');
   };
 
-  const renderLevelTile = (level: number) => {
-    const unlocked = isLevelUnlocked(level);
-    const stars = campaignProgress.stars[level] ?? 0;
-    const special = SPECIAL_LEVELS[level];
-    const color = getLevelColor(level);
-    const isCurrent = level === currentLevel;
+  const totalHeight = TOTAL_CAMPAIGN_LEVELS * TILE_H;
 
-    return (
-      <div key={level} className="flex items-center gap-3" style={{ minHeight: '70px' }}>
-        {/* Path connector */}
-        {level > 1 && (
-          <div className="absolute left-1/2 -translate-x-1/2" style={{ marginTop: '-70px', height: '70px', width: '4px', background: unlocked ? `${color}44` : '#333' }} />
-        )}
-        <button
-          onClick={() => unlocked && handlePlay(level)}
-          disabled={!unlocked}
-          className={`relative flex flex-col items-center justify-center rounded-2xl transition-all ${unlocked ? 'active:scale-95 cursor-pointer' : 'opacity-40'} ${isCurrent ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}
-          style={{
-            width: 60, height: 60,
-            background: unlocked ? `linear-gradient(135deg, ${color}33, ${color}11)` : '#1a1a1a',
-            border: `2px solid ${unlocked ? color : '#333'}`,
-            boxShadow: unlocked && !special ? `0 0 12px ${color}33` : special ? `0 0 20px ${color}66` : 'none',
-          }}
-        >
-          {unlocked ? (
-            <>
-              <span className={`font-black text-lg ${level === 4 ? 'animate-blink-red' : (level === 10 || level === 30) ? 'animate-glow-white' : ''}`} style={{ color }}>{level}</span>
-              {special && (
-                <span className="absolute -top-2 -right-2">
-                  {level === 4 ? <Heart className="w-4 h-4 text-red-500 fill-red-500" /> : <Baby className="w-4 h-4 text-white" />}
-                </span>
-              )}
-              {!unlocked && <Lock className="w-4 h-4 text-white/30" />}
-            </>
-          ) : (
-            <Lock className="w-5 h-5 text-white/30" />
-          )}
-        </button>
-        {/* Stars */}
-        {stars > 0 && (
-          <div className="flex gap-0.5">
-            {[1, 2, 3].map((s) => (
-              <Star key={s} className={`w-3 h-3 ${s <= stars ? 'text-amber-400 fill-amber-400' : 'text-white/15'}`} />
-            ))}
-          </div>
-        )}
-        {/* Special label */}
-        {special && unlocked && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ color, background: `${color}22`, border: `1px solid ${color}44` }}>
-            {level === 4 ? 'AMOR' : 'BEBE'}
-          </span>
-        )}
-      </div>
-    );
-  };
+  // Build SVG zig-zag path
+  let pathD = '';
+  for (let lvl = 1; lvl <= TOTAL_CAMPAIGN_LEVELS; lvl++) {
+    const lx = getLevelX(lvl);
+    const ly = getLevelY(lvl);
+    if (lvl === 1) {
+      pathD += `M ${lx} ${ly}`;
+    } else {
+      const prevX = getLevelX(lvl - 1);
+      const prevY = getLevelY(lvl - 1);
+      const midY = (prevY + ly) / 2;
+      pathD += ` Q ${(prevX + lx) / 2} ${midY} ${lx} ${ly}`;
+    }
+  }
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20 relative overflow-hidden">
@@ -133,14 +108,114 @@ export function CampaignMapScreen() {
         <InfinityIcon className="w-4 h-4" />
       </button>
 
-            {/* Scrollable map */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar pt-28 pb-44 px-4">
-        <div className="flex flex-col items-center gap-0 max-w-sm mx-auto">
-          {Array.from({ length: TOTAL_CAMPAIGN_LEVELS }, (_, i) => i + 1).map((level) => (
-            <div key={level} className="w-full flex justify-center relative">
-              {renderLevelTile(level)}
-            </div>
-          ))}
+      {/* Scrollable map with SVG zig-zag path */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto no-scrollbar pt-28 pb-44">
+        <div className="relative mx-auto" style={{ width: MAP_WIDTH, height: totalHeight }}>
+          {/* SVG path background */}
+          <svg
+            className="absolute inset-0"
+            width={MAP_WIDTH}
+            height={totalHeight}
+            style={{ pointerEvents: 'none' }}
+          >
+            <path
+              d={pathD}
+              fill="none"
+              stroke="rgba(132,204,22,0.2)"
+              strokeWidth={6}
+              strokeDasharray="8 6"
+              strokeLinecap="round"
+            />
+            <path
+              d={pathD}
+              fill="none"
+              stroke="rgba(132,204,22,0.08)"
+              strokeWidth={14}
+              strokeLinecap="round"
+            />
+          </svg>
+
+          {/* Level buttons positioned along the zig-zag */}
+          {Array.from({ length: TOTAL_CAMPAIGN_LEVELS }, (_, i) => i + 1).map((level) => {
+            const lx = getLevelX(level);
+            const ly = getLevelY(level);
+            const unlocked = isLevelUnlocked(level);
+            const stars = campaignProgress.stars[level] ?? 0;
+            const special = SPECIAL_LEVELS[level];
+            const color = getLevelColor(level);
+            const isCurrent = level === currentLevel;
+
+            return (
+              <div
+                key={level}
+                className="absolute flex flex-col items-center"
+                style={{
+                  left: lx - 30,
+                  top: ly - 30,
+                  width: 60,
+                  height: 60,
+                }}
+              >
+                {/* Floating avatar on current level */}
+                {isCurrent && (
+                  <div
+                    className="absolute -top-8 left-1/2 -translate-x-1/2 z-10"
+                    style={{ animation: 'float-bob 2s ease-in-out infinite' }}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 border-2 border-white flex items-center justify-center shadow-lg shadow-amber-500/50">
+                      <span className="text-white text-xs font-black">★</span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => unlocked && handlePlay(level)}
+                  disabled={!unlocked}
+                  className={`relative flex items-center justify-center rounded-2xl transition-all ${unlocked ? 'active:scale-95 cursor-pointer' : 'opacity-40'} ${isCurrent ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}
+                  style={{
+                    width: 54, height: 54,
+                    background: unlocked ? `linear-gradient(135deg, ${color}33, ${color}11)` : '#1a1a1a',
+                    border: `2px solid ${unlocked ? color : '#333'}`,
+                    boxShadow: unlocked && !special ? `0 0 12px ${color}33` : special ? `0 0 20px ${color}66` : 'none',
+                  }}
+                >
+                  {unlocked ? (
+                    <>
+                      <span className={`font-black text-base ${level === 4 ? 'animate-blink-red' : (level === 10 || level === 30) ? 'animate-glow-white' : ''}`} style={{ color }}>{level}</span>
+                      {special && (
+                        <span className="absolute -top-2 -right-2">
+                          {level === 4 ? <Heart className="w-4 h-4 text-red-500 fill-red-500" /> : <Baby className="w-4 h-4 text-white" />}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <Lock className="w-5 h-5 text-white/30" />
+                  )}
+                </button>
+
+                {/* Stars */}
+                {stars > 0 && (
+                  <div className="flex gap-0.5 mt-1">
+                    {[1, 2, 3].map((s) => (
+                      <Star key={s} className={`w-2.5 h-2.5 ${s <= stars ? 'text-amber-400 fill-amber-400' : 'text-white/15'}`} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Biome label */}
+                {unlocked && level === 10 && (
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full mt-1" style={{ color: '#22d3ee', background: '#22d3ee22', border: '1px solid #22d3ee44' }}>
+                    RIO
+                  </span>
+                )}
+                {unlocked && level === 1 && (
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full mt-1" style={{ color: '#84cc16', background: '#84cc1622', border: '1px solid #84cc1644' }}>
+                    RUTA
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -157,6 +232,7 @@ export function CampaignMapScreen() {
             <div className="text-center mb-4">
               <p className="text-white/40 text-xs">Recompensa: {getCampaignCoinReward(selectedLevel).min}-{getCampaignCoinReward(selectedLevel).max} monedas</p>
               <p className="text-white/40 text-xs mt-1">Llaves: {selectedLevel % 10 === 0 ? '+1 llave' : 'Sin llave'}</p>
+              <p className="text-white/40 text-xs mt-1">Bioma: {selectedLevel >= 10 ? 'Rio de Combate' : 'Carretera Militar'}</p>
             </div>
             <button
               onClick={() => { setScreen('zombie-game'); }}
@@ -168,6 +244,7 @@ export function CampaignMapScreen() {
           </div>
         </div>
       )}
+
       <style>{`
         @keyframes blink-red {
           0%, 50%, 100% { opacity: 1; color: #ef4444; text-shadow: 0 0 15px #ef4444, 0 0 30px #ef4444; }
@@ -179,6 +256,10 @@ export function CampaignMapScreen() {
           50% { opacity: 0.7; color: #f0f0f0; text-shadow: 0 0 20px #ffffff, 0 0 40px #ffffff; }
         }
         .animate-glow-white { animation: glow-white 1.2s ease-in-out infinite; }
+        @keyframes float-bob {
+          0%, 100% { transform: translateX(-50%) translateY(0); }
+          50% { transform: translateX(-50%) translateY(-6px); }
+        }
       `}</style>
     </div>
   );
