@@ -5,30 +5,29 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
-import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { ADMOB_CONFIG } from '@/lib/config';
-import { ArrowLeft, Coins, Calendar, CheckCircle2, Crown, Gift, Video, Sparkles, Zap } from 'lucide-react';
+import { ArrowLeft, Calendar, Crown, Video, Sparkles } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
-import { hapticFeedback, hapticPattern } from '@/lib/engine2d';
+import { hapticPattern } from '@/lib/engine2d';
 import { getPerformanceTier } from '@/lib/performance';
 
 interface Prize { coins: number; label: string; color: string; glow: string; tier: 'high' | 'medium' | 'consolation'; }
 interface ConfettiPiece { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; rot: number; rotVel: number; life: number; }
 
 const PRIZES: Prize[] = [
-    { coins: 5, label: '5 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 10, label: '10 Monedas', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
-    { coins: 15, label: '15 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 20, label: '20 Monedas', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
-    { coins: 10, label: '10 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 30, label: '30 Monedas', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
-    { coins: 15, label: '15 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 50, label: '50 Monedas', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
-    { coins: 10, label: '10 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 25, label: '25 Monedas', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
-    { coins: 20, label: '20 Monedas', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 100, label: '100 Monedas', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
+    { coins: 5, label: '5', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 10, label: '10', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
+    { coins: 15, label: '15', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 20, label: '20', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
+    { coins: 10, label: '10', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 30, label: '30', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
+    { coins: 15, label: '15', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 50, label: '50', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
+    { coins: 10, label: '10', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 25, label: '25', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
+    { coins: 20, label: '20', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 100, label: '100', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
 ];
 
 const PROB_HIGH = 0.009;
@@ -36,7 +35,7 @@ const PROB_MEDIUM = 0.20;
 const PROB_CONSOLATION = 0.791;
 
 export function RouletteScreen() {
-  const { coins, addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin, isOnline, canShowInterstitial, recordInterstitial } = useGame();
+  const { addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin, canShowInterstitial, recordInterstitial } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -45,20 +44,17 @@ export function RouletteScreen() {
   const [extraSpins, setExtraSpins] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
-  const [showInterstitial, setShowInterstitial] = useState(false);
   const [adSpins, setAdSpins] = useState(0);
   const rotationRef = useRef(0);
   const confettiIdRef = useRef(0);
   const renderGlow = getPerformanceTier() === 'high';
 
   const freeSpinsRemaining = getFreeSpinsRemaining();
-  const maxFree = vip ? 3 : 1;
   const canSpin = freeSpinsRemaining > 0 || extraSpins > 0 || adSpins > 0;
   const isFreeSpin = freeSpinsRemaining > 0;
 
   useEffect(() => {
     if (canShowInterstitial() && !vip) {
-      setShowInterstitial(true);
       recordInterstitial();
     }
   }, []);
@@ -175,7 +171,7 @@ export function RouletteScreen() {
         </>
       )}
 
-      <div className="pt-16 px-6 pb-28 flex-1 flex flex-col items-center relative z-10">
+      <div className="pt-16 px-6 pb-16 flex-1 flex flex-col items-center relative z-10 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-6 w-full max-w-sm">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white"><ArrowLeft className="w-6 h-6" /></button>
           <h1 className="text-white font-black text-xl uppercase tracking-widest flex items-center gap-2" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 20px rgba(245,158,11,0.6)' : 'none' }}>
@@ -198,6 +194,7 @@ export function RouletteScreen() {
             </div>
           )}
 
+          {/* Wheel container */}
           <div className="relative w-72 h-72 mb-6">
             {renderGlow && (
               <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
@@ -247,6 +244,22 @@ export function RouletteScreen() {
                   }} />
                 );
               })}
+
+              {/* Prize numbers */}
+              {PRIZES.map((prize, i) => {
+                const angle = (i * 360) / PRIZES.length + (360 / PRIZES.length) / 2;
+                return (
+                  <div
+                    key={i}
+                    className="absolute top-1/2 left-1/2 w-12 h-6 -ml-6 -mt-3 flex items-center justify-center font-black text-white text-xs drop-shadow-md"
+                    style={{
+                      transform: `rotate(${angle}deg) translateY(-85px) rotate(90deg)`,
+                    }}
+                  >
+                    {prize.label}
+                  </div>
+                );
+              })}
             </div>
 
             <button
@@ -272,7 +285,7 @@ export function RouletteScreen() {
           {result && (
             <div className="w-full p-4 rounded-none bg-slate-900/90 border-l-4 border-amber-400 text-center animate-fade-in" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
               <p className="text-white/60 text-xs uppercase">Premio obtenido</p>
-              <p className="text-amber-400 font-black text-lg">{result.label}</p>
+              <p className="text-amber-400 font-black text-lg">{result.label} Monedas</p>
             </div>
           )}
         </div>
@@ -285,7 +298,7 @@ export function RouletteScreen() {
           onReward={handleRewardAdComplete}
           title="Giro Extra por Anuncio"
           rewardText="Termina de ver el anuncio para ganar 1 giro extra"
-          adId={(ADMOB_CONFIG as any).rewarded || (ADMOB_CONFIG as any).ruletaId || ''}
+          adId={(ADMOB_CONFIG as any).rewarded || ''}
           userRole={userRole}
           vip={vip}
         />
