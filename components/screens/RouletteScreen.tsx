@@ -291,18 +291,16 @@ export function RouletteScreen() {
         </div>
       </div>
 
-      {showReward && (
-        <RewardAdModal
-          open={showReward}
-          onClose={() => setShowReward(false)}
-          onReward={handleRewardAdComplete}
-          title="Giro Extra por Anuncio"
-          rewardText="Termina de ver el anuncio para ganar 1 giro extra"
-          adId={(ADMOB_CONFIG as any).rewarded || ''}
-          userRole={userRole}
-          vip={vip}
-        />
-      )}
+      <RewardAdModal
+        open={showReward}
+        onClose={() => setShowReward(false)}
+        onReward={handleRewardAdComplete}
+        title="Giro Extra por Anuncio"
+        rewardText="Giro extra por ver anuncio"
+        adId={(ADMOB_CONFIG as any).rewarded || ''}
+        userRole={userRole}
+        vip={vip}
+      />
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
