@@ -51,6 +51,16 @@ export class ObjectPool<T extends Poolable> {
 
 export type QualityLevel = 'low' | 'medium' | 'high';
 
+const PERF_KEY = 'garrdash_performance_tier';
+
+function getManualTier(): QualityLevel | null {
+  try {
+    const v = localStorage.getItem(PERF_KEY);
+    if (v === 'low' || v === 'medium' || v === 'high') return v;
+  } catch {}
+  return null;
+}
+
 export class FPSMonitor {
   private frames: number[] = [];
   private windowSize: number;
@@ -60,10 +70,26 @@ export class FPSMonitor {
   public particleMultiplier: number = 1;
   public maxFps: number = 60;
   private stableFrames: number = 0;
+  public manualOverride: boolean = false;
 
   constructor(windowSize = 60) {
     this.windowSize = windowSize;
     this.lastCheck = performance.now();
+    const manual = getManualTier();
+    if (manual) { this.applyManualTier(manual); }
+  }
+
+  private applyManualTier(tier: QualityLevel) {
+    this.manualOverride = true;
+    this.quality = tier;
+    if (tier === 'low') { this.particleMultiplier = 0; this.maxFps = 30; }
+    else if (tier === 'medium') { this.particleMultiplier = 0.5; this.maxFps = 60; }
+    else { this.particleMultiplier = 1; this.maxFps = 60; }
+  }
+
+  refreshManualTier() {
+    const manual = getManualTier();
+    if (manual) this.applyManualTier(manual);
   }
 
   tick(now: number): void {
@@ -71,6 +97,8 @@ export class FPSMonitor {
     while (this.frames.length > 0 && now - this.frames[0] > 1000) {
       this.frames.shift();
     }
+
+    if (this.manualOverride) return;
 
     if (now - this.lastCheck >= 1000) {
       this.current = this.frames.length;
@@ -109,6 +137,20 @@ export class FPSMonitor {
 
   scaleParticleCount(base: number): number {
     return Math.max(0, Math.floor(base * this.particleMultiplier));
+  }
+
+  get shouldGlow(): boolean {
+    return this.quality === 'high';
+  }
+
+  get shouldBulletGlow(): boolean {
+    return this.quality === 'medium' || this.quality === 'high';
+  }
+
+  get maxKillParticles(): number {
+    if (this.quality === 'low') return 0;
+    if (this.quality === 'medium') return 5;
+    return 20;
   }
 }
 

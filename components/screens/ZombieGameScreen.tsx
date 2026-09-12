@@ -18,6 +18,7 @@ import {
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
+import { getPerformanceTier } from '@/lib/performance';
 import { getCampaignCoinReward } from '@/lib/config';
 
 function randomCoinCap(level: number): number {
@@ -169,6 +170,7 @@ export function ZombieGameScreen() {
   const coinCapRef = useRef(15);
   const interstitialCheckedRef = useRef(false);
   const fpsMonitorRef = useRef<FPSMonitor>(new FPSMonitor());
+  const qualityRef = useRef(getPerformanceTier());
   const playTimeRef = useRef(0);
   const lastPlayTimeSyncRef = useRef(0);
   const nuclearChargeRef = useRef(0);
@@ -221,6 +223,15 @@ export function ZombieGameScreen() {
   }, [char, upgrades]);
 
   useEffect(() => { bloodEnabledRef.current = bloodEnabled; }, [bloodEnabled]);
+
+  useEffect(() => {
+    const handler = () => {
+      qualityRef.current = getPerformanceTier();
+      fpsMonitorRef.current.refreshManualTier();
+    };
+    window.addEventListener('performance-tier-change', handler);
+    return () => window.removeEventListener('performance-tier-change', handler);
+  }, []);
 
   const safeAddCoins = useCallback((amount: number) => {
     if (gameCoinsRef.current >= coinCapRef.current) return;
@@ -534,7 +545,7 @@ export function ZombieGameScreen() {
     const isTank = z.type === 'tank' || z.type === 'boss';
     const isMutant = z.type === 'fast';
     const angle = Math.PI / 2;
-    drawZombie2D(ctx, z.x, z.y, angle, z.walkCycle, z.size, z.color, isMutant, isTank);
+    drawZombie2D(ctx, z.x, z.y, angle, z.walkCycle, z.size, z.color, isMutant, isTank, fpsMonitorRef.current.shouldGlow);
 
     // Boss overlay: football helmet
     if (z.type === 'boss') {
@@ -664,7 +675,7 @@ export function ZombieGameScreen() {
 
     // Tactical soldier sprite (facing up)
     const walkCycle = now * 0.003;
-    drawSoldier2D(ctx, x, y + breath, -Math.PI / 2, walkCycle, char.color, shieldRef.current, weaponRef.current);
+    drawSoldier2D(ctx, x, y + breath, -Math.PI / 2, walkCycle, char.color, shieldRef.current, weaponRef.current, fpsMonitorRef.current.shouldGlow);
 
     // Muzzle glow when ready
     if (shootCooldownRef.current < 2) {
@@ -883,6 +894,19 @@ export function ZombieGameScreen() {
             z.x = clamp(z.x, bounds.min, bounds.max);
           }
 
+          // Steering separation: push apart zombies that are too close
+          for (const other of zombiePoolRef.current.getActive()) {
+            if (other === z || !other.active) continue;
+            const dx = z.x - other.x;
+            const dy = z.y - other.y;
+            const d = Math.hypot(dx, dy);
+            const minDist = (z.size + other.size) * 0.65;
+            if (d < minDist && d > 0.1) {
+              const force = (minDist - d) / minDist * 0.8;
+              z.x += (dx / d) * force * dt;
+            }
+          }
+
           if (z.y > barricadeY - z.size * 0.8) {
             const dmg = z.type === 'tank' ? 25 : z.type === 'fast' ? 12 : z.type === 'boss' ? 30 : 15;
             const leftTowerX = w * 0.15;
@@ -1009,7 +1033,7 @@ export function ZombieGameScreen() {
                   spawnFloatingCoins(z.x, z.y, bossCoins);
                   scoreRef.current += 5000 * getScoreMult() * comboBonus; setScore(Math.floor(scoreRef.current));
                   playExplosion(); playCoin();
-                  spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(50), bloodColor, 8);
+                  spawnParticles2D(particlesRef.current, z.x, z.y, Math.min(fpsMon.scaleParticleCount(50), fpsMon.maxKillParticles * 3), bloodColor, 8);
                   addFloatText(`+${bossCoins} MONEDAS`, w / 2, h / 3, '#fbbf24', 18);
                   addFloatText('¡JEFE ELIMINADO!', z.x, z.y - 40, '#dc2626', 16);
                   screenShakeRef.current.trigger(10, 25); hapticPattern([50, 30, 100]);
@@ -1031,7 +1055,7 @@ export function ZombieGameScreen() {
                   const tankCoins = Math.floor(rand(2, 4));
                   spawnFloatingCoins(z.x, z.y, tankCoins);
                   playExplosion(); playCoin();
-                  spawnParticles2D(particlesRef.current, z.x, z.y, fpsMon.scaleParticleCount(25), bloodColor, 6);
+                  spawnParticles2D(particlesRef.current, z.x, z.y, Math.min(fpsMon.scaleParticleCount(25), fpsMon.maxKillParticles), bloodColor, 6);
                   addFloatText('¡TANQUE!', z.x, z.y - 30, '#7c3aed', 14);
                   screenShakeRef.current.trigger(5, 15); hapticFeedback(30);
                 } else if (z.type === 'fast') {

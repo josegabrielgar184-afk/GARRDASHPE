@@ -213,253 +213,264 @@ export function drawSoldier2D(
   color: string,
   shielded = false,
   weaponType: string = 'pistol',
+  glow: boolean = true,
 ) {
   ctx.save();
   ctx.translate(x, y);
 
   // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.ellipse(0, 14, 22, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 16, 20, 7, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.rotate(angle);
 
-  const breath = Math.sin(walkCycle * 0.5) * 1.5;
+  const breath = Math.sin(walkCycle * 0.5) * 1.2;
   const recoil = Math.sin(walkCycle * 3) * 3;
-  const s = 24;
+  const s = 22;
 
-  // Thruster flames — larger, animated particles
-  ctx.save();
-  for (let i = 0; i < 5; i++) {
-    const fx = -8 + i * 4;
-    const fl = 5 + Math.sin(walkCycle * 6 + i) * 4 + Math.random() * 3;
-    const fw = 3 + Math.random() * 2;
-    const hue = i < 2 ? '#fbbf24' : i < 4 ? '#f97316' : '#ef4444';
-    ctx.shadowColor = hue;
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = `rgba(${i < 2 ? '251,191,36' : i < 4 ? '249,115,22' : '239,68,68'},${0.7 - i * 0.12})`;
-    ctx.beginPath();
-    ctx.moveTo(fx - fw, s * 0.4);
-    ctx.lineTo(fx, s * 0.4 + fl);
-    ctx.lineTo(fx + fw, s * 0.4);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
+  // === TACTICAL SOLDIER (top-down view) ===
 
-  // Legs (armored, larger)
+  // Legs (cargo pants — olive drab)
   const legGrad = ctx.createLinearGradient(0, s * 0.05, 0, s * 0.4);
-  legGrad.addColorStop(0, '#3a3a40');
-  legGrad.addColorStop(1, '#1a1a20');
+  legGrad.addColorStop(0, '#4a4a30');
+  legGrad.addColorStop(1, '#2a2a18');
   ctx.fillStyle = legGrad;
   ctx.beginPath();
-  ctx.roundRect(-s * 0.3, s * 0.05, s * 0.22, s * 0.38, 3);
+  ctx.roundRect(-s * 0.28, s * 0.05, s * 0.2, s * 0.38, 3);
   ctx.fill();
   ctx.beginPath();
-  ctx.roundRect(s * 0.08, s * 0.05, s * 0.22, s * 0.38, 3);
+  ctx.roundRect(s * 0.08, s * 0.05, s * 0.2, s * 0.38, 3);
   ctx.fill();
-  // Knee joints with cyan light
-  ctx.save();
-  ctx.shadowColor = '#22d3ee';
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = '#22d3ee';
+  // Knee pads
+  ctx.fillStyle = '#3a3a20';
   ctx.beginPath();
-  ctx.arc(-s * 0.19, s * 0.24, 3, 0, Math.PI * 2);
-  ctx.arc(s * 0.19, s * 0.24, 3, 0, Math.PI * 2);
+  ctx.roundRect(-s * 0.27, s * 0.18, s * 0.18, s * 0.08, 2);
+  ctx.roundRect(s * 0.09, s * 0.18, s * 0.18, s * 0.08, 2);
   ctx.fill();
-  ctx.restore();
   // Boot soles
-  ctx.fillStyle = '#0a0a10';
+  ctx.fillStyle = '#0a0a08';
   ctx.beginPath();
-  ctx.roundRect(-s * 0.32, s * 0.4, s * 0.24, s * 0.06, 2);
-  ctx.roundRect(s * 0.08, s * 0.4, s * 0.24, s * 0.06, 2);
+  ctx.roundRect(-s * 0.3, s * 0.4, s * 0.22, s * 0.06, 2);
+  ctx.roundRect(s * 0.08, s * 0.4, s * 0.22, s * 0.06, 2);
   ctx.fill();
 
-  // Torso with metallic gradient — bigger
-  const torsoGrad = ctx.createLinearGradient(-s * 0.4, -s * 0.3, s * 0.4, s * 0.3);
-  torsoGrad.addColorStop(0, '#4a4a50');
-  torsoGrad.addColorStop(0.3, color);
-  torsoGrad.addColorStop(0.7, color);
-  torsoGrad.addColorStop(1, '#1a1a20');
-  ctx.fillStyle = torsoGrad;
+  // Utility vest (olive/camo) with pouches
+  const vestGrad = ctx.createLinearGradient(-s * 0.35, -s * 0.25, s * 0.35, s * 0.25);
+  vestGrad.addColorStop(0, '#4a5a30');
+  vestGrad.addColorStop(0.3, '#3a4a20');
+  vestGrad.addColorStop(0.7, '#3a4a20');
+  vestGrad.addColorStop(1, '#2a3a18');
+  ctx.fillStyle = vestGrad;
   ctx.beginPath();
-  ctx.moveTo(-s * 0.38, -s * 0.05 + breath);
-  ctx.bezierCurveTo(-s * 0.42, -s * 0.28, -s * 0.22, -s * 0.4, 0, -s * 0.38 + breath);
-  ctx.bezierCurveTo(s * 0.22, -s * 0.4, s * 0.42, -s * 0.28, s * 0.38, -s * 0.05 + breath);
-  ctx.bezierCurveTo(s * 0.4, s * 0.18, s * 0.32, s * 0.28, 0, s * 0.28 + breath);
-  ctx.bezierCurveTo(-s * 0.32, s * 0.28, -s * 0.4, s * 0.18, -s * 0.38, -s * 0.05 + breath);
+  ctx.moveTo(-s * 0.35, -s * 0.05 + breath);
+  ctx.bezierCurveTo(-s * 0.4, -s * 0.22, -s * 0.22, -s * 0.32, 0, -s * 0.3 + breath);
+  ctx.bezierCurveTo(s * 0.22, -s * 0.32, s * 0.4, -s * 0.22, s * 0.35, -s * 0.05 + breath);
+  ctx.bezierCurveTo(s * 0.38, s * 0.15, s * 0.3, s * 0.25, 0, s * 0.25 + breath);
+  ctx.bezierCurveTo(-s * 0.3, s * 0.25, -s * 0.38, s * 0.15, -s * 0.35, -s * 0.05 + breath);
   ctx.closePath();
   ctx.fill();
 
-  // Chest plate with rivets
-  ctx.strokeStyle = `${color}88`;
+  // Vest outline
+  ctx.strokeStyle = '#2a2a18';
   ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.roundRect(-s * 0.28, -s * 0.18 + breath, s * 0.56, s * 0.34, 4);
   ctx.stroke();
-  // Chest rivets
-  ctx.fillStyle = '#5a5a60';
-  for (const rx of [-s * 0.22, s * 0.22]) {
-    for (const ry of [-s * 0.12, s * 0.08]) {
-      ctx.beginPath();
-      ctx.arc(rx, ry + breath, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+
+  // Magazine pouches on vest
+  ctx.fillStyle = '#2a2a18';
+  for (const px of [-s * 0.18, s * 0.08]) {
+    ctx.beginPath();
+    ctx.roundRect(px, -s * 0.05 + breath, s * 0.1, s * 0.12, 1);
+    ctx.fill();
+  }
+  // Pouch flap detail
+  ctx.strokeStyle = '#1a1a10';
+  ctx.lineWidth = 1;
+  for (const px of [-s * 0.18, s * 0.08]) {
+    ctx.beginPath();
+    ctx.moveTo(px, -s * 0.05 + breath);
+    ctx.lineTo(px + s * 0.1, -s * 0.05 + breath);
+    ctx.stroke();
   }
 
-  // Core light — bigger glow
-  ctx.save();
-  ctx.shadowColor = '#22d3ee';
-  ctx.shadowBlur = 14;
-  ctx.fillStyle = '#22d3ee';
-  ctx.beginPath();
-  ctx.arc(0, -s * 0.02 + breath, 5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(0, -s * 0.02 + breath, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  // Belt
+  ctx.fillStyle = '#1a1a10';
+  ctx.fillRect(-s * 0.3, s * 0.08 + breath, s * 0.6, s * 0.04);
+  // Buckle
+  ctx.fillStyle = '#5a5a40';
+  ctx.fillRect(-s * 0.03, s * 0.08 + breath, s * 0.06, s * 0.04);
 
   // Shoulder armor pieces
-  ctx.fillStyle = legGrad;
+  ctx.fillStyle = '#3a3a28';
   ctx.beginPath();
-  ctx.arc(-s * 0.38, -s * 0.12 + breath, s * 0.12, 0, Math.PI * 2);
+  ctx.arc(-s * 0.35, -s * 0.1 + breath, s * 0.1, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(s * 0.38, -s * 0.12 + breath, s * 0.12, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Arms
-  ctx.fillStyle = '#2a2a30';
-  ctx.beginPath();
-  ctx.roundRect(-s * 0.44, -s * 0.12 + breath, s * 0.1, s * 0.28, 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.roundRect(s * 0.34, -s * 0.12 + breath, s * 0.1, s * 0.28, 2);
+  ctx.arc(s * 0.35, -s * 0.1 + breath, s * 0.1, 0, Math.PI * 2);
   ctx.fill();
 
-  // Astronaut helmet — bigger, with neon visor
-  const helmetGrad = ctx.createRadialGradient(-s * 0.08, -s * 0.3 + breath, 0, 0, -s * 0.25 + breath, s * 0.3);
-  helmetGrad.addColorStop(0, color);
-  helmetGrad.addColorStop(0.6, color);
-  helmetGrad.addColorStop(1, '#1a1a20');
+  // Arms (olive sleeves)
+  ctx.fillStyle = '#4a4a30';
+  ctx.beginPath();
+  ctx.roundRect(-s * 0.42, -s * 0.1 + breath, s * 0.1, s * 0.25, 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(s * 0.32, -s * 0.1 + breath, s * 0.1, s * 0.25, 2);
+  ctx.fill();
+  // Gloves
+  ctx.fillStyle = '#2a2a18';
+  ctx.beginPath();
+  ctx.arc(-s * 0.37, s * 0.18 + breath, s * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(s * 0.37, s * 0.18 + breath, s * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+
+  // === COMBAT HELMET (dark, top-down) ===
+  const helmetGrad = ctx.createRadialGradient(-s * 0.06, -s * 0.28 + breath, 0, 0, -s * 0.22 + breath, s * 0.28);
+  helmetGrad.addColorStop(0, '#3a3a30');
+  helmetGrad.addColorStop(0.5, '#2a2a20');
+  helmetGrad.addColorStop(1, '#1a1a12');
   ctx.fillStyle = helmetGrad;
   ctx.beginPath();
-  ctx.arc(0, -s * 0.25 + breath, s * 0.26, 0, Math.PI * 2);
+  ctx.arc(0, -s * 0.22 + breath, s * 0.24, 0, Math.PI * 2);
   ctx.fill();
   // Helmet rim
-  ctx.strokeStyle = '#22d3ee44';
+  ctx.strokeStyle = '#1a1a10';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(0, -s * 0.25 + breath, s * 0.26, 0, Math.PI * 2);
+  ctx.arc(0, -s * 0.22 + breath, s * 0.24, 0, Math.PI * 2);
   ctx.stroke();
-  // Visor (cyan reflective, bigger)
-  const visorGrad = ctx.createLinearGradient(-s * 0.18, -s * 0.32 + breath, s * 0.18, -s * 0.18 + breath);
-  visorGrad.addColorStop(0, '#0a2a3a');
-  visorGrad.addColorStop(0.3, '#0d4a5a');
-  visorGrad.addColorStop(0.5, '#22d3ee');
-  visorGrad.addColorStop(0.7, '#0d4a5a');
-  visorGrad.addColorStop(1, '#0a2a3a');
-  ctx.fillStyle = visorGrad;
-  ctx.beginPath();
-  ctx.ellipse(s * 0.02, -s * 0.25 + breath, s * 0.18, s * 0.12, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Visor neon outline
-  ctx.save();
-  ctx.shadowColor = '#22d3ee';
-  ctx.shadowBlur = 8;
-  ctx.strokeStyle = 'rgba(34,211,238,0.6)';
+  // Helmet detail line (center ridge)
+  ctx.strokeStyle = '#4a4a30';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.ellipse(s * 0.02, -s * 0.25 + breath, s * 0.18, s * 0.12, 0, 0, Math.PI * 2);
+  ctx.moveTo(0, -s * 0.44 + breath);
+  ctx.lineTo(0, -s * 0.22 + breath);
   ctx.stroke();
-  ctx.restore();
-  // Visor shine
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+
+  // Night vision mount on helmet
+  ctx.fillStyle = '#1a1a10';
+  ctx.fillRect(-s * 0.03, -s * 0.42 + breath, s * 0.06, s * 0.06);
+  if (glow) {
+    ctx.save();
+    ctx.shadowColor = '#22c55e';
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.arc(0, -s * 0.39 + breath, s * 0.02, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Face (visible under helmet — top-down)
+  ctx.fillStyle = '#8a7a5a';
   ctx.beginPath();
-  ctx.ellipse(-s * 0.06, -s * 0.29 + breath, s * 0.06, s * 0.03, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.2)';
-  ctx.beginPath();
-  ctx.ellipse(s * 0.08, -s * 0.22 + breath, s * 0.03, s * 0.015, 0.2, 0, Math.PI * 2);
+  ctx.ellipse(0, -s * 0.18 + breath, s * 0.14, s * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Energy cannon — bigger, with recoil offset
+  // === ASSAULT RIFLE (pointing forward/up) ===
   const recoilX = -recoil;
   ctx.save();
   ctx.translate(recoilX, 0);
-  // Cannon body
-  const cannonGrad = ctx.createLinearGradient(0, -3, 0, 3);
-  cannonGrad.addColorStop(0, '#3a3a40');
-  cannonGrad.addColorStop(0.5, '#2a2a30');
-  cannonGrad.addColorStop(1, '#1a1a20');
-  ctx.fillStyle = cannonGrad;
+
+  // Rifle body
+  const rifleGrad = ctx.createLinearGradient(0, -2, 0, 2);
+  rifleGrad.addColorStop(0, '#3a3a30');
+  rifleGrad.addColorStop(0.5, '#2a2a20');
+  rifleGrad.addColorStop(1, '#1a1a12');
+  ctx.fillStyle = rifleGrad;
   if (weaponType === 'pistol') {
     ctx.beginPath();
-    ctx.roundRect(s * 0.3, -2, 14, 5, 1);
+    ctx.roundRect(s * 0.2, -2, 12, 5, 1);
     ctx.fill();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(s * 0.3, 2, 4, 6);
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(s * 0.2, 2, 4, 5);
   } else if (weaponType === 'rifle') {
+    // Main body
     ctx.beginPath();
-    ctx.roundRect(s * 0.3, -2.5, 26, 4, 1);
+    ctx.roundRect(s * 0.15, -2.5, 28, 4, 1);
     ctx.fill();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(s * 0.36, 1.5, 5, 8);
-    ctx.save();
-    ctx.shadowColor = '#22d3ee';
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = '#22d3ee';
-    ctx.fillRect(s * 0.52, -1.5, 4, 3);
-    ctx.restore();
+    // Stock
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(s * 0.15, 1.5, 6, 7);
+    // Magazine
+    ctx.fillRect(s * 0.22, 1.5, 5, 8);
+    // Scope mount
+    ctx.fillStyle = '#2a2a20';
+    ctx.fillRect(s * 0.3, -4, 8, 2);
+    // Scope lens glow
+    if (glow) {
+      ctx.save();
+      ctx.shadowColor = '#22c55e';
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(s * 0.38, -3, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    // Muzzle
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(s * 0.42, -1.5, 3, 3);
   } else if (weaponType === 'shotgun') {
     ctx.beginPath();
-    ctx.roundRect(s * 0.3, -3, 24, 6, 1);
+    ctx.roundRect(s * 0.15, -3, 26, 6, 1);
     ctx.fill();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(s * 0.3, 3, 8, 4);
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(s * 0.15, 3, 8, 5);
+    // Pump
+    ctx.fillStyle = '#2a2a20';
+    ctx.fillRect(s * 0.28, -2, 8, 4);
   } else if (weaponType === 'minigun') {
     ctx.beginPath();
-    ctx.roundRect(s * 0.3, -3.5, 24, 7, 2);
+    ctx.roundRect(s * 0.15, -3.5, 26, 7, 2);
     ctx.fill();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(s * 0.3, 3.5, 5, 6);
-    // Barrel tips
-    ctx.fillStyle = '#555';
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(s * 0.15, 3.5, 6, 6);
+    // Multiple barrels
+    ctx.fillStyle = '#3a3a28';
     for (let mb = 0; mb < 3; mb++) {
-      ctx.fillRect(s * 0.5, -2.5 + mb * 2.5, 5, 1.5);
+      ctx.fillRect(s * 0.4, -2.5 + mb * 2.5, 6, 1.5);
     }
   } else if (weaponType === 'laser') {
-    ctx.fillStyle = '#3a3a40';
+    ctx.fillStyle = '#2a2a30';
     ctx.beginPath();
-    ctx.roundRect(s * 0.3, -2.5, 24, 5, 1);
+    ctx.roundRect(s * 0.15, -2.5, 26, 5, 1);
     ctx.fill();
-    ctx.save();
-    ctx.shadowColor = '#22d3ee';
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = '#22d3ee';
-    ctx.beginPath();
-    ctx.roundRect(s * 0.52, -2, 6, 4, 1);
-    ctx.fill();
-    // Energy crackle
-    ctx.strokeStyle = 'rgba(34,211,238,0.5)';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(s * 0.58, -1);
-    ctx.lineTo(s * 0.62, 1);
-    ctx.lineTo(s * 0.6, 0);
-    ctx.stroke();
-    ctx.restore();
-  } else if (weaponType === 'grenade') {
-    ctx.beginPath();
-    ctx.roundRect(s * 0.3, -3, 20, 6, 1);
-    ctx.fill();
-    ctx.fillStyle = '#666';
-    ctx.fillRect(s * 0.48, -4, 6, 9);
+    ctx.fillStyle = '#1a1a10';
+    ctx.fillRect(s * 0.15, 2, 5, 7);
+    // Energy cell glow
+    if (glow) {
+      ctx.save();
+      ctx.shadowColor = '#22d3ee';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#22d3ee';
+      ctx.beginPath();
+      ctx.roundRect(s * 0.38, -2, 5, 4, 1);
+      ctx.fill();
+      ctx.restore();
+    }
   }
+
+  // Muzzle flash when firing (recoil-based)
+  if (recoil > 1.5) {
+    const muzzleX = s * 0.43;
+    const flashColor = weaponType === 'laser' ? '#22d3ee' : '#fbbf24';
+    ctx.save();
+    if (glow) { ctx.shadowColor = flashColor; ctx.shadowBlur = 12; }
+    ctx.fillStyle = flashColor;
+    ctx.beginPath();
+    ctx.arc(muzzleX, 0, 4 + recoil, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(muzzleX, 0, 2 + recoil * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.restore(); // end recoil
 
   ctx.restore(); // end main transform
@@ -467,17 +478,16 @@ export function drawSoldier2D(
   if (shielded) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.shadowColor = '#34d399';
-    ctx.shadowBlur = 12;
+    if (glow) { ctx.shadowColor = '#34d399'; ctx.shadowBlur = 12; }
     ctx.strokeStyle = '#34d399';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(0, 0, 32, 0, Math.PI * 2);
+    ctx.arc(0, 0, 30, 0, Math.PI * 2);
     ctx.stroke();
     ctx.strokeStyle = 'rgba(52,211,153,0.3)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(0, 0, 36, 0, Math.PI * 2);
+    ctx.arc(0, 0, 34, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
@@ -492,6 +502,7 @@ export function drawZombie2D(
   color: string,
   isMutant: boolean,
   isTank: boolean,
+  glow: boolean = true,
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -510,13 +521,15 @@ export function drawZombie2D(
 
   const legSwing = Math.sin(walkCycle) * (size * 0.2);
   const bodyBob = Math.abs(Math.sin(walkCycle)) * size * 0.08;
-  const torsoSway = Math.sin(walkCycle) * 0.08;
-  const armSway = Math.sin(walkCycle) * (size * 0.05);
+  const armSway = Math.sin(walkCycle) * (size * 0.06);
+  const headTilt = Math.sin(walkCycle * 0.5) * 0.15;
+
+  // Tumor pulse for mutants (ctx.scale breathing)
+  const tumorPulse = isMutant ? 1 + Math.sin(Date.now() * 0.005) * 0.15 : 1;
 
   // Acid trail + radiactive aura for mutant zombies
-  if (isMutant) {
+  if (isMutant && glow) {
     ctx.save();
-    // Radiant aura
     const auraGrad = ctx.createRadialGradient(0, 0, size * 0.2, 0, 0, size * 0.7);
     auraGrad.addColorStop(0, 'rgba(34,197,94,0.25)');
     auraGrad.addColorStop(0.5, 'rgba(21,128,61,0.15)');
@@ -525,7 +538,6 @@ export function drawZombie2D(
     ctx.beginPath();
     ctx.arc(0, 0, size * 0.7, 0, Math.PI * 2);
     ctx.fill();
-    // Acid bubbles rising
     ctx.shadowColor = '#22c55e';
     ctx.shadowBlur = 10;
     for (let i = 0; i < 5; i++) {
@@ -540,16 +552,246 @@ export function drawZombie2D(
     ctx.restore();
   }
 
-  // Legs drawn with bezier curves for organic shape
+  // === TORN CLOTHING TORSO (PvZ/L4D style) ===
   ctx.save();
-  ctx.rotate(0.06 + torsoSway);
   ctx.translate(0, -bodyBob);
 
-  const legColor = isTank ? '#2a1010' : isMutant ? '#1a2a1a' : '#1a2208';
-  const legDark = isTank ? '#1a0808' : isMutant ? '#0a1a0a' : '#0a1404';
+  // Torso — ragged, torn clothing
+  const clothColor = isTank ? '#3a2820' : isMutant ? '#2a3a1a' : '#3a3020';
+  const clothDark = isTank ? '#2a1810' : isMutant ? '#1a2a0a' : '#2a2010';
+  const skinColor = isTank ? '#5a4030' : isMutant ? '#4a6a3a' : '#6a8a4a';
+  const skinDark = isTank ? '#3a2820' : isMutant ? '#2a4a2a' : '#4a6a2a';
 
+  // Torn shirt — irregular jagged edges
+  ctx.fillStyle = clothColor;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.3, -size * 0.05);
+  ctx.bezierCurveTo(-size * 0.38, -size * 0.2, -size * 0.25, -size * 0.35, -size * 0.12, -size * 0.38);
+  ctx.lineTo(-size * 0.08, -size * 0.32);
+  ctx.lineTo(-size * 0.02, -size * 0.38);
+  ctx.lineTo(size * 0.05, -size * 0.32);
+  ctx.lineTo(size * 0.12, -size * 0.38);
+  ctx.bezierCurveTo(size * 0.25, -size * 0.35, size * 0.38, -size * 0.2, size * 0.3, -size * 0.05);
+  // Jagged torn bottom edge
+  ctx.lineTo(size * 0.28, size * 0.05);
+  ctx.lineTo(size * 0.18, size * 0.12);
+  ctx.lineTo(size * 0.25, size * 0.2);
+  ctx.lineTo(size * 0.1, size * 0.25);
+  ctx.lineTo(0, size * 0.18);
+  ctx.lineTo(-size * 0.12, size * 0.25);
+  ctx.lineTo(-size * 0.22, size * 0.2);
+  ctx.lineTo(-size * 0.15, size * 0.12);
+  ctx.lineTo(-size * 0.28, size * 0.05);
+  ctx.closePath();
+  ctx.fill();
+
+  // Torn holes in shirt showing skin
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.1, -size * 0.08, size * 0.06, size * 0.08, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(size * 0.12, size * 0.05, size * 0.05, size * 0.06, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ragged clothing outline
+  ctx.strokeStyle = clothDark;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.3, -size * 0.05);
+  ctx.bezierCurveTo(-size * 0.38, -size * 0.2, -size * 0.25, -size * 0.35, -size * 0.12, -size * 0.38);
+  ctx.lineTo(-size * 0.08, -size * 0.32);
+  ctx.lineTo(-size * 0.02, -size * 0.38);
+  ctx.lineTo(size * 0.05, -size * 0.32);
+  ctx.lineTo(size * 0.12, -size * 0.38);
+  ctx.bezierCurveTo(size * 0.25, -size * 0.35, size * 0.38, -size * 0.2, size * 0.3, -size * 0.05);
+  ctx.stroke();
+
+  // === ASYMMETRIC ARMS REACHING FORWARD (exaggerated) ===
+  // Left arm — longer, reaching more
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.15, -size * 0.15);
+  ctx.bezierCurveTo(-size * 0.25, -size * 0.1 + armSway, -size * 0.35, size * 0.05 + armSway, -size * 0.42, size * 0.15 + armSway);
+  ctx.lineTo(-size * 0.38, size * 0.22 + armSway);
+  ctx.bezierCurveTo(-size * 0.3, size * 0.12 + armSway, -size * 0.2, size * 0.0 + armSway, -size * 0.1, -size * 0.08);
+  ctx.closePath();
+  ctx.fill();
+  // Torn sleeve on left arm
+  ctx.fillStyle = clothDark;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.15, -size * 0.15);
+  ctx.lineTo(-size * 0.22, -size * 0.08 + armSway);
+  ctx.lineTo(-size * 0.18, -size * 0.02 + armSway);
+  ctx.lineTo(-size * 0.1, -size * 0.08);
+  ctx.closePath();
+  ctx.fill();
+
+  // Right arm — shorter, different angle
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.12, -size * 0.18);
+  ctx.bezierCurveTo(size * 0.28, -size * 0.12 - armSway, size * 0.42, size * 0.0 - armSway, size * 0.48, size * 0.1 - armSway);
+  ctx.lineTo(size * 0.44, size * 0.18 - armSway);
+  ctx.bezierCurveTo(size * 0.35, size * 0.08 - armSway, size * 0.22, size * 0.0 - armSway, size * 0.08, -size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  // Torn sleeve on right arm
+  ctx.fillStyle = clothDark;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.12, -size * 0.18);
+  ctx.lineTo(size * 0.22, -size * 0.12 - armSway);
+  ctx.lineTo(size * 0.18, -size * 0.05 - armSway);
+  ctx.lineTo(size * 0.08, -size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+
+  // Clawed hands — exaggerated, different sizes
+  const handColor = isTank ? '#5a3020' : isMutant ? '#3a5a2a' : '#5a6a3a';
+  // Left hand (bigger)
+  ctx.fillStyle = handColor;
+  ctx.beginPath();
+  ctx.arc(-size * 0.4, size * 0.2 + armSway, size * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  // Claws left
+  ctx.strokeStyle = handColor;
+  ctx.lineWidth = 2;
+  for (let c = 0; c < 4; c++) {
+    const ca = -0.4 + c * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.42 + Math.cos(ca) * size * 0.07, size * 0.2 + armSway + Math.sin(ca) * size * 0.07);
+    ctx.lineTo(-size * 0.42 + Math.cos(ca) * size * 0.14, size * 0.2 + armSway + Math.sin(ca) * size * 0.14);
+    ctx.stroke();
+  }
+  // Right hand (smaller)
+  ctx.fillStyle = handColor;
+  ctx.beginPath();
+  ctx.arc(size * 0.46, size * 0.14 - armSway, size * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  // Claws right
+  for (let c = 0; c < 3; c++) {
+    const ca = -0.3 + c * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(size * 0.46 + Math.cos(ca) * size * 0.05, size * 0.14 - armSway + Math.sin(ca) * size * 0.05);
+    ctx.lineTo(size * 0.46 + Math.cos(ca) * size * 0.11, size * 0.14 - armSway + Math.sin(ca) * size * 0.11);
+    ctx.stroke();
+  }
+
+  // === BIG TILTED HEAD (PvZ style) ===
+  ctx.save();
+  ctx.translate(0, -size * 0.28);
+  ctx.rotate(headTilt);
+
+  // Head — large, exaggerated, tilted
+  const headGrad = ctx.createRadialGradient(-size * 0.06, -size * 0.06, 0, 0, 0, size * 0.3);
+  headGrad.addColorStop(0, isTank ? '#7a4838' : isMutant ? '#5a7a4a' : '#7a9a5a');
+  headGrad.addColorStop(1, isTank ? '#4a2818' : isMutant ? '#2a4a2a' : '#4a6a2a');
+  ctx.fillStyle = headGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.28, size * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head outline
+  ctx.strokeStyle = skinDark;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.28, size * 0.32, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Scars on face
+  ctx.strokeStyle = `${skinDark}88`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.15, -size * 0.1);
+  ctx.lineTo(-size * 0.08, size * 0.05);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(size * 0.1, size * 0.08);
+  ctx.lineTo(size * 0.15, size * 0.18);
+  ctx.stroke();
+
+  // Tumors for mutants — pulsing green lumps using ctx.scale
+  if (isMutant) {
+    ctx.save();
+    for (let t = 0; t < 3; t++) {
+      const tx = (t - 1) * size * 0.12;
+      const ty = (t % 2 === 0 ? -1 : 1) * size * 0.08;
+      ctx.save();
+      ctx.translate(tx, ty);
+      ctx.scale(tumorPulse, tumorPulse);
+      ctx.fillStyle = '#22c55e';
+      if (glow) { ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 8; }
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#15803d';
+      ctx.beginPath();
+      ctx.arc(0, 0, size * 0.03, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // Eyes — one bigger than other (exaggerated)
+  const eyeColor = isTank ? '#fbbf24' : isMutant ? '#22c55e' : '#ef4444';
+  ctx.save();
+  if (glow) {
+    ctx.shadowColor = eyeColor;
+    ctx.shadowBlur = isTank ? 16 : isMutant ? 18 : 14;
+  }
+  // Left eye (bigger)
+  ctx.fillStyle = eyeColor;
+  ctx.beginPath();
+  ctx.arc(-size * 0.1, -size * 0.05, size * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  // Right eye (smaller, squinting)
+  ctx.beginPath();
+  ctx.arc(size * 0.08, -size * 0.08, size * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(-size * 0.09, -size * 0.05, size * 0.03, 0, Math.PI * 2);
+  ctx.arc(size * 0.09, -size * 0.08, size * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Mouth — wide, jagged teeth, drooling
+  ctx.fillStyle = '#0a0a04';
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.18, size * 0.1);
+  ctx.bezierCurveTo(-size * 0.1, size * 0.18, size * 0.1, size * 0.18, size * 0.18, size * 0.1);
+  ctx.bezierCurveTo(size * 0.12, size * 0.15, size * 0.05, size * 0.22, 0, size * 0.18);
+  ctx.bezierCurveTo(-size * 0.05, size * 0.22, -size * 0.12, size * 0.15, -size * 0.18, size * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  // Jagged teeth
+  ctx.fillStyle = '#d4d4b0';
+  for (let t = 0; t < 5; t++) {
+    const tx = -size * 0.14 + t * size * 0.07;
+    ctx.beginPath();
+    ctx.moveTo(tx, size * 0.1);
+    ctx.lineTo(tx + size * 0.02, size * 0.16);
+    ctx.lineTo(tx + size * 0.04, size * 0.1);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Drool
+  ctx.strokeStyle = 'rgba(180,220,100,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.05, size * 0.18);
+  ctx.lineTo(size * 0.05, size * 0.26 + Math.sin(Date.now() * 0.004) * size * 0.02);
+  ctx.stroke();
+
+  ctx.restore(); // end head
+
+  // === LEGS (ragged pants) ===
+  ctx.fillStyle = clothDark;
   // Left leg
-  ctx.fillStyle = legColor;
   ctx.beginPath();
   ctx.moveTo(-size * 0.14, 0);
   ctx.bezierCurveTo(-size * 0.2, size * 0.15, -size * 0.24, size * 0.32, -size * 0.16, size * 0.44 + legSwing);
@@ -563,156 +805,29 @@ export function drawZombie2D(
   ctx.bezierCurveTo(size * 0.1, size * 0.32, size * 0.06, size * 0.15, size * 0.04, 0);
   ctx.closePath();
   ctx.fill();
+  // Torn pants edges
+  ctx.fillStyle = skinColor;
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.16, size * 0.3 + legSwing * 0.5, size * 0.04, size * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Feet
-  ctx.fillStyle = legDark;
+  ctx.fillStyle = '#1a1408';
   ctx.beginPath();
   ctx.ellipse(-size * 0.16, size * 0.46 + legSwing, size * 0.1, size * 0.05, 0, 0, Math.PI * 2);
   ctx.ellipse(size * 0.18, size * 0.46 - legSwing, size * 0.1, size * 0.05, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Torso with gradient for volume
-  const bodyColor = isTank ? '#3a1a1a' : isMutant ? '#1a3a1a' : '#2d4010';
-  const bodyLight = isTank ? '#5a2a2a' : isMutant ? '#3a5a2a' : '#4a6018';
-  const bodyDark = isTank ? '#1a0808' : isMutant ? '#0a2a0a' : '#1a2a08';
-  const grad = ctx.createLinearGradient(-size * 0.3, -size * 0.3, size * 0.3, size * 0.3);
-  grad.addColorStop(0, bodyLight);
-  grad.addColorStop(0.5, bodyColor);
-  grad.addColorStop(1, bodyDark);
-  ctx.fillStyle = grad;
-
-  // Torso shape via bezier — wider, more defined
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.32, -size * 0.05);
-  ctx.bezierCurveTo(-size * 0.38, -size * 0.22, -size * 0.22, -size * 0.38, 0, -size * 0.35);
-  ctx.bezierCurveTo(size * 0.22, -size * 0.38, size * 0.38, -size * 0.22, size * 0.32, -size * 0.05);
-  ctx.bezierCurveTo(size * 0.35, size * 0.18, size * 0.28, size * 0.28, 0, size * 0.3);
-  ctx.bezierCurveTo(-size * 0.28, size * 0.28, -size * 0.35, size * 0.18, -size * 0.32, -size * 0.05);
-  ctx.closePath();
-  ctx.fill();
-
-  // Chest ribcage detail — more ribs
-  ctx.strokeStyle = isTank ? '#1a0404' : isMutant ? '#0a2a0a' : '#0a1804';
-  ctx.lineWidth = 1.2;
-  for (let r = 0; r < 4; r++) {
-    const ry = -size * 0.12 + r * size * 0.09;
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.22, ry);
-    ctx.bezierCurveTo(-size * 0.1, ry + size * 0.02, size * 0.1, ry + size * 0.02, size * 0.22, ry);
-    ctx.stroke();
-  }
-  // Chest scar
-  ctx.strokeStyle = `${bodyDark}88`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, -size * 0.15);
-  ctx.lineTo(0, size * 0.2);
-  ctx.stroke();
-
-  // Arms reaching forward with bezier curves — longer, thicker
-  const armReach = size * 0.55;
-  const armW = size * 0.11;
-  ctx.fillStyle = bodyColor;
-  // Upper arm
-  ctx.beginPath();
-  ctx.moveTo(size * 0.05, -size * 0.22 + armSway);
-  ctx.bezierCurveTo(size * 0.22, -size * 0.24 + armSway, size * 0.38, -size * 0.2 + armSway, size * 0.5, -size * 0.16 + armSway);
-  ctx.lineTo(size * 0.55, -size * 0.16 + armSway + armW);
-  ctx.bezierCurveTo(size * 0.38, -size * 0.14 + armSway + armW, size * 0.22, -size * 0.14 + armSway + armW, size * 0.05, -size * 0.14 + armSway + armW);
-  ctx.closePath();
-  ctx.fill();
-  // Lower arm
-  ctx.beginPath();
-  ctx.moveTo(size * 0.05, size * 0.08 - armSway);
-  ctx.bezierCurveTo(size * 0.22, size * 0.06 - armSway, size * 0.38, size * 0.1 - armSway, size * 0.5, size * 0.14 - armSway);
-  ctx.lineTo(size * 0.55, size * 0.14 - armSway + armW);
-  ctx.bezierCurveTo(size * 0.38, size * 0.16 - armSway + armW, size * 0.22, size * 0.16 - armSway + armW, size * 0.05, size * 0.16 - armSway + armW);
-  ctx.closePath();
-  ctx.fill();
-
-  // Clawed hands — bigger
-  const handColor = isTank ? '#5a2020' : isMutant ? '#2a4a2a' : '#2a4008';
-  ctx.fillStyle = handColor;
-  ctx.beginPath();
-  ctx.arc(size * 0.55, -size * 0.14 + armSway + armW * 0.5, armW * 0.8, 0, Math.PI * 2);
-  ctx.arc(size * 0.55, size * 0.14 - armSway + armW * 0.5, armW * 0.8, 0, Math.PI * 2);
-  ctx.fill();
-  // Claws — longer
-  ctx.strokeStyle = handColor;
-  ctx.lineWidth = 2;
-  for (let c = 0; c < 3; c++) {
-    const cy = -size * 0.18 + c * size * 0.05 + armSway;
-    ctx.beginPath();
-    ctx.moveTo(size * 0.57, cy);
-    ctx.lineTo(size * 0.65, cy + size * 0.01);
-    ctx.stroke();
-    const cy2 = size * 0.1 + c * size * 0.05 - armSway;
-    ctx.beginPath();
-    ctx.moveTo(size * 0.57, cy2);
-    ctx.lineTo(size * 0.65, cy2 + size * 0.01);
-    ctx.stroke();
-  }
-
-  // Head with gradient — bigger
-  const headGrad = ctx.createRadialGradient(-size * 0.06, -size * 0.24, 0, 0, -size * 0.2, size * 0.26);
-  headGrad.addColorStop(0, isTank ? '#7a3838' : isMutant ? '#4a6a3a' : '#4a6020');
-  headGrad.addColorStop(1, isTank ? '#3a1010' : isMutant ? '#1a3a1a' : '#1a2a08');
-  ctx.fillStyle = headGrad;
-  ctx.beginPath();
-  ctx.arc(0, -size * 0.22, size * 0.24, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Head outline
-  ctx.strokeStyle = bodyDark;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(0, -size * 0.22, size * 0.24, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Jaw / mouth — wider, with teeth
-  ctx.fillStyle = '#0a0a04';
-  ctx.beginPath();
-  ctx.moveTo(size * 0.02, -size * 0.16);
-  ctx.bezierCurveTo(size * 0.1, -size * 0.13, size * 0.14, -size * 0.08, size * 0.12, -size * 0.04);
-  ctx.bezierCurveTo(size * 0.07, -size * 0.08, size * 0.02, -size * 0.1, -size * 0.04, -size * 0.13);
-  ctx.closePath();
-  ctx.fill();
-  // Teeth — more, sharper
-  ctx.fillStyle = '#d4d4b0';
-  for (let t = 0; t < 4; t++) {
-    ctx.beginPath();
-    ctx.moveTo(size * 0.02 + t * size * 0.028, -size * 0.12);
-    ctx.lineTo(size * 0.04 + t * size * 0.028, -size * 0.08);
-    ctx.lineTo(size * 0.06 + t * size * 0.028, -size * 0.12);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // Glowing eyes with neon — bigger, brighter
-  const eyeColor = isTank ? '#fbbf24' : isMutant ? '#22c55e' : '#ef4444';
-  ctx.save();
-  ctx.shadowColor = eyeColor;
-  ctx.shadowBlur = isTank ? 16 : isMutant ? 18 : 14;
-  ctx.fillStyle = eyeColor;
-  ctx.beginPath();
-  ctx.arc(size * 0.07, -size * 0.28, size * 0.06, 0, Math.PI * 2);
-  ctx.arc(size * 0.07, -size * 0.16, size * 0.06, 0, Math.PI * 2);
-  ctx.fill();
-  // Inner bright pupil
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(size * 0.08, -size * 0.28, size * 0.025, 0, Math.PI * 2);
-  ctx.arc(size * 0.08, -size * 0.16, size * 0.025, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  ctx.restore(); // end body
 
   // Tank armor: massive, with "66" on back shield
   if (isTank) {
     ctx.save();
     // Force shield behind tank (green-blue translucent)
     const shieldPulse = 0.4 + Math.sin(Date.now() * 0.005) * 0.2;
-    ctx.shadowColor = '#06b6d4';
-    ctx.shadowBlur = 18;
+    if (glow) {
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 18;
+    }
     ctx.strokeStyle = `rgba(6,182,212,${shieldPulse})`;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -724,7 +839,7 @@ export function drawZombie2D(
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Left shoulder pad — massive
+    // Massive shoulder pads
     const armorGrad = ctx.createLinearGradient(-size * 0.45, -size * 0.22, -size * 0.2, 0);
     armorGrad.addColorStop(0, '#5a5a5a');
     armorGrad.addColorStop(0.5, '#2a2a2a');
@@ -736,14 +851,13 @@ export function drawZombie2D(
     ctx.bezierCurveTo(-size * 0.32, size * 0.1, -size * 0.24, 0, -size * 0.22, -size * 0.12);
     ctx.closePath();
     ctx.fill();
-    // Right shoulder pad
     ctx.beginPath();
     ctx.moveTo(size * 0.32, -size * 0.18);
     ctx.bezierCurveTo(size * 0.5, -size * 0.25, size * 0.52, 0, size * 0.42, size * 0.08);
     ctx.bezierCurveTo(size * 0.32, size * 0.1, size * 0.24, 0, size * 0.22, -size * 0.12);
     ctx.closePath();
     ctx.fill();
-    // Spikes on shoulders — bigger
+    // Spikes
     ctx.fillStyle = '#1a1a1a';
     for (const sx of [-1, 1]) {
       for (let sp = 0; sp < 4; sp++) {
@@ -757,7 +871,7 @@ export function drawZombie2D(
         ctx.fill();
       }
     }
-    // Chest plate — bigger
+    // Chest plate
     ctx.fillStyle = '#2a2a2a';
     ctx.beginPath();
     ctx.roundRect(-size * 0.26, -size * 0.12, size * 0.52, size * 0.24, 4);
@@ -765,21 +879,11 @@ export function drawZombie2D(
     ctx.strokeStyle = '#6a6a6a';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    // Chest rivets
-    ctx.fillStyle = '#5a5a5a';
-    for (const rx of [-size * 0.2, size * 0.2]) {
-      for (const ry of [-size * 0.08, size * 0.08]) {
-        ctx.beginPath();
-        ctx.arc(rx, ry, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
 
-    // "66" badge on chest — big, bright, flickering
+    // "66" badge on chest
     const flicker = 0.7 + Math.sin(walkCycle * 8) * 0.3;
     ctx.save();
-    ctx.shadowColor = '#06b6d4';
-    ctx.shadowBlur = 16 * flicker;
+    if (glow) { ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 16 * flicker; }
     ctx.fillStyle = `rgba(6,182,212,${0.9 * flicker})`;
     ctx.beginPath();
     ctx.roundRect(-size * 0.14, -size * 0.1, size * 0.28, size * 0.16, 3);
@@ -795,11 +899,10 @@ export function drawZombie2D(
     ctx.fillText('66', 0, -size * 0.02);
     ctx.restore();
 
-    // "66" on back shield — large, glowing
+    // "66" on back shield
     ctx.save();
     ctx.translate(-size * 0.3, 0);
-    ctx.shadowColor = '#06b6d4';
-    ctx.shadowBlur = 14 * flicker;
+    if (glow) { ctx.shadowColor = '#06b6d4'; ctx.shadowBlur = 14 * flicker; }
     ctx.fillStyle = `rgba(6,182,212,${0.5 * flicker})`;
     ctx.beginPath();
     ctx.arc(0, 0, size * 0.2, 0, Math.PI * 2);
@@ -820,10 +923,8 @@ export function drawZombie2D(
     ctx.restore();
   }
 
-  ctx.restore(); // end torsoSway
-
   // Mutant green aura ring
-  if (isMutant) {
+  if (isMutant && glow) {
     ctx.save();
     ctx.shadowColor = '#22c55e';
     ctx.shadowBlur = 18;
