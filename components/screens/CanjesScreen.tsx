@@ -90,8 +90,31 @@ export function CanjesScreen() {
           </button>
         </div>
 
+        {/* Live claims ticker */}
+        <div className="max-w-md mx-auto mb-3 overflow-hidden rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/20">
+          <div className="flex items-center gap-2 px-3 py-1.5">
+            <span className="text-green-400 text-[10px] font-bold shrink-0">EN VIVO</span>
+            <div className="flex-1 overflow-hidden">
+              <div className="animate-ticker whitespace-nowrap">
+                <span className="text-green-300/80 text-xs">
+                  {(() => {
+                    const msgs = [
+                      'Juan*** reclamo 100 Diamantes hace 2 min',
+                      'Maria*** retiro 50 Diamantes hace 5 min',
+                      'Carlos*** reclamo 200 Diamantes hace 8 min',
+                      'Ana*** retiro 100 Diamantes hace 12 min',
+                      'Pedro*** reclamo 50 Diamantes hace 15 min',
+                    ];
+                    const idx = Math.floor((now / 8000) % msgs.length);
+                    return msgs[idx];
+                  })()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="max-w-md mx-auto">
-          {/* Balance - clean modern cards */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             <div className="rounded-xl bg-gradient-to-b from-[#1a1a28] to-[#0f1520] border border-amber-500/20 p-4 flex items-center gap-3 shadow-lg">
               <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center"><Coins className="w-5 h-5 text-amber-400" /></div>

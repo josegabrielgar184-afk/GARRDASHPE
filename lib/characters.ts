@@ -184,7 +184,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1,
     maxHp: 100,
     damageMult: 1,
-    price: 500,
+    price: 300,
   },
   {
     id: 'blaze',
@@ -200,7 +200,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1,
     maxHp: 100,
     damageMult: 1,
-    price: 1200,
+    price: 1000,
   },
   {
     id: 'void',
@@ -216,7 +216,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1,
     maxHp: 110,
     damageMult: 1.15,
-    price: 2500,
+    price: 1500,
   },
   {
     id: 'mech',
@@ -232,7 +232,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1.5,
     maxHp: 130,
     damageMult: 1.5,
-    price: 5000,
+    price: 3000,
   },
   {
     id: 'supreme',
@@ -248,7 +248,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1.2,
     maxHp: 150,
     damageMult: 1.2,
-    price: 10000,
+    price: 2500,
   },
   {
     id: 'cachaco',
@@ -264,7 +264,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1,
     maxHp: 110,
     damageMult: 1.2,
-    price: 800,
+    price: 500,
   },
   {
     id: 'cachaca',
@@ -280,7 +280,7 @@ export const ZOMBIE_CHARACTERS: ZombieCharDef[] = [
     shotgunDmgMult: 1,
     maxHp: 105,
     damageMult: 1.1,
-    price: 800,
+    price: 500,
   },
 ];
 

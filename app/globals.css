@@ -292,3 +292,20 @@ body {
 .visor-glow {
   animation: visor-pulse 1.5s ease-in-out infinite;
 }
+
+@keyframes tutorial-fade {
+  0% { opacity: 1; }
+  60% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+.animate-tutorial-fade {
+  animation: tutorial-fade 3s ease-out forwards;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.animate-ticker {
+  animation: ticker-scroll 12s linear infinite;
+}

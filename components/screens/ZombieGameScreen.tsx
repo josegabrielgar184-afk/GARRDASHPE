@@ -468,7 +468,7 @@ export function ZombieGameScreen() {
     const boss = zombiePoolRef.current.acquire();
     const bossLane = Math.random() < 0.5 ? 0 : 1;
     boss.x = w / 2; boss.y = -60; boss.vy = Math.max(0.3, 0.6 - level * 0.02) * (1 + waveIdx * 0.15); boss.vx = bossLane === 0 ? -1.5 : 1.5; boss.walkCycle = 0;
-    boss.hp = zHp; boss.maxHp = zHp; boss.size = 42 * SPRITE_SCALE; boss.color = '#65a30d'; boss.type = 'boss'; boss.hitFlash = 0;
+    boss.hp = zHp; boss.maxHp = zHp; boss.size = 28 * SPRITE_SCALE; boss.color = '#65a30d'; boss.type = 'boss'; boss.hitFlash = 0;
     bossRef.current = boss;
     setBossActive(true); setBossHp(zHp); setBossMaxHp(zHp);
     setBossName(`JEFE NIVEL ${level} - OLEADA ${waveIdx + 1}/${bossWavesTotalRef.current}`);
@@ -1452,7 +1452,7 @@ export function ZombieGameScreen() {
       )}
       {!gameOver && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10">DESPLAZA PARA MOVER · AUTO-DISPARO</span>
+          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-black/50 text-white/50 border border-white/10 animate-tutorial-fade">DESPLAZA PARA MOVER · AUTO-DISPARO</span>
         </div>
       )}
       {gameOver && (
