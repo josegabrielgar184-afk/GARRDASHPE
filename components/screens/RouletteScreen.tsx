@@ -23,16 +23,16 @@ const PRIZES: Prize[] = [
     { coins: 10, label: '10', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
     { coins: 30, label: '30', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
     { coins: 15, label: '15', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 50, label: '50', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
+    { coins: 200, label: '200', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
     { coins: 10, label: '10', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
     { coins: 25, label: '25', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
     { coins: 20, label: '20', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
-    { coins: 100, label: '100', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
+    { coins: 500, label: '500', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
 ];
 
-const PROB_HIGH = 0.009;
-const PROB_MEDIUM = 0.20;
-const PROB_CONSOLATION = 0.791;
+const PROB_HIGH = 0.002;       // 0.2% de probabilidad para los premios gordos (200 y 500)
+const PROB_MEDIUM = 0.10;      // 10% para premios medianos
+const PROB_CONSOLATION = 0.898; // 89.8% para los de consolación
 
 export function RouletteScreen() {
   const { addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin, canShowInterstitial, recordInterstitial } = useGame();
