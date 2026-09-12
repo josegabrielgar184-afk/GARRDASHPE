@@ -1556,6 +1556,42 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       setPlayerName(name);
       setShowWelcomeBonus(true);
       saveData({ playerName: name });
+
+      try {
+        const refParam = new URLSearchParams(window.location.search).get('ref');
+        if (refParam && refParam.startsWith('GARR-')) {
+          const refRows = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''}/rest/v1/referrals?select=referrer_uid,referral_code,status`,
+            {
+              headers: {
+                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+                'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          if (refRows.ok) {
+            const rows = await refRows.json() as Array<{ referrer_uid: string; referral_code: string; status: string }>;
+            const ref = rows.find((r) => r.referral_code === refParam && r.status === 'pending');
+            if (ref && ref.referrer_uid !== uid) {
+              await updateDoc(doc(db, 'usuarios', ref.referrer_uid), { coins: increment(200) });
+              await fetch(
+                `${process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''}/rest/v1/referrals?referral_code=eq.${refParam}`,
+                {
+                  method: 'PATCH',
+                  headers: {
+                    'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+                    'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || ''}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ status: 'rewarded', referred_uid: uid }),
+                }
+              );
+            }
+          }
+        }
+      } catch {}
+
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al registrar';

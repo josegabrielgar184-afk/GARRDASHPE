@@ -175,15 +175,25 @@ export function MenuScreen() {
     }
   };
 
-  const copyReferralLink = () => {
+  const copyReferralLink = async () => {
     if (!referralCode) return;
-    const link = `${window.location.origin}/?ref=${referralCode}`;
+    const link = `https://garrdash.web.app/registro?ref=${referralCode}`;
     try {
+      if (navigator.share) {
+        await navigator.share({ title: 'GarrDash', text: '¡Únete a GarrDash y gana monedas!', url: link });
+        return;
+      }
       navigator.clipboard.writeText(link);
       setReferralCopied(true);
       setTimeout(() => setReferralCopied(false), 2000);
     } catch {
-      showToast('No se pudo copiar');
+      try {
+        navigator.clipboard.writeText(link);
+        setReferralCopied(true);
+        setTimeout(() => setReferralCopied(false), 2000);
+      } catch {
+        showToast('No se pudo copiar');
+      }
     }
   };
 
