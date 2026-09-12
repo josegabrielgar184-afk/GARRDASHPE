@@ -21,6 +21,8 @@ export function CanjesScreen() {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [tickerIdx, setTickerIdx] = useState(0);
+  const [tickerMsg, setTickerMsg] = useState('');
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctPlayerId, setCorrectPlayerId] = useState('');
   const [showApproved, setShowApproved] = useState(false);
@@ -33,6 +35,35 @@ export function CanjesScreen() {
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const names = [
+      'Carlos', 'Maria', 'Pedro', 'Ana', 'Luis', 'Sofia', 'Diego', 'Valeria',
+      'Andres', 'Camila', 'Juan', 'Isabella', 'Mateo', 'Gabriela', 'Sebastian',
+      'Daniela', 'Felipe', 'Laura', 'Santiago', 'Mariana', 'Javier', 'Paula',
+    ];
+    const packages = [100, 310, 520, 1060];
+    const verbs = ['reclamo', 'retiro', 'recibio'];
+    const timeFormats = [
+      () => `hace ${Math.floor(Math.random() * 55 + 2)} min`,
+      () => `hace ${Math.floor(Math.random() * 4 + 1)} h`,
+      () => `ayer ${Math.floor(Math.random() * 12 + 8)}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
+    ];
+    const generate = () => {
+      const n = names[Math.floor(Math.random() * names.length)];
+      const mask = n.slice(0, 3) + '***';
+      const pkg = packages[Math.floor(Math.random() * packages.length)];
+      const verb = verbs[Math.floor(Math.random() * verbs.length)];
+      const time = timeFormats[Math.floor(Math.random() * timeFormats.length)]();
+      return `${mask} ${verb} ${pkg} Diamantes ${time}`;
+    };
+    setTickerMsg(generate());
+    const interval = setInterval(() => {
+      setTickerIdx((i) => i + 1);
+      setTickerMsg(generate());
+    }, 6000);
+    return () => clearInterval(interval);
   }, []);
 
   const activeCanjes = canjes.filter((c) => c.status === 'pending_review' || c.status === 'waiting_correction');
@@ -93,22 +124,13 @@ export function CanjesScreen() {
         {/* Live claims ticker */}
         <div className="max-w-md mx-auto mb-3 overflow-hidden rounded-lg bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/20">
           <div className="flex items-center gap-2 px-3 py-1.5">
-            <span className="text-green-400 text-[10px] font-bold shrink-0">EN VIVO</span>
+            <span className="text-green-400 text-[10px] font-bold shrink-0 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              EN VIVO
+            </span>
             <div className="flex-1 overflow-hidden">
-              <div className="animate-ticker whitespace-nowrap">
-                <span className="text-green-300/80 text-xs">
-                  {(() => {
-                    const msgs = [
-                      'Juan*** reclamo 100 Diamantes hace 2 min',
-                      'Maria*** retiro 50 Diamantes hace 5 min',
-                      'Carlos*** reclamo 200 Diamantes hace 8 min',
-                      'Ana*** retiro 100 Diamantes hace 12 min',
-                      'Pedro*** reclamo 50 Diamantes hace 15 min',
-                    ];
-                    const idx = Math.floor((now / 8000) % msgs.length);
-                    return msgs[idx];
-                  })()}
-                </span>
+              <div key={tickerIdx} className="animate-ticker whitespace-nowrap">
+                <span className="text-green-300/80 text-xs">{tickerMsg}</span>
               </div>
             </div>
           </div>
