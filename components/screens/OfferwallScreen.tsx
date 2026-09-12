@@ -17,14 +17,15 @@ export function OfferwallScreen() {
     setLoading(true);
     try {
       const uid = auth.currentUser?.uid ?? 'guest';
-      const appToken = '3da101f5-6ff1-4ce4-9406-4fb8c6744475';
-      const url = `https://web.bitlabs.ai/?appid=${appToken}&uid=${uid}`;
+      const appId = '36129';
+      // URL oficial del muro de ofertas de CPX Research con tu ID y el usuario actual
+      const url = `https://offers.cpx-research.com/index.php?app_id=${appId}&ext_user_id=${uid}&subid_1=garrdash`;
       
-      // Abre el offerwall en una nueva pestaña para evitar bloqueos de iframe
+      // Abre el offerwall en una nueva pestaña para evitar bloqueos
       window.open(url, '_blank');
       setResult({ ok: true });
     } catch {
-      setResult({ ok: false, error: 'No se pudo abrir el offerwall de BitLabs' });
+      setResult({ ok: false, error: 'No se pudo abrir el offerwall de CPX Research' });
     }
     setLoading(false);
   };
@@ -39,7 +40,7 @@ export function OfferwallScreen() {
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-white font-bold text-xl">Misiones BitLabs</h1>
+          <h1 className="text-white font-bold text-xl">Misiones CPX Research</h1>
         </div>
 
         <div className="max-w-sm mx-auto w-full flex-1 flex flex-col">
@@ -49,7 +50,7 @@ export function OfferwallScreen() {
                 <Lock className="w-10 h-10 text-white/30" />
               </div>
               <h2 className="text-white/60 font-bold text-lg mb-2">Requiere conexion</h2>
-              <p className="text-white/30 text-sm">Necesitas internet para acceder a las misiones BitLabs.</p>
+              <p className="text-white/30 text-sm">Necesitas internet para acceder a las encuestas.</p>
             </div>
           ) : (
             <>
@@ -59,11 +60,11 @@ export function OfferwallScreen() {
                     <Coins className="w-6 h-6 text-cyan-400" />
                   </div>
                   <div>
-                    <h2 className="text-white font-bold">Misiones BitLabs</h2>
-                    <p className="text-cyan-400 font-bold text-sm">Gana monedas reales</p>
+                    <h2 className="text-white font-bold">Encuestas CPX</h2>
+                    <p className="text-cyan-400 font-bold text-sm">Gana Monedas</p>
                   </div>
                 </div>
-                <p className="text-white/40 text-xs">Completa encuestas y juegos para ganar recompensas que se acreditan a tu cuenta de forma automatica.</p>
+                <p className="text-white/40 text-xs">Completa encuestas para ganar recompensas que se acreditan a tu cuenta mediante postback.</p>
               </div>
 
               <button
@@ -90,9 +91,9 @@ export function OfferwallScreen() {
 
               <div className="mt-6 rounded-xl bg-card border border-border p-4 text-xs space-y-2">
                 <p className="text-white/50 font-bold mb-1">Como funciona:</p>
-                <p className="text-white/40">1. Presiona &quot;Abrir Offerwall&quot; para abrir las ofertas.</p>
-                <p className="text-white/40">2. Completa encuestas o juegos de tu interes.</p>
-                <p className="text-white/40">3. Las monedas se acreditan a tu cuenta automaticamente.</p>
+                <p className="text-white/40">1. Presiona &quot;Abrir Offerwall&quot;.</p>
+                <p className="text-white/40">2. Responde las encuestas disponibles.</p>
+                <p className="text-white/40">3. Las monedas se suman a tu balance automáticamente.</p>
               </div>
             </>
           )}
