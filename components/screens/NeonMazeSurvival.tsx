@@ -183,7 +183,7 @@ export function NeonMazeSurvival() {
       const coinKey = `${p.x},${p.y}`;
       if (coinPositionsRef.current.has(coinKey)) {
         coinPositionsRef.current.delete(coinKey);
-        coinsRef.current += 5;
+        coinsRef.current += 2;
         scoreRef.current += 10;
         setScore(scoreRef.current);
         setCoinsEarned(coinsRef.current);
