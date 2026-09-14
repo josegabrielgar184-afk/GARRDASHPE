@@ -8,20 +8,21 @@ import { GameOverModal } from '@/components/game/GameOverModal';
 
 const W = 360;
 const H = 540;
-const GRAVITY = 0.24; // Caída súper suave
-const JUMP = -5.8;    // Impulso de salto fácil de controlar
-const PIPE_SPEED = 1.7; // Velocidad moderada
-const PIPE_SPAWN_RATE = 135; // Tuberías más distanciadas
-const GAP_SIZE = 160; // Hueco amplio para pasar fácil
+const GROUND_Y = 430;
+const CUBE_SIZE = 28;
+const GRAVITY = 0.65;
+const JUMP_FORCE = -11.5;
+const GAME_SPEED = 4.2;
 
-interface Pipe {
+interface Obstacle {
   x: number;
-  topHeight: number;
-  bottomY: number;
-  passed: boolean;
-  hasCoin: boolean;
-  coinCollected: boolean;
-  coinY: number;
+  type: 'spike' | 'block';
+  width: number;
+  height: number;
+  hasCoin?: boolean;
+  coinY?: number;
+  coinCollected?: boolean;
+  passed?: boolean;
 }
 
 export function GarrFly() {
@@ -34,10 +35,14 @@ export function GarrFly() {
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
-  const playerYRef = useRef(H / 2);
-  const velocityRef = useRef(0);
-  const pipesRef = useRef<Pipe[]>([]);
+  const playerYRef = useRef(GROUND_Y - CUBE_SIZE);
+  const velocityYRef = useRef(0);
+  const isGroundedRef = useRef(true);
+  const angleRef = useRef(0);
+
+  const obstaclesRef = useRef<Obstacle[]>([]);
   const frameCountRef = useRef(0);
+  const spawnTimerRef = useRef(0);
   const scoreRef = useRef(0);
   const coinsRef = useRef(0);
   const gameOverRef = useRef(false);
@@ -45,14 +50,18 @@ export function GarrFly() {
   const rafRef = useRef<number>(0);
 
   const initGame = useCallback(() => {
-    playerYRef.current = H / 2;
-    velocityRef.current = 0;
-    pipesRef.current = [];
+    playerYRef.current = GROUND_Y - CUBE_SIZE;
+    velocityYRef.current = 0;
+    isGroundedRef.current = true;
+    angleRef.current = 0;
+    obstaclesRef.current = [];
     frameCountRef.current = 0;
+    spawnTimerRef.current = 0;
     scoreRef.current = 0;
     coinsRef.current = 0;
     gameOverRef.current = false;
     gameStartedRef.current = false;
+
     setScore(0);
     setCoinsEarned(0);
     setLives(1);
@@ -70,7 +79,11 @@ export function GarrFly() {
       gameStartedRef.current = true;
       setGameStarted(true);
     }
-    velocityRef.current = JUMP;
+
+    if (isGroundedRef.current) {
+      velocityYRef.current = JUMP_FORCE;
+      isGroundedRef.current = false;
+    }
   }, []);
 
   useEffect(() => {
@@ -96,10 +109,11 @@ export function GarrFly() {
         return;
       }
 
+      // Fondo oscuro estilo Cyberpunk
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Cuadrícula Neón de Fondo
+      // Rejilla Neón de Fondo
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
       ctx.lineWidth = 1;
       for (let i = 0; i < W; i += 30) {
@@ -109,112 +123,185 @@ export function GarrFly() {
         ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(W, j); ctx.stroke();
       }
 
+      // Suelo Brillante
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+      ctx.strokeStyle = '#00f3ff';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#00f3ff';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y);
+      ctx.lineTo(W, GROUND_Y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
       if (gameStartedRef.current) {
-        velocityRef.current += GRAVITY;
-        playerYRef.current += velocityRef.current;
         frameCountRef.current++;
+        spawnTimerRef.current++;
 
-        if (frameCountRef.current % PIPE_SPAWN_RATE === 0) {
-          const minTop = 60;
-          const maxTop = H - GAP_SIZE - 80;
-          const topHeight = Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
-          const bottomY = topHeight + GAP_SIZE;
-          const hasCoin = Math.random() < 0.8; // 80% probabilidad de moneda
+        // Física del Cubo
+        velocityYRef.current += GRAVITY;
+        playerYRef.current += velocityYRef.current;
 
-          pipesRef.current.push({
-            x: W,
-            topHeight,
-            bottomY,
-            passed: false,
-            hasCoin,
-            coinCollected: false,
-            coinY: topHeight + GAP_SIZE / 2,
-          });
+        if (playerYRef.current >= GROUND_Y - CUBE_SIZE) {
+          playerYRef.current = GROUND_Y - CUBE_SIZE;
+          velocityYRef.current = 0;
+          isGroundedRef.current = true;
+          // Alinear el giro del cubo al suelo
+          angleRef.current = Math.round(angleRef.current / (Math.PI / 2)) * (Math.PI / 2);
+        } else {
+          // Rotación continua durante el salto
+          angleRef.current += 0.15;
         }
 
-        const playerX = 70;
-        const playerRadius = 10;
+        // Generar Obstáculos (Pinchos / Bloques / Monedas)
+        if (spawnTimerRef.current > 70) {
+          spawnTimerRef.current = 0;
+          const rand = Math.random();
 
-        if (playerYRef.current - playerRadius <= 0 || playerYRef.current + playerRadius >= H) {
-          gameOverRef.current = true;
-          setGameOver(true);
-          if (coinsRef.current > 0) addCoins(coinsRef.current);
+          if (rand < 0.5) {
+            // Pincho simple
+            obstaclesRef.current.push({
+              x: W + 20,
+              type: 'spike',
+              width: 26,
+              height: 28,
+              hasCoin: Math.random() < 0.7,
+              coinY: GROUND_Y - 60,
+            });
+          } else if (rand < 0.8) {
+            // Bloque bajo con moneda encima
+            obstaclesRef.current.push({
+              x: W + 20,
+              type: 'block',
+              width: 32,
+              height: 32,
+              hasCoin: true,
+              coinY: GROUND_Y - 32 - 35,
+            });
+          } else {
+            // Doble pincho
+            obstaclesRef.current.push({
+              x: W + 20,
+              type: 'spike',
+              width: 48,
+              height: 28,
+              hasCoin: true,
+              coinY: GROUND_Y - 65,
+            });
+          }
         }
 
-        for (let i = pipesRef.current.length - 1; i >= 0; i--) {
-          const p = pipesRef.current[i];
-          p.x -= PIPE_SPEED;
+        const playerX = 60;
 
-          if (!p.passed && p.x + 40 < playerX) {
-            p.passed = true;
+        // Mover y procesar obstáculos
+        for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
+          const obs = obstaclesRef.current[i];
+          obs.x -= GAME_SPEED;
+
+          // Sumar puntos por superar obstáculos
+          if (!obs.passed && obs.x + obs.width < playerX) {
+            obs.passed = true;
             scoreRef.current += 10;
             setScore(scoreRef.current);
           }
 
-          if (p.hasCoin && !p.coinCollected) {
-            const dx = playerX - (p.x + 20);
-            const dy = playerYRef.current - p.coinY;
+          // Recolectar Moneda
+          if (obs.hasCoin && !obs.coinCollected) {
+            const coinX = obs.x + obs.width / 2;
+            const coinY = obs.coinY || GROUND_Y - 50;
+            const dx = (playerX + CUBE_SIZE / 2) - coinX;
+            const dy = (playerYRef.current + CUBE_SIZE / 2) - coinY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < playerRadius + 12) {
-              p.coinCollected = true;
+
+            if (dist < 22) {
+              obs.coinCollected = true;
               coinsRef.current += 1;
               setCoinsEarned(coinsRef.current);
             }
           }
 
-          if (
-            playerX + playerRadius > p.x &&
-            playerX - playerRadius < p.x + 40 &&
-            (playerYRef.current - playerRadius < p.topHeight || playerYRef.current + playerRadius > p.bottomY)
-          ) {
+          // Detección de Colisiones (Hitbox)
+          const pLeft = playerX + 4;
+          const pRight = playerX + CUBE_SIZE - 4;
+          const pBottom = playerYRef.current + CUBE_SIZE;
+          const pTop = playerYRef.current + 4;
+
+          const oLeft = obs.x;
+          const oRight = obs.x + obs.width;
+          const oTop = GROUND_Y - obs.height;
+
+          if (pRight > oLeft && pLeft < oRight && pBottom > oTop) {
             gameOverRef.current = true;
             setGameOver(true);
             if (coinsRef.current > 0) addCoins(coinsRef.current);
           }
 
-          if (p.x < -50) {
-            pipesRef.current.splice(i, 1);
+          // Eliminar del array cuando salgan de pantalla
+          if (obs.x < -60) {
+            obstaclesRef.current.splice(i, 1);
           }
         }
       }
 
-      // Dibujar Tuberías Neón
-      ctx.fillStyle = '#00f3ff';
-      ctx.shadowColor = '#00f3ff';
-      ctx.shadowBlur = 10;
-      for (const p of pipesRef.current) {
-        ctx.fillRect(p.x, 0, 40, p.topHeight);
-        ctx.fillRect(p.x, p.bottomY, 40, H - p.bottomY);
-
-        if (p.hasCoin && !p.coinCollected) {
-          ctx.fillStyle = '#ffb700';
-          ctx.shadowColor = '#ffb700';
-          ctx.shadowBlur = 8;
+      // Dibujar Obstáculos y Monedas
+      for (const obs of obstaclesRef.current) {
+        if (obs.type === 'spike') {
+          // Pinchos Rojos Neón
+          ctx.fillStyle = '#ef4444';
+          ctx.shadowColor = '#ef4444';
+          ctx.shadowBlur = 10;
           ctx.beginPath();
-          ctx.arc(p.x + 20, p.coinY, 7, 0, Math.PI * 2);
+          ctx.moveTo(obs.x, GROUND_Y);
+          ctx.lineTo(obs.x + obs.width / 2, GROUND_Y - obs.height);
+          ctx.lineTo(obs.x + obs.width, GROUND_Y);
+          ctx.closePath();
           ctx.fill();
+        } else {
+          // Bloques Azules Neón
           ctx.fillStyle = '#00f3ff';
           ctx.shadowColor = '#00f3ff';
           ctx.shadowBlur = 10;
+          ctx.fillRect(obs.x, GROUND_Y - obs.height, obs.width, obs.height);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(obs.x + 3, GROUND_Y - obs.height + 3, obs.width - 6, obs.height - 6);
+        }
+
+        // Dibujar Moneda Dorada
+        if (obs.hasCoin && !obs.coinCollected) {
+          const coinX = obs.x + obs.width / 2;
+          const coinY = obs.coinY || GROUND_Y - 50;
+          ctx.fillStyle = '#ffb700';
+          ctx.shadowColor = '#ffb700';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(coinX, coinY, 7, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
       ctx.shadowBlur = 0;
 
-      // Dibujar Jugador
-      const px = 70;
-      const py = playerYRef.current;
+      // Dibujar Cubo (Jugador) con Rotación
+      const px = 60 + CUBE_SIZE / 2;
+      const py = playerYRef.current + CUBE_SIZE / 2;
+
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(angleRef.current);
+
       ctx.fillStyle = '#ffb700';
       ctx.shadowColor = '#ffb700';
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(px, py, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.shadowBlur = 16;
+      ctx.fillRect(-CUBE_SIZE / 2, -CUBE_SIZE / 2, CUBE_SIZE, CUBE_SIZE);
 
+      // Ojos estilo icono del cubo
       ctx.fillStyle = '#0a0e17';
-      ctx.beginPath();
-      ctx.arc(px + 3, py - 2, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillRect(-CUBE_SIZE / 4, -CUBE_SIZE / 4, 6, 6);
+      ctx.fillRect(CUBE_SIZE / 8, -CUBE_SIZE / 4, 6, 6);
+      ctx.restore();
+      ctx.shadowBlur = 0;
 
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -226,9 +313,9 @@ export function GarrFly() {
   const handleRevive = () => {
     gameOverRef.current = false;
     setGameOver(false);
-    playerYRef.current = H / 2;
-    velocityRef.current = JUMP;
-    pipesRef.current = pipesRef.current.filter((p) => p.x < 30 || p.x > 180);
+    playerYRef.current = GROUND_Y - CUBE_SIZE;
+    velocityYRef.current = JUMP_FORCE;
+    obstaclesRef.current = obstaclesRef.current.filter((o) => o.x < 20 || o.x > 180);
   };
 
   const handleDoubleCoins = () => {
@@ -277,10 +364,10 @@ export function GarrFly() {
 
       {!gameStarted && !gameOver && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-[#00f3ff] font-black text-lg animate-bounce tracking-widest">
-            ¡TOCA EN CUALQUIER LUGAR PARA VOLAR!
+          <p className="text-[#00f3ff] font-black text-xl animate-bounce tracking-widest">
+            ¡TOCA PARA SALTAR!
           </p>
-          <p className="text-white/50 text-xs mt-1">Esquiva las tuberías y junta monedas</p>
+          <p className="text-white/50 text-xs mt-1">Esquiva pinchos y junta monedas</p>
         </div>
       )}
 
