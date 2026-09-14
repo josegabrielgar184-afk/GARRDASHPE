@@ -45,7 +45,9 @@ export type Screen =
   | 'admin'
   | 'operator'
   | 'influencer'
-  | 'canjes';
+  | 'canjes'
+  | 'arcade'
+  | 'neon-maze';
 
 export interface UpgradeState {
   fireRate: number;
@@ -66,6 +68,7 @@ export interface TowerLevel {
   turret: number;
   drone: number;
   medic: number;
+  neonShield?: number;
 }
 
 export interface RankEntry {
@@ -444,7 +447,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [suggestions, setSuggestions] = useState<Array<{ id: number; text: string; date: string }>>([]);
   const [upgrades, setUpgrades] = useState<UpgradeState>({ fireRate: 0, damage: 0, coinMagnet: 0, superShield: 0 });
   const [campaignProgress, setCampaignProgress] = useState<CampaignProgress>({ currentLevel: 1, stars: {}, keys: 0, diamondsClaimed: false, lastLevelCompletedAt: null });
-  const [towerLevels, setTowerLevels] = useState<TowerLevel>({ turret: 0, drone: 0, medic: 0 });
+  const [towerLevels, setTowerLevels] = useState<TowerLevel>({ turret: 0, drone: 0, medic: 0, neonShield: 0 });
   const [survivalBestTime, setSurvivalBestTime] = useState(0);
   const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
   const [showReturnReward, setShowReturnReward] = useState(false);
@@ -1243,7 +1246,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const buyTower = useCallback((tower: keyof TowerLevel, cost: number): boolean => {
     if (!spendCoins(cost)) return false;
     setTowerLevels((prev) => {
-      const next = { ...prev, [tower]: prev[tower] + 1 };
+      const next = { ...prev, [tower]: (prev[tower] ?? 0) + 1 };
       saveData({ towerLevels: next });
       const user = auth.currentUser;
       if (user) {
@@ -1254,7 +1257,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [spendCoins]);
 
-  const getTowerLevel = useCallback((tower: keyof TowerLevel) => towerLevels[tower], [towerLevels]);
+  const getTowerLevel = useCallback((tower: keyof TowerLevel) => towerLevels[tower] ?? 0, [towerLevels]);
 
   const submitSurvivalScore = useCallback(async (timeMs: number) => {
     if (timeMs > survivalBestTime) {

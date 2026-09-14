@@ -43,12 +43,17 @@ export function ShopScreen() {
     setKeyProgress(getKeyAdProgress());
   }, []);
 
-  const companionDefs: Array<{ key: 'turret' | 'drone' | 'medic'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
+  const companionDefs: Array<{ key: 'turret' | 'drone' | 'medic' | 'neon-shield'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
+    { key: 'neon-shield', icon: Shield, name: 'Escudo Neón Básico', desc: 'Escudo inicial en cada partida', color: '#00f3ff', baseCost: 400 },
     { key: 'turret', icon: Zap, name: 'Francotirador', desc: 'Dispara junto a ti', color: '#f97316', baseCost: 200 },
     { key: 'drone', icon: Swords, name: 'Dron', desc: 'Vuela y dispara a múltiples enemigos', color: '#ef4444', baseCost: 500 },
     { key: 'medic', icon: Shield, name: 'Médico', desc: 'Repara la barricada automáticamente', color: '#34d399', baseCost: 800 },
   ];
-  const companionCost = (key: 'turret' | 'drone' | 'medic') => companionDefs.find((t) => t.key === key)!.baseCost * Math.pow(2, getTowerLevel(key));
+  const companionCost = (key: 'turret' | 'drone' | 'medic' | 'neon-shield') => {
+    const def = companionDefs.find((t) => t.key === key)!;
+    const level = key === 'neon-shield' ? 0 : getTowerLevel(key as 'turret' | 'drone' | 'medic');
+    return def.baseCost * Math.pow(2, level);
+  };
 
   const handleCoinAdReward = () => {
     setShowCoinAd(false);
@@ -145,7 +150,9 @@ export function ShopScreen() {
               {companionDefs.map((t) => {
                 const Icon = t.icon;
                 const cost = companionCost(t.key);
-                const level = getTowerLevel(t.key);
+                const level = t.key === 'neon-shield' ? 0 : getTowerLevel(t.key as 'turret' | 'drone' | 'medic');
+                const isShield = t.key === 'neon-shield';
+                const shieldOwned = typeof window !== 'undefined' && localStorage.getItem('neon_shield_owned') === '1';
                 return (
                   <div key={t.key} className="rounded-none bg-[#1a1a28] border-l-4 p-4 flex items-center gap-4" style={{ borderColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
                     <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${t.color}20` }}>
@@ -154,18 +161,30 @@ export function ShopScreen() {
                     <div className="flex-1 min-w-0">
                       <h3 className="text-white font-bold text-sm uppercase tracking-wide">{t.name}</h3>
                       <p className="text-white/40 text-xs">{t.desc}</p>
-                      <span className="font-black text-lg" style={{ color: t.color }}>Nv.{level}</span>
+                      {!isShield && <span className="font-black text-lg" style={{ color: t.color }}>Nv.{level}</span>}
                     </div>
-                    <button
-                      onClick={() => {
-                        setError(''); setSuccess('');
-                        // useGame buyTower logic assumed available
-                      }}
-                      className="px-4 py-3 rounded-none text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shrink-0"
-                      style={{ backgroundColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}
-                    >
-                      <Coins className="w-4 h-4" />{cost.toLocaleString()}
-                    </button>
+                    {isShield && shieldOwned ? (
+                      <span className="px-4 py-3 text-green-400 font-bold text-sm">Comprado</span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setError(''); setSuccess('');
+                          if (isShield) {
+                            if (spendCoins(cost)) {
+                              if (typeof window !== 'undefined') localStorage.setItem('neon_shield_owned', '1');
+                              setSuccess('¡Escudo Neón Básico comprado!');
+                            } else {
+                              setError('No tienes suficientes monedas.');
+                            }
+                          }
+                        }}
+                        disabled={isShield && (coins < cost || shieldOwned)}
+                        className="px-4 py-3 rounded-none text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shrink-0 disabled:opacity-40"
+                        style={{ backgroundColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}
+                      >
+                        <Coins className="w-4 h-4" />{cost.toLocaleString()}
+                      </button>
+                    )}
                   </div>
                 );
               })}

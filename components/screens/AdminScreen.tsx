@@ -11,9 +11,14 @@ import {
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, Eye, EyeOff,
   RefreshCw, AlertCircle, XCircle, Loader2, Key, List, Mail, Gamepad2, Timer, IdCard,
+  MessageSquare, Send, Megaphone, Radio,
 } from 'lucide-react';
+import {
+  fetchSuggestions, handleSuggestion, fetchInactiveUsers, fetchActiveUsersNow,
+  sendWinBackPush, sendPromoPush,
+} from '@/lib/economy-service';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'suggestions' | 'telemetry' | 'winback' | 'promos';
 
 export function AdminScreen() {
   const {
@@ -145,6 +150,10 @@ export function AdminScreen() {
     { id: 'observer', label: 'Observador', icon: Eye, group: 'Sistema' },
     { id: 'stats', label: 'Estadisticas', icon: BarChart3, group: 'Sistema' },
     { id: 'levels', label: 'Niveles', icon: BarChart3, group: 'Sistema' },
+    { id: 'suggestions', label: 'Sugerencias', icon: MessageSquare, group: 'Gestion' },
+    { id: 'telemetry', label: 'Telemetria', icon: Radio, group: 'Sistema' },
+    { id: 'winback', label: 'Win-Back', icon: UserX, group: 'Sistema' },
+    { id: 'promos', label: 'Promos', icon: Megaphone, group: 'Sistema' },
   ];
 
   return (
@@ -891,7 +900,352 @@ export function AdminScreen() {
               )}
             </div>
           )}
+
+          {/* Suggestions Tab */}
+          {tab === 'suggestions' && <AdminSuggestionsTab />}
+
+          {/* Telemetry Tab */}
+          {tab === 'telemetry' && <AdminTelemetryTab />}
+
+          {/* Win-Back Tab */}
+          {tab === 'winback' && <AdminWinBackTab />}
+
+          {/* Promos Tab */}
+          {tab === 'promos' && <AdminPromosTab />}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminSuggestionsTab() {
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; text: string; userId: string; nombre: string; createdAt: Date | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const data = await fetchSuggestions();
+    setSuggestions(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAction = async (id: string, action: 'coherent' | 'simple' | 'discard', userId?: string) => {
+    setActionLoading(id);
+    await handleSuggestion(id, action, userId);
+    setActionLoading(null);
+    await load();
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-5 h-5 text-cyan-400" />
+          <h3 className="text-white font-bold text-sm">Gestion de Sugerencias</h3>
+        </div>
+        <button onClick={load} className="text-white/50 hover:text-white text-xs flex items-center gap-1">
+          <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+        </div>
+      ) : suggestions.length === 0 ? (
+        <div className="text-center py-12">
+          <MessageSquare className="w-10 h-10 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 text-sm">No hay sugerencias pendientes</p>
+        </div>
+      ) : (
+        suggestions.map((s) => (
+          <div key={s.id} className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-white font-bold text-sm">{s.nombre}</span>
+              <span className="text-white/30 text-[10px]">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('es-ES') : ''}</span>
+            </div>
+            <p className="text-white/60 text-sm mb-3 break-words">{s.text}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleAction(s.id, 'coherent', s.userId)}
+                disabled={actionLoading === s.id}
+                className="flex-1 py-2 rounded-xl bg-green-500/20 text-green-400 border border-green-500/40 font-bold text-xs hover:bg-green-500/30 disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {actionLoading === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Coherente (+100)
+              </button>
+              <button
+                onClick={() => handleAction(s.id, 'simple', s.userId)}
+                disabled={actionLoading === s.id}
+                className="flex-1 py-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 font-bold text-xs hover:bg-amber-500/30 disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                <Coins className="w-3.5 h-3.5" /> Simple (+5)
+              </button>
+              <button
+                onClick={() => handleAction(s.id, 'discard')}
+                disabled={actionLoading === s.id}
+                className="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-xs hover:bg-red-500/20 disabled:opacity-50 flex items-center justify-center"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function AdminTelemetryTab() {
+  const [activeUsers, setActiveUsers] = useState<Array<{ uid: string; nombre: string; pantalla: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const data = await fetchActiveUsersNow();
+    setActiveUsers(data);
+    setLoading(false);
+    setLastRefresh(new Date());
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl bg-gradient-to-br from-green-900/30 to-card border border-green-500/30 p-4 shadow-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+              <Radio className="w-5 h-5 text-green-400" />
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-sm">Jugadores Activos Ahora</h2>
+              <p className="text-white/40 text-xs">Ultimos 10 minutos</p>
+            </div>
+          </div>
+          <span className="text-green-400 font-black text-2xl">{activeUsers.length}</span>
+        </div>
+        <button onClick={load} className="w-full py-2 rounded-xl bg-green-500/20 text-green-400 border border-green-500/40 font-bold text-xs hover:bg-green-500/30 flex items-center justify-center gap-2">
+          <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+        </button>
+        {lastRefresh && <p className="text-white/30 text-[10px] text-center mt-2">Ultima actualizacion: {lastRefresh.toLocaleTimeString('es-ES')}</p>}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+        </div>
+      ) : activeUsers.length === 0 ? (
+        <div className="text-center py-8">
+          <UserX className="w-10 h-10 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 text-sm">No hay usuarios activos en este momento</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {activeUsers.map((u) => (
+            <div key={u.uid} className="rounded-xl bg-card border border-border p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-white font-bold text-sm">{u.nombre}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-white/40 text-xs">{u.pantalla}</span>
+                <p className="text-white/30 text-[10px] font-mono">{u.uid.substring(0, 16)}...</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminWinBackTab() {
+  const [inactiveUsers, setInactiveUsers] = useState<Array<{ uid: string; nombre: string; lastActive: Date | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [sentCount, setSentCount] = useState<number | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const data = await fetchInactiveUsers();
+    setInactiveUsers(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSendPush = async () => {
+    setSending(true);
+    const result = await sendWinBackPush(inactiveUsers);
+    setSending(false);
+    if (result.ok) setSentCount(result.count);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl bg-gradient-to-br from-red-900/30 to-card border border-red-500/30 p-4 shadow-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+              <UserX className="w-5 h-5 text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-sm">Usuarios Inactivos (+7 dias)</h2>
+              <p className="text-white/40 text-xs">Candidatos para reactivacion</p>
+            </div>
+          </div>
+          <span className="text-red-400 font-black text-2xl">{inactiveUsers.length}</span>
+        </div>
+        <button
+          onClick={handleSendPush}
+          disabled={sending || inactiveUsers.length === 0}
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          Enviar Push de Reactivacion
+        </button>
+        {sentCount !== null && (
+          <p className="text-green-400 text-xs text-center mt-2 font-bold">Notificaciones enviadas a {sentCount} usuarios</p>
+        )}
+      </div>
+
+      <button onClick={load} className="text-white/50 hover:text-white text-xs flex items-center gap-1">
+        <RefreshCw className="w-3.5 h-3.5" /> Actualizar lista
+      </button>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+        </div>
+      ) : inactiveUsers.length === 0 ? (
+        <div className="text-center py-8">
+          <UserCheck className="w-10 h-10 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 text-sm">No hay usuarios inactivos</p>
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+          {inactiveUsers.map((u) => (
+            <div key={u.uid} className="rounded-xl bg-card border border-border p-3 flex items-center justify-between">
+              <span className="text-white font-bold text-sm">{u.nombre}</span>
+              <span className="text-white/30 text-[10px]">
+                {u.lastActive ? `Ultimo acceso: ${u.lastActive.toLocaleDateString('es-ES')}` : 'Sin fecha'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminPromosTab() {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [duration, setDuration] = useState('15m');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [activeUsers, setActiveUsers] = useState(0);
+
+  useEffect(() => {
+    const loadCount = async () => {
+      const data = await fetchActiveUsersNow();
+      setActiveUsers(data.length);
+    };
+    loadCount();
+    const interval = setInterval(loadCount, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSend = async () => {
+    if (!title.trim() || !body.trim()) return;
+    setSending(true);
+    const result = await sendPromoPush(title.trim(), body.trim(), duration);
+    setSending(false);
+    if (result.ok) {
+      setSent(true);
+      setTitle('');
+      setBody('');
+      setTimeout(() => setSent(false), 3000);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-amber-900/30 to-card border border-amber-500/30 p-4 shadow-lg">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+            <Activity className="w-5 h-5 text-green-400" />
+          </div>
+          <div>
+            <h2 className="text-white font-bold text-sm">Jugadores Activos Ahora</h2>
+            <p className="text-white/40 text-xs">Ultimos 10 minutos</p>
+          </div>
+        </div>
+        <span className="text-green-400 font-black text-3xl">{activeUsers}</span>
+      </div>
+
+      <div className="rounded-2xl bg-card border border-border p-4 shadow-lg space-y-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Megaphone className="w-5 h-5 text-amber-400" />
+          <h3 className="text-white font-bold text-sm">Programador de Promociones</h3>
+        </div>
+
+        <div>
+          <label className="text-white/40 text-xs font-bold mb-1 block">Titulo de la notificacion</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ej: ¡Evento 2x Monedas!"
+            className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="text-white/40 text-xs font-bold mb-1 block">Mensaje</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Ej: Entra ahora y gana el doble de monedas en cada partida"
+            className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+            rows={3}
+          />
+        </div>
+
+        <div>
+          <label className="text-white/40 text-xs font-bold mb-1 block">Duracion</label>
+          <div className="flex gap-2">
+            {['15m', '30m', '60m', 'inmediata'].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDuration(d)}
+                className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors ${duration === d ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' : 'bg-card border border-border text-white/50'}`}
+              >
+                {d === 'inmediata' ? 'Inmediata' : d}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={handleSend}
+          disabled={sending || !title.trim() || !body.trim()}
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          {duration === 'inmediata' ? 'Enviar Notificacion Inmediata' : 'Programar Promocion'}
+        </button>
+
+        {sent && <p className="text-green-400 text-xs text-center font-bold">Promocion enviada con exito</p>}
       </div>
     </div>
   );

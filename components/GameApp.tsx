@@ -20,6 +20,8 @@ import { OfferwallScreen } from '@/components/screens/OfferwallScreen';
 import { AdminScreen } from '@/components/screens/AdminScreen';
 import { OperatorScreen } from '@/components/screens/OperatorScreen';
 import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
+import { ArcadeHub } from '@/components/screens/ArcadeHub';
+import { NeonMazeSurvival } from '@/components/screens/NeonMazeSurvival';
 import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
@@ -28,10 +30,10 @@ import { AdMob } from '@capacitor-community/admob';
 import { checkMinVersion } from '@/lib/firebase';
 import { ForceUpdateModal } from '@/components/game/ForceUpdateModal';
 
-const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival'];
-const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer'];
+const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze'];
+const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade'];
 const INTERSTITIAL_INTERVAL_MS = 5 * 60 * 1000;
-const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival'];
+const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -71,6 +73,10 @@ function GameRouter() {
       return <OperatorScreen />;
     case 'influencer':
       return <InfluencerScreen />;
+    case 'arcade':
+      return <ArcadeHub />;
+    case 'neon-maze':
+      return <NeonMazeSurvival />;
     default:
       return <IntroScreen />;
   }

@@ -247,6 +247,10 @@ export function MenuScreen() {
               <Gamepad2 className="w-8 h-8 text-[#d4d8b8]" />
               <span className="text-[#d4d8b8] font-bold text-sm tracking-wider">CAMPAÑA</span>
             </button>
+            <button onClick={() => setScreen('arcade')} className="tac-btn-accent tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
+              <Sparkles className="w-8 h-8 text-[#fbbf24]" />
+              <span className="text-[#fbbf24] font-bold text-sm tracking-wider">ARCADE</span>
+            </button>
             <button onClick={() => setScreen('shop')} className="tac-btn tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
               <Store className="w-8 h-8 text-[#d4d8b8]" />
               <span className="text-[#d4d8b8] font-bold text-sm tracking-wider">ARSENAL</span>
