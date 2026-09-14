@@ -167,17 +167,42 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
     const sugRef = doc(db, 'sugerencias', suggestionId);
 
     if (action === 'coherent' && userId) {
+      // 1. Sumar 100 monedas al usuario
       await updateDoc(doc(db, 'usuarios', userId), { coins: increment(100) });
       await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 100 });
+
+      // 2. Enviar notificación al usuario
+      await addDoc(collection(db, 'notifications'), {
+        userId: userId,
+        title: '🎯 ¡Sugerencia Aprobada!',
+        body: 'Tu sugerencia fue calificada como coherente. ¡Has recibido 100 monedas de regalo!',
+        type: 'suggestion_reward',
+        createdAt: serverTimestamp(),
+        read: false,
+      });
+
     } else if (action === 'simple' && userId) {
+      // 1. Sumar 5 monedas al usuario
       await updateDoc(doc(db, 'usuarios', userId), { coins: increment(5) });
       await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 5 });
+
+      // 2. Enviar notificación al usuario
+      await addDoc(collection(db, 'notifications'), {
+        userId: userId,
+        title: '💬 ¡Sugerencia Recibida!',
+        body: 'Gracias por colaborar con el juego. Has recibido 5 monedas de regalo.',
+        type: 'suggestion_reward',
+        createdAt: serverTimestamp(),
+        read: false,
+      });
+
     } else {
       await updateDoc(sugRef, { atendida: true, estado: 'descartada', attendedAt: serverTimestamp() });
     }
 
     return { ok: true };
-  } catch {
+  } catch (err) {
+    console.error('Error procesando sugerencia:', err);
     return { ok: false };
   }
 }
