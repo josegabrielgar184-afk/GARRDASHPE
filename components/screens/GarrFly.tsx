@@ -6,13 +6,13 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { ArrowLeft, Coins, Trophy, Heart } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
-const W = 360;
-const H = 540;
-const GROUND_Y = 430;
-const CUBE_SIZE = 28;
-const GRAVITY = 0.65;
-const JUMP_FORCE = -11.5;
-const GAME_SPEED = 4.2;
+const W = 520;
+const H = 280;
+const GROUND_Y = 220;
+const CUBE_SIZE = 24;
+const GRAVITY = 0.48;
+const JUMP_FORCE = -9.2;
+const GAME_SPEED = 2.8;
 
 interface Obstacle {
   x: number;
@@ -31,7 +31,7 @@ export function GarrFly() {
 
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [lives, setLives] = useState(1);
+  const [lives, setLives] = useState(2);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
@@ -45,6 +45,7 @@ export function GarrFly() {
   const spawnTimerRef = useRef(0);
   const scoreRef = useRef(0);
   const coinsRef = useRef(0);
+  const livesRef = useRef(2);
   const gameOverRef = useRef(false);
   const gameStartedRef = useRef(false);
   const rafRef = useRef<number>(0);
@@ -59,12 +60,13 @@ export function GarrFly() {
     spawnTimerRef.current = 0;
     scoreRef.current = 0;
     coinsRef.current = 0;
+    livesRef.current = 2;
     gameOverRef.current = false;
     gameStartedRef.current = false;
 
     setScore(0);
     setCoinsEarned(0);
-    setLives(1);
+    setLives(2);
     setGameOver(false);
     setGameStarted(false);
   }, []);
@@ -109,11 +111,9 @@ export function GarrFly() {
         return;
       }
 
-      // Fondo oscuro estilo Cyberpunk
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Rejilla Neón de Fondo
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
       ctx.lineWidth = 1;
       for (let i = 0; i < W; i += 30) {
@@ -123,7 +123,6 @@ export function GarrFly() {
         ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(W, j); ctx.stroke();
       }
 
-      // Suelo Brillante
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
       ctx.strokeStyle = '#00f3ff';
@@ -140,7 +139,6 @@ export function GarrFly() {
         frameCountRef.current++;
         spawnTimerRef.current++;
 
-        // Física del Cubo
         velocityYRef.current += GRAVITY;
         playerYRef.current += velocityYRef.current;
 
@@ -148,66 +146,48 @@ export function GarrFly() {
           playerYRef.current = GROUND_Y - CUBE_SIZE;
           velocityYRef.current = 0;
           isGroundedRef.current = true;
-          // Alinear el giro del cubo al suelo
           angleRef.current = Math.round(angleRef.current / (Math.PI / 2)) * (Math.PI / 2);
         } else {
-          // Rotación continua durante el salto
-          angleRef.current += 0.15;
+          angleRef.current += 0.12;
         }
 
-        // Generar Obstáculos (Pinchos / Bloques / Monedas)
-        if (spawnTimerRef.current > 70) {
+        if (spawnTimerRef.current > 110) {
           spawnTimerRef.current = 0;
           const rand = Math.random();
 
-          if (rand < 0.5) {
-            // Pincho simple
+          if (rand < 0.6) {
             obstaclesRef.current.push({
               x: W + 20,
               type: 'spike',
-              width: 26,
-              height: 28,
-              hasCoin: Math.random() < 0.7,
-              coinY: GROUND_Y - 60,
+              width: 24,
+              height: 24,
+              hasCoin: Math.random() < 0.8,
+              coinY: GROUND_Y - 55,
             });
-          } else if (rand < 0.8) {
-            // Bloque bajo con moneda encima
+          } else {
             obstaclesRef.current.push({
               x: W + 20,
               type: 'block',
-              width: 32,
-              height: 32,
-              hasCoin: true,
-              coinY: GROUND_Y - 32 - 35,
-            });
-          } else {
-            // Doble pincho
-            obstaclesRef.current.push({
-              x: W + 20,
-              type: 'spike',
-              width: 48,
+              width: 28,
               height: 28,
               hasCoin: true,
-              coinY: GROUND_Y - 65,
+              coinY: GROUND_Y - 28 - 30,
             });
           }
         }
 
-        const playerX = 60;
+        const playerX = 80;
 
-        // Mover y procesar obstáculos
         for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
           const obs = obstaclesRef.current[i];
           obs.x -= GAME_SPEED;
 
-          // Sumar puntos por superar obstáculos
           if (!obs.passed && obs.x + obs.width < playerX) {
             obs.passed = true;
             scoreRef.current += 10;
             setScore(scoreRef.current);
           }
 
-          // Recolectar Moneda
           if (obs.hasCoin && !obs.coinCollected) {
             const coinX = obs.x + obs.width / 2;
             const coinY = obs.coinY || GROUND_Y - 50;
@@ -222,33 +202,38 @@ export function GarrFly() {
             }
           }
 
-          // Detección de Colisiones (Hitbox)
-          const pLeft = playerX + 4;
-          const pRight = playerX + CUBE_SIZE - 4;
+          const pLeft = playerX + 5;
+          const pRight = playerX + CUBE_SIZE - 5;
           const pBottom = playerYRef.current + CUBE_SIZE;
-          const pTop = playerYRef.current + 4;
 
           const oLeft = obs.x;
           const oRight = obs.x + obs.width;
           const oTop = GROUND_Y - obs.height;
 
-          if (pRight > oLeft && pLeft < oRight && pBottom > oTop) {
-            gameOverRef.current = true;
-            setGameOver(true);
-            if (coinsRef.current > 0) addCoins(coinsRef.current);
+          if (pRight > oLeft && pLeft < oRight && pBottom > oTop + 2) {
+            livesRef.current -= 1;
+            setLives(livesRef.current);
+
+            if (livesRef.current <= 0) {
+              gameOverRef.current = true;
+              setGameOver(true);
+              if (coinsRef.current > 0) addCoins(coinsRef.current);
+            } else {
+              playerYRef.current = GROUND_Y - CUBE_SIZE;
+              velocityYRef.current = JUMP_FORCE;
+              isGroundedRef.current = false;
+              obstaclesRef.current = obstaclesRef.current.filter((o) => o.x < 30 || o.x > 220);
+            }
           }
 
-          // Eliminar del array cuando salgan de pantalla
           if (obs.x < -60) {
             obstaclesRef.current.splice(i, 1);
           }
         }
       }
 
-      // Dibujar Obstáculos y Monedas
       for (const obs of obstaclesRef.current) {
         if (obs.type === 'spike') {
-          // Pinchos Rojos Neón
           ctx.fillStyle = '#ef4444';
           ctx.shadowColor = '#ef4444';
           ctx.shadowBlur = 10;
@@ -259,32 +244,29 @@ export function GarrFly() {
           ctx.closePath();
           ctx.fill();
         } else {
-          // Bloques Azules Neón
           ctx.fillStyle = '#00f3ff';
           ctx.shadowColor = '#00f3ff';
           ctx.shadowBlur = 10;
           ctx.fillRect(obs.x, GROUND_Y - obs.height, obs.width, obs.height);
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 1;
-          ctx.strokeRect(obs.x + 3, GROUND_Y - obs.height + 3, obs.width - 6, obs.height - 6);
+          ctx.strokeRect(obs.x + 2, GROUND_Y - obs.height + 2, obs.width - 4, obs.height - 4);
         }
 
-        // Dibujar Moneda Dorada
         if (obs.hasCoin && !obs.coinCollected) {
           const coinX = obs.x + obs.width / 2;
           const coinY = obs.coinY || GROUND_Y - 50;
           ctx.fillStyle = '#ffb700';
           ctx.shadowColor = '#ffb700';
-          ctx.shadowBlur = 12;
+          ctx.shadowBlur = 10;
           ctx.beginPath();
-          ctx.arc(coinX, coinY, 7, 0, Math.PI * 2);
+          ctx.arc(coinX, coinY, 6, 0, Math.PI * 2);
           ctx.fill();
         }
       }
       ctx.shadowBlur = 0;
 
-      // Dibujar Cubo (Jugador) con Rotación
-      const px = 60 + CUBE_SIZE / 2;
+      const px = 80 + CUBE_SIZE / 2;
       const py = playerYRef.current + CUBE_SIZE / 2;
 
       ctx.save();
@@ -293,13 +275,12 @@ export function GarrFly() {
 
       ctx.fillStyle = '#ffb700';
       ctx.shadowColor = '#ffb700';
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = 14;
       ctx.fillRect(-CUBE_SIZE / 2, -CUBE_SIZE / 2, CUBE_SIZE, CUBE_SIZE);
 
-      // Ojos estilo icono del cubo
       ctx.fillStyle = '#0a0e17';
-      ctx.fillRect(-CUBE_SIZE / 4, -CUBE_SIZE / 4, 6, 6);
-      ctx.fillRect(CUBE_SIZE / 8, -CUBE_SIZE / 4, 6, 6);
+      ctx.fillRect(-CUBE_SIZE / 4, -CUBE_SIZE / 4, 5, 5);
+      ctx.fillRect(CUBE_SIZE / 8, -CUBE_SIZE / 4, 5, 5);
       ctx.restore();
       ctx.shadowBlur = 0;
 
@@ -311,11 +292,13 @@ export function GarrFly() {
   }, [addCoins]);
 
   const handleRevive = () => {
+    livesRef.current = 1;
+    setLives(1);
     gameOverRef.current = false;
     setGameOver(false);
     playerYRef.current = GROUND_Y - CUBE_SIZE;
     velocityYRef.current = JUMP_FORCE;
-    obstaclesRef.current = obstaclesRef.current.filter((o) => o.x < 20 || o.x > 180);
+    obstaclesRef.current = obstaclesRef.current.filter((o) => o.x < 30 || o.x > 220);
   };
 
   const handleDoubleCoins = () => {
@@ -335,7 +318,6 @@ export function GarrFly() {
     >
       <MuteButton />
 
-      {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-gradient-to-b from-[#0a0e17] to-transparent pointer-events-none">
         <button
           onClick={(e) => {
@@ -365,19 +347,18 @@ export function GarrFly() {
       {!gameStarted && !gameOver && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
           <p className="text-[#00f3ff] font-black text-xl animate-bounce tracking-widest">
-            ¡TOCA PARA SALTAR!
+            ¡TOCA EN CUALQUIER LUGAR PARA SALTAR!
           </p>
-          <p className="text-white/50 text-xs mt-1">Esquiva pinchos y junta monedas</p>
+          <p className="text-white/50 text-xs mt-1">Tienes 2 Vidas · Esquiva pinchos y junta monedas</p>
         </div>
       )}
 
-      {/* Canvas principal */}
-      <div className="flex-1 flex items-center justify-center pt-14 pb-6 text-center">
+      <div className="flex-1 flex items-center justify-center p-2 text-center">
         <canvas
           ref={canvasRef}
           width={W}
           height={H}
-          className="touch-none border border-[#00f3ff]/20 rounded-xl shadow-lg shadow-[#00f3ff]/10 max-h-[70vh]"
+          className="touch-none border border-[#00f3ff]/30 rounded-2xl shadow-xl shadow-[#00f3ff]/15 w-full max-w-[540px] max-h-[80vh] object-contain"
           style={{ imageRendering: 'pixelated' }}
         />
       </div>
