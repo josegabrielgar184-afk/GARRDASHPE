@@ -8,11 +8,11 @@ import { GameOverModal } from '@/components/game/GameOverModal';
 
 const W = 360;
 const H = 540;
-const GRAVITY = 0.38;
-const JUMP = -6.8;
-const PIPE_SPEED = 2.2;
-const PIPE_SPAWN_RATE = 110;
-const GAP_SIZE = 130;
+const GRAVITY = 0.24; // Caída súper suave
+const JUMP = -5.8;    // Impulso de salto fácil de controlar
+const PIPE_SPEED = 1.7; // Velocidad moderada
+const PIPE_SPAWN_RATE = 135; // Tuberías más distanciadas
+const GAP_SIZE = 160; // Hueco amplio para pasar fácil
 
 interface Pipe {
   x: number;
@@ -99,6 +99,7 @@ export function GarrFly() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
+      // Cuadrícula Neón de Fondo
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
       ctx.lineWidth = 1;
       for (let i = 0; i < W; i += 30) {
@@ -118,7 +119,7 @@ export function GarrFly() {
           const maxTop = H - GAP_SIZE - 80;
           const topHeight = Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
           const bottomY = topHeight + GAP_SIZE;
-          const hasCoin = Math.random() < 0.7;
+          const hasCoin = Math.random() < 0.8; // 80% probabilidad de moneda
 
           pipesRef.current.push({
             x: W,
@@ -132,7 +133,7 @@ export function GarrFly() {
         }
 
         const playerX = 70;
-        const playerRadius = 12;
+        const playerRadius = 10;
 
         if (playerYRef.current - playerRadius <= 0 || playerYRef.current + playerRadius >= H) {
           gameOverRef.current = true;
@@ -154,7 +155,7 @@ export function GarrFly() {
             const dx = playerX - (p.x + 20);
             const dy = playerYRef.current - p.coinY;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < playerRadius + 8) {
+            if (dist < playerRadius + 12) {
               p.coinCollected = true;
               coinsRef.current += 1;
               setCoinsEarned(coinsRef.current);
@@ -177,6 +178,7 @@ export function GarrFly() {
         }
       }
 
+      // Dibujar Tuberías Neón
       ctx.fillStyle = '#00f3ff';
       ctx.shadowColor = '#00f3ff';
       ctx.shadowBlur = 10;
@@ -189,7 +191,7 @@ export function GarrFly() {
           ctx.shadowColor = '#ffb700';
           ctx.shadowBlur = 8;
           ctx.beginPath();
-          ctx.arc(p.x + 20, p.coinY, 6, 0, Math.PI * 2);
+          ctx.arc(p.x + 20, p.coinY, 7, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = '#00f3ff';
           ctx.shadowColor = '#00f3ff';
@@ -198,19 +200,20 @@ export function GarrFly() {
       }
       ctx.shadowBlur = 0;
 
+      // Dibujar Jugador
       const px = 70;
       const py = playerYRef.current;
       ctx.fillStyle = '#ffb700';
       ctx.shadowColor = '#ffb700';
       ctx.shadowBlur = 14;
       ctx.beginPath();
-      ctx.arc(px, py, 12, 0, Math.PI * 2);
+      ctx.arc(px, py, 11, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
 
       ctx.fillStyle = '#0a0e17';
       ctx.beginPath();
-      ctx.arc(px + 4, py - 3, 3, 0, Math.PI * 2);
+      ctx.arc(px + 3, py - 2, 3, 0, Math.PI * 2);
       ctx.fill();
 
       rafRef.current = requestAnimationFrame(loop);
@@ -245,6 +248,7 @@ export function GarrFly() {
     >
       <MuteButton />
 
+      {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-gradient-to-b from-[#0a0e17] to-transparent pointer-events-none">
         <button
           onClick={(e) => {
@@ -274,12 +278,13 @@ export function GarrFly() {
       {!gameStarted && !gameOver && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
           <p className="text-[#00f3ff] font-black text-lg animate-bounce tracking-widest">
-            ¡TOCA PARA VOLAR!
+            ¡TOCA EN CUALQUIER LUGAR PARA VOLAR!
           </p>
-          <p className="text-white/40 text-xs mt-1">Esquiva tuberías neón</p>
+          <p className="text-white/50 text-xs mt-1">Esquiva las tuberías y junta monedas</p>
         </div>
       )}
 
+      {/* Canvas principal */}
       <div className="flex-1 flex items-center justify-center pt-14 pb-6 text-center">
         <canvas
           ref={canvasRef}
