@@ -3,12 +3,27 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, Heart, Zap, Shield, Swords } from 'lucide-react';
+import { ArrowLeft, Coins, Trophy, Heart, Zap, Rocket } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 const W = 360;
-const H = 480;
-const GROUND_Y = 380;
+const H = 540;
+
+interface Bullet {
+  x: number;
+  y: number;
+  vy: number;
+}
+
+interface Enemy {
+  x: number;
+  y: number;
+  radius: number;
+  speed: number;
+  hp: number;
+  maxHp: number;
+  color: string;
+}
 
 interface Particle {
   x: number;
@@ -24,52 +39,43 @@ export function GarrFly() {
   const { setScreen, addCoins, userRole, vip } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [playerHp, setPlayerHp] = useState(100);
-  const [enemyHp, setEnemyHp] = useState(100);
-  const [specialEnergy, setSpecialEnergy] = useState(0);
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [combo, setCombo] = useState(0);
+  const [lives, setLives] = useState(3);
+  const [specialEnergy, setSpecialEnergy] = useState(0);
   const [gameOver, setGameOver] = useState(false);
 
-  // Refs de estado interno de física y juego
-  const playerXRef = useRef(80);
-  const enemyXRef = useRef(260);
-  const playerHpRef = useRef(100);
-  const enemyHpRef = useRef(100);
-  const specialRef = useRef(0);
-
-  const playerStateRef = useRef<'idle' | 'punch' | 'kick' | 'block' | 'hit'>('idle');
-  const enemyStateRef = useRef<'idle' | 'attack' | 'hit'>('idle');
-  
-  const stateTimerRef = useRef(0);
-  const enemyTimerRef = useRef(0);
+  const playerXRef = useRef(W / 2);
+  const targetXRef = useRef(W / 2);
+  const bulletsRef = useRef<Bullet[]>([]);
+  const enemiesRef = useRef<Enemy[]>([]);
   const particlesRef = useRef<Particle[]>([]);
-  const screenShakeRef = useRef(0);
   
   const scoreRef = useRef(0);
   const coinsRef = useRef(0);
+  const livesRef = useRef(3);
+  const specialRef = useRef(0);
+  const frameCountRef = useRef(0);
   const gameOverRef = useRef(false);
   const rafRef = useRef<number>(0);
 
   const initGame = useCallback(() => {
-    playerXRef.current = 80;
-    enemyXRef.current = 260;
-    playerHpRef.current = 100;
-    enemyHpRef.current = 100;
-    specialRef.current = 0;
+    playerXRef.current = W / 2;
+    targetXRef.current = W / 2;
+    bulletsRef.current = [];
+    enemiesRef.current = [];
     particlesRef.current = [];
-    screenShakeRef.current = 0;
     scoreRef.current = 0;
     coinsRef.current = 0;
+    livesRef.current = 3;
+    specialRef.current = 0;
+    frameCountRef.current = 0;
     gameOverRef.current = false;
 
-    setPlayerHp(100);
-    setEnemyHp(100);
-    setSpecialEnergy(0);
     setScore(0);
     setCoinsEarned(0);
-    setCombo(0);
+    setLives(3);
+    setSpecialEnergy(0);
     setGameOver(false);
   }, []);
 
@@ -77,14 +83,15 @@ export function GarrFly() {
     initGame();
   }, [initGame]);
 
-  // Generador de chispas y partículas
-  const createSparks = (x: number, y: number, color: string, count = 12) => {
+  const createExplosion = (x: number, y: number, color: string, count = 16) => {
     for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 5 + 2;
       particlesRef.current.push({
         x,
         y,
-        vx: (Math.random() - 0.5) * 8,
-        vy: (Math.random() - 0.5) * 8,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
         color,
         size: Math.random() * 4 + 2,
         life: 1.0,
@@ -92,61 +99,28 @@ export function GarrFly() {
     }
   };
 
-  // Acciones de Ataque del Jugador
-  const handleAttack = (type: 'punch' | 'kick' | 'special') => {
-    if (gameOverRef.current || playerStateRef.current !== 'idle') return;
-
-    if (type === 'special') {
-      if (specialRef.current < 100) return;
-      specialRef.current = 0;
-      setSpecialEnergy(0);
-    }
-
-    playerStateRef.current = type === 'special' ? 'punch' : type;
-    stateTimerRef.current = 12;
-
-    const dist = Math.abs(playerXRef.current - enemyXRef.current);
-    if (dist < 70) {
-      const damage = type === 'special' ? 40 : type === 'kick' ? 18 : 12;
-      enemyHpRef.current = Math.max(0, enemyHpRef.current - damage);
-      setEnemyHp(enemyHpRef.current);
-
-      enemyStateRef.current = 'hit';
-      screenShakeRef.current = type === 'special' ? 15 : 6;
-      createSparks(enemyXRef.current, GROUND_Y - 50, type === 'special' ? '#ff0055' : '#00f3ff');
-
-      // Cargar especial
-      if (type !== 'special') {
-        specialRef.current = Math.min(100, specialRef.current + 20);
-        setSpecialEnergy(specialRef.current);
-      }
-
-      setCombo((prev) => prev + 1);
-      scoreRef.current += 150;
-      coinsRef.current = Math.floor(scoreRef.current / 100);
-      setScore(scoreRef.current);
-      setCoinsEarned(coinsRef.current);
-
-      // Victoria / Siguiente Enemigo
-      if (enemyHpRef.current <= 0) {
-        setTimeout(() => {
-          enemyHpRef.current = 100;
-          setEnemyHp(100);
-          enemyXRef.current = 260;
-          scoreRef.current += 500;
-          setScore(scoreRef.current);
-        }, 600);
-      }
-    }
-  };
-
-  const handleBlock = () => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (gameOverRef.current) return;
-    playerStateRef.current = 'block';
-    stateTimerRef.current = 15;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touchX = e.clientX - rect.left;
+    targetXRef.current = Math.max(20, Math.min(W - 20, (touchX / rect.width) * W));
   };
 
-  // Bucle Principal de Renderizado Canvas
+  const handleUseSpecial = () => {
+    if (specialRef.current < 100 || gameOverRef.current) return;
+    specialRef.current = 0;
+    setSpecialEnergy(0);
+
+    for (const enemy of enemiesRef.current) {
+      createExplosion(enemy.x, enemy.y, enemy.color, 15);
+      scoreRef.current += 100;
+    }
+    enemiesRef.current = [];
+    coinsRef.current += 10;
+    setScore(scoreRef.current);
+    setCoinsEarned(coinsRef.current);
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -159,119 +133,116 @@ export function GarrFly() {
         return;
       }
 
-      // Control del Screen Shake
-      ctx.save();
-      if (screenShakeRef.current > 0) {
-        const dx = (Math.random() - 0.5) * screenShakeRef.current;
-        const dy = (Math.random() - 0.5) * screenShakeRef.current;
-        ctx.translate(dx, dy);
-        screenShakeRef.current *= 0.85;
-        if (screenShakeRef.current < 0.5) screenShakeRef.current = 0;
-      }
+      frameCountRef.current++;
 
-      // Fondo Cyberpunk Ring
+      // Suavizado de movimiento de nave
+      playerXRef.current += (targetXRef.current - playerXRef.current) * 0.25;
+
+      // Fondo Espacial Cyberpunk
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Malla Neón de Fondo
-      ctx.strokeStyle = 'rgba(0, 243, 255, 0.08)';
+      // Rejilla Neón de Fondo
+      ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
       ctx.lineWidth = 1;
       for (let i = 0; i < W; i += 30) {
         ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
       }
 
-      // Suelo del Ring
-      ctx.fillStyle = '#111827';
-      ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-      ctx.strokeStyle = '#00f3ff';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = '#00f3ff';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.moveTo(0, GROUND_Y);
-      ctx.lineTo(W, GROUND_Y);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Lógica de Estado de Jugador
-      if (stateTimerRef.current > 0) {
-        stateTimerRef.current--;
-        if (stateTimerRef.current === 0) playerStateRef.current = 'idle';
+      // Generar Disparos Automáticos
+      if (frameCountRef.current % 8 === 0) {
+        bulletsRef.current.push({ x: playerXRef.current - 8, y: H - 60, vy: -12 });
+        bulletsRef.current.push({ x: playerXRef.current + 8, y: H - 60, vy: -12 });
       }
 
-      // IA Enemiga (Ataques periódicos)
-      enemyTimerRef.current++;
-      if (enemyTimerRef.current > 70) {
-        enemyTimerRef.current = 0;
-        const dist = Math.abs(playerXRef.current - enemyXRef.current);
-        if (dist < 70) {
-          enemyStateRef.current = 'attack';
-          setTimeout(() => {
-            if (playerStateRef.current === 'block') {
-              createSparks(playerXRef.current + 15, GROUND_Y - 40, '#ffb700', 6);
-            } else {
-              playerHpRef.current = Math.max(0, playerHpRef.current - 15);
-              setPlayerHp(playerHpRef.current);
-              playerStateRef.current = 'hit';
-              stateTimerRef.current = 8;
-              screenShakeRef.current = 8;
-              createSparks(playerXRef.current, GROUND_Y - 40, '#ef4444', 10);
-              setCombo(0);
+      // Generar Enemigos Zombis Espaciales
+      if (frameCountRef.current % 35 === 0) {
+        const randColor = Math.random() < 0.5 ? '#ef4444' : '#a855f7';
+        enemiesRef.current.push({
+          x: Math.random() * (W - 40) + 20,
+          y: -20,
+          radius: 14 + Math.random() * 8,
+          speed: 1.8 + Math.random() * 1.5,
+          hp: 2,
+          maxHp: 2,
+          color: randColor,
+        });
+      }
 
-              if (playerHpRef.current <= 0) {
-                gameOverRef.current = true;
-                setGameOver(true);
-                if (coinsRef.current > 0) addCoins(coinsRef.current);
+      // Mover y Dibujar Disparos
+      ctx.fillStyle = '#00f3ff';
+      ctx.shadowColor = '#00f3ff';
+      ctx.shadowBlur = 10;
+      for (let i = bulletsRef.current.length - 1; i >= 0; i--) {
+        const b = bulletsRef.current[i];
+        b.y += b.vy;
+        ctx.fillRect(b.x - 2, b.y, 4, 12);
+
+        if (b.y < -10) bulletsRef.current.splice(i, 1);
+      }
+      ctx.shadowBlur = 0;
+
+      // Mover y Dibujar Enemigos
+      for (let i = enemiesRef.current.length - 1; i >= 0; i--) {
+        const e = enemiesRef.current[i];
+        e.y += e.speed;
+
+        // Dibujar Enemigo Neón
+        ctx.fillStyle = e.color;
+        ctx.shadowColor = e.color;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Impacto de Balas con Enemigos
+        for (let j = bulletsRef.current.length - 1; j >= 0; j--) {
+          const b = bulletsRef.current[j];
+          const dist = Math.hypot(b.x - e.x, b.y - e.y);
+
+          if (dist < e.radius + 4) {
+            e.hp -= 1;
+            bulletsRef.current.splice(j, 1);
+            createExplosion(b.x, b.y, '#00f3ff', 4);
+
+            if (e.hp <= 0) {
+              createExplosion(e.x, e.y, e.color, 14);
+              scoreRef.current += 50;
+              specialRef.current = Math.min(100, specialRef.current + 8);
+              
+              if (Math.random() < 0.35) {
+                coinsRef.current += 1;
               }
+
+              setScore(scoreRef.current);
+              setCoinsEarned(coinsRef.current);
+              setSpecialEnergy(specialRef.current);
+              enemiesRef.current.splice(i, 1);
+              break;
             }
-            enemyStateRef.current = 'idle';
-          }, 200);
-        } else {
-          // Aproximarse
-          enemyXRef.current -= 20;
+          }
+        }
+
+        // Impacto con el Jugador
+        const playerDist = Math.hypot(playerXRef.current - e.x, (H - 50) - e.y);
+        if (playerDist < e.radius + 16) {
+          createExplosion(e.x, e.y, '#ef4444', 18);
+          enemiesRef.current.splice(i, 1);
+          livesRef.current -= 1;
+          setLives(livesRef.current);
+
+          if (livesRef.current <= 0) {
+            gameOverRef.current = true;
+            setGameOver(true);
+            if (coinsRef.current > 0) addCoins(coinsRef.current);
+          }
+        } else if (e.y > H + 20) {
+          enemiesRef.current.splice(i, 1);
         }
       }
 
-      // DIBUJAR JUGADOR (Ciborg Neón Azul)
-      const px = playerXRef.current;
-      ctx.fillStyle = '#00f3ff';
-      ctx.shadowColor = '#00f3ff';
-      ctx.shadowBlur = 14;
-
-      // Cuerpo
-      ctx.fillRect(px - 10, GROUND_Y - 60, 20, 40);
-      // Cabeza
-      ctx.beginPath();
-      ctx.arc(px, GROUND_Y - 72, 10, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Animación de Brazos/Piernas según estado
-      if (playerStateRef.current === 'punch') {
-        ctx.fillRect(px + 10, GROUND_Y - 52, 35, 8); // Puñetazo
-      } else if (playerStateRef.current === 'kick') {
-        ctx.fillRect(px + 10, GROUND_Y - 35, 38, 10); // Patada
-      } else if (playerStateRef.current === 'block') {
-        ctx.fillRect(px + 8, GROUND_Y - 62, 8, 30); // Escudo
-      }
-
-      // DIBUJAR ENEMIGO (Zombi Cibernético Rojo)
-      const ex = enemyXRef.current;
-      ctx.fillStyle = '#ef4444';
-      ctx.shadowColor = '#ef4444';
-      ctx.shadowBlur = 14;
-
-      ctx.fillRect(ex - 10, GROUND_Y - 60, 20, 40);
-      ctx.beginPath();
-      ctx.arc(ex, GROUND_Y - 72, 10, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (enemyStateRef.current === 'attack') {
-        ctx.fillRect(ex - 35, GROUND_Y - 52, 30, 8);
-      }
-
-      ctx.shadowBlur = 0;
-
-      // DIBUJAR PARTÍCULAS
+      // Dibujar Partículas de Explosión
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
         p.x += p.vx;
@@ -289,7 +260,22 @@ export function GarrFly() {
         ctx.globalAlpha = 1.0;
       }
 
-      ctx.restore();
+      // Dibujar Nave Jugador
+      const px = playerXRef.current;
+      const py = H - 50;
+
+      ctx.fillStyle = '#00f3ff';
+      ctx.shadowColor = '#00f3ff';
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.moveTo(px, py - 18);
+      ctx.lineTo(px - 16, py + 14);
+      ctx.lineTo(px, py + 6);
+      ctx.lineTo(px + 16, py + 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
       rafRef.current = requestAnimationFrame(loop);
     };
 
@@ -298,8 +284,8 @@ export function GarrFly() {
   }, [addCoins]);
 
   const handleRevive = () => {
-    playerHpRef.current = 50;
-    setPlayerHp(50);
+    livesRef.current = 2;
+    setLives(2);
     gameOverRef.current = false;
     setGameOver(false);
   };
@@ -311,10 +297,13 @@ export function GarrFly() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
+    <div
+      onPointerMove={handlePointerMove}
+      className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none touch-none"
+    >
       <MuteButton />
 
-      {/* Header e Indicadores */}
+      {/* Header */}
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
           onClick={() => setScreen('arcade')}
@@ -324,6 +313,10 @@ export function GarrFly() {
         </button>
 
         <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 bg-black/60 border border-red-500/30 rounded-full px-3 py-1">
+            <Heart className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-red-400 text-xs font-bold">{lives}</span>
+          </span>
           <span className="flex items-center gap-1 bg-black/60 border border-amber-500/30 rounded-full px-3 py-1">
             <Trophy className="w-3.5 h-3.5 text-[#ffb700]" />
             <span className="text-[#ffb700] text-xs font-bold">{score.toLocaleString()}</span>
@@ -335,86 +328,32 @@ export function GarrFly() {
         </div>
       </div>
 
-      {/* Barras de HP y Super */}
-      <div className="px-4 pt-3 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1">
-            <p className="text-[10px] text-[#00f3ff] font-bold mb-1">TÚ ({playerHp} HP)</p>
-            <div className="h-2.5 bg-black/60 rounded-full overflow-hidden border border-[#00f3ff]/40">
-              <div
-                className="h-full bg-gradient-to-r from-[#00f3ff] to-cyan-400 transition-all duration-200"
-                style={{ width: `${playerHp}%` }}
-              />
-            </div>
-          </div>
-          <div className="flex-1 text-right">
-            <p className="text-[10px] text-red-400 font-bold mb-1">ZOMBI CIBORG ({enemyHp} HP)</p>
-            <div className="h-2.5 bg-black/60 rounded-full overflow-hidden border border-red-500/40">
-              <div
-                className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-200"
-                style={{ width: `${enemyHp}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Meter de Poder Especial */}
-        <div className="h-1.5 bg-black/60 rounded-full overflow-hidden border border-purple-500/30">
-          <div
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-150"
-            style={{ width: `${specialEnergy}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Canvas del Ring */}
+      {/* Canvas Principal */}
       <div className="flex-1 flex items-center justify-center p-2 relative">
-        {combo > 1 && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-[#00f3ff]/20 border border-[#00f3ff] animate-bounce">
-            <span className="text-[#00f3ff] font-black text-xs tracking-wider">{combo} COMBO! 🔥</span>
-          </div>
-        )}
-
         <canvas
           ref={canvasRef}
           width={W}
           height={H}
-          className="border border-[#00f3ff]/30 rounded-2xl shadow-xl shadow-[#00f3ff]/10 max-h-[55vh] object-contain bg-black/40"
+          className="border border-[#00f3ff]/30 rounded-2xl shadow-2xl shadow-[#00f3ff]/10 max-h-[65vh] object-contain bg-black/40"
         />
-      </div>
 
-      {/* Controles de Pelea en Pantalla */}
-      <div className="p-4 grid grid-cols-4 gap-2 bg-black/60 border-t border-[#00f3ff]/20 backdrop-blur-md">
+        {/* Botón de Bomba Especial */}
         <button
-          onClick={() => handleAttack('punch')}
-          className="py-3 rounded-xl bg-[#00f3ff]/15 border border-[#00f3ff]/40 text-[#00f3ff] font-black text-xs active:scale-90 flex flex-col items-center justify-center gap-1"
-        >
-          <Swords className="w-4 h-4" /> PUÑO
-        </button>
-        <button
-          onClick={() => handleAttack('kick')}
-          className="py-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-400 font-black text-xs active:scale-90 flex flex-col items-center justify-center gap-1"
-        >
-          <Zap className="w-4 h-4" /> PATADA
-        </button>
-        <button
-          onClick={handleBlock}
-          className="py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 font-black text-xs active:scale-90 flex flex-col items-center justify-center gap-1"
-        >
-          <Shield className="w-4 h-4" /> BLOQUEO
-        </button>
-        <button
-          onClick={() => handleAttack('special')}
+          onClick={handleUseSpecial}
           disabled={specialEnergy < 100}
-          className={`py-3 rounded-xl font-black text-xs flex flex-col items-center justify-center gap-1 transition-all ${
+          className={`absolute bottom-6 right-6 p-4 rounded-full border flex items-center justify-center transition-all ${
             specialEnergy >= 100
-              ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-lg shadow-purple-500/40 animate-pulse active:scale-90'
-              : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-500 border-white text-white shadow-lg shadow-purple-500/50 animate-bounce active:scale-90'
+              : 'bg-black/60 border-white/10 text-white/20 cursor-not-allowed'
           }`}
         >
-          <Heart className="w-4 h-4" /> SUPER
+          <Rocket className="w-6 h-6" />
         </button>
       </div>
+
+      <p className="text-white/40 text-[10px] font-bold pb-4 text-center uppercase tracking-widest">
+        Desliza el dedo abajo para mover la nave
+      </p>
 
       <GameOverModal
         open={gameOver}
