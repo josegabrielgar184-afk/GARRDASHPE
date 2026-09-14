@@ -3,46 +3,53 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, Heart, Sparkles, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Coins, Trophy, Sparkles, Flame, Zap, Gem, Star, Skull, RefreshCw } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 const ROWS = 7;
 const COLS = 6;
-const INITIAL_MOVES = 25;
+const INITIAL_MOVES = 20;
+
+type GemKind = 'cyan' | 'amber' | 'red' | 'emerald' | 'purple' | 'rainbow' | 'bomb';
 
 interface GemType {
-  id: number;
+  kind: GemKind;
   color: string;
   glow: string;
+  bg: string;
   border: string;
-  icon: string;
+  icon: any;
 }
 
-const GEM_TYPES: GemType[] = [
-  { id: 0, color: '#00f3ff', glow: 'rgba(0,243,255,0.4)', border: 'border-[#00f3ff]', icon: '💎' },
-  { id: 1, color: '#ffb700', glow: 'rgba(255,183,0,0.4)', border: 'border-[#ffb700]', icon: '🪙' },
-  { id: 2, color: '#ef4444', glow: 'rgba(239,68,68,0.4)', border: 'border-red-500', icon: '🔥' },
-  { id: 3, color: '#34d399', glow: 'rgba(52,211,153,0.4)', border: 'border-emerald-400', icon: '⚡' },
-  { id: 4, color: '#a855f7', glow: 'rgba(168,85,247,0.4)', border: 'border-purple-500', icon: '🔮' },
-];
+const GEM_MAP: Record<GemKind, GemType> = {
+  cyan: { kind: 'cyan', color: '#00f3ff', glow: 'rgba(0,243,255,0.6)', bg: 'bg-[#00f3ff]/15', border: 'border-[#00f3ff]/50', icon: Gem },
+  amber: { kind: 'amber', color: '#ffb700', glow: 'rgba(255,183,0,0.6)', bg: 'bg-[#ffb700]/15', border: 'border-[#ffb700]/50', icon: Star },
+  red: { kind: 'red', color: '#ef4444', glow: 'rgba(239,68,68,0.6)', bg: 'bg-red-500/15', border: 'border-red-500/50', icon: Flame },
+  emerald: { kind: 'emerald', color: '#34d399', glow: 'rgba(52,211,153,0.6)', bg: 'bg-emerald-500/15', border: 'border-emerald-500/50', icon: Zap },
+  purple: { kind: 'purple', color: '#a855f7', glow: 'rgba(168,85,247,0.6)', bg: 'bg-purple-500/15', border: 'border-purple-500/50', icon: Skull },
+  rainbow: { kind: 'rainbow', color: '#ffffff', glow: 'rgba(255,255,255,0.8)', bg: 'bg-gradient-to-r from-cyan-500 via-purple-500 to-amber-500', border: 'border-white', icon: Sparkles },
+  bomb: { kind: 'bomb', color: '#f97316', glow: 'rgba(249,115,22,0.8)', bg: 'bg-orange-500/30', border: 'border-orange-500 animate-pulse', icon: RefreshCw },
+};
 
-function getRandomGem(): number {
-  return Math.floor(Math.random() * GEM_TYPES.length);
+const BASE_KINDS: GemKind[] = ['cyan', 'amber', 'red', 'emerald', 'purple'];
+
+function getRandomKind(): GemKind {
+  return BASE_KINDS[Math.floor(Math.random() * BASE_KINDS.length)];
 }
 
-function createInitialBoard(): number[][] {
-  let board: number[][] = [];
+function createInitialBoard(): GemKind[][] {
+  let board: GemKind[][] = [];
   for (let r = 0; r < ROWS; r++) {
     board[r] = [];
     for (let c = 0; c < COLS; c++) {
-      let gem: number;
+      let kind: GemKind;
       do {
-        gem = getRandomGem();
+        kind = getRandomKind();
       } while (
-        (c >= 2 && board[r][c - 1] === gem && board[r][c - 2] === gem) ||
-        (r >= 2 && board[r - 1][c] === gem && board[r - 2][c] === gem)
+        (c >= 2 && board[r][c - 1] === kind && board[r][c - 2] === kind) ||
+        (r >= 2 && board[r - 1][c] === kind && board[r - 2][c] === kind)
       );
-      board[r][c] = gem;
+      board[r][c] = kind;
     }
   }
   return board;
@@ -51,13 +58,13 @@ function createInitialBoard(): number[][] {
 export function GarrFly() {
   const { setScreen, addCoins, userRole, vip } = useGame();
 
-  const [board, setBoard] = useState<number[][]>(createInitialBoard);
+  const [board, setBoard] = useState<GemKind[][]>(createInitialBoard);
   const [selected, setSelected] = useState<{ r: number; c: number } | null>(null);
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [moves, setMoves] = useState(INITIAL_MOVES);
   const [gameOver, setGameOver] = useState(false);
-  const [comboMessage, setComboMessage] = useState<string | null>(null);
+  const [comboText, setComboText] = useState<string | null>(null);
 
   const scoreRef = useRef(0);
   const coinsRef = useRef(0);
@@ -72,7 +79,7 @@ export function GarrFly() {
     setCoinsEarned(0);
     setMoves(INITIAL_MOVES);
     setGameOver(false);
-    setComboMessage(null);
+    setComboText(null);
     scoreRef.current = 0;
     coinsRef.current = 0;
     movesRef.current = INITIAL_MOVES;
@@ -83,14 +90,13 @@ export function GarrFly() {
     initGame();
   }, [initGame]);
 
-  const findMatches = (grid: number[][]): { r: number; c: number }[] => {
+  const findMatches = (grid: GemKind[][]): { r: number; c: number }[] => {
     const matched = new Set<string>();
 
-    // Horizontales
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS - 2; c++) {
-        const val = grid[r][c];
-        if (val !== -1 && val === grid[r][c + 1] && val === grid[r][c + 2]) {
+        const k = grid[r][c];
+        if (k && k !== 'rainbow' && k === grid[r][c + 1] && k === grid[r][c + 2]) {
           matched.add(`${r},${c}`);
           matched.add(`${r},${c + 1}`);
           matched.add(`${r},${c + 2}`);
@@ -98,11 +104,10 @@ export function GarrFly() {
       }
     }
 
-    // Verticales
     for (let r = 0; r < ROWS - 2; r++) {
       for (let c = 0; c < COLS; c++) {
-        const val = grid[r][c];
-        if (val !== -1 && val === grid[r + 1][c] && val === grid[r + 2][c]) {
+        const k = grid[r][c];
+        if (k && k !== 'rainbow' && k === grid[r + 1][c] && k === grid[r + 2][c]) {
           matched.add(`${r},${c}`);
           matched.add(`${r + 1},${c}`);
           matched.add(`${r + 2},${c}`);
@@ -116,64 +121,84 @@ export function GarrFly() {
     });
   };
 
-  const processCascades = async (currentBoard: number[][]) => {
+  const hasPossibleMoves = (grid: GemKind[][]): boolean => {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (c < COLS - 1) {
+          const testBoard = grid.map((row) => [...row]);
+          const temp = testBoard[r][c];
+          testBoard[r][c] = testBoard[r][c + 1];
+          testBoard[r][c + 1] = temp;
+          if (findMatches(testBoard).length > 0) return true;
+        }
+        if (r < ROWS - 1) {
+          const testBoard = grid.map((row) => [...row]);
+          const temp = testBoard[r][c];
+          testBoard[r][c] = testBoard[r + 1][c];
+          testBoard[r + 1][c] = temp;
+          if (findMatches(testBoard).length > 0) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const processCascades = async (currentBoard: GemKind[][]) => {
     let activeBoard = currentBoard.map((row) => [...row]);
     let comboMultiplier = 1;
-    let totalScoreGained = 0;
-    let totalCoinsGained = 0;
+    let gainedScore = 0;
 
     while (true) {
       const matches = findMatches(activeBoard);
       if (matches.length === 0) break;
 
-      // Puntuación y Monedas
-      const points = matches.length * 15 * comboMultiplier;
-      const coins = Math.floor(matches.length / 3) * comboMultiplier;
-      totalScoreGained += points;
-      totalCoinsGained += coins;
-
       if (comboMultiplier > 1) {
-        setComboMessage(`¡COMBO x${comboMultiplier}! 🔥`);
-        setTimeout(() => setComboMessage(null), 1200);
+        setComboText(`¡COMBO X${comboMultiplier}! 🔥`);
+        setTimeout(() => setComboText(null), 1000);
       }
 
-      // Eliminar gemas que coincidieron
+      gainedScore += matches.length * 40 * comboMultiplier;
+
       for (const m of matches) {
-        activeBoard[m.r][m.c] = -1;
+        activeBoard[m.r][m.c] = null as any;
       }
 
-      // Caída en Cascada
       for (let c = 0; c < COLS; c++) {
         let emptySpot = ROWS - 1;
         for (let r = ROWS - 1; r >= 0; r--) {
-          if (activeBoard[r][c] !== -1) {
+          if (activeBoard[r][c] !== null) {
             activeBoard[emptySpot][c] = activeBoard[r][c];
             if (emptySpot !== r) {
-              activeBoard[r][c] = -1;
+              activeBoard[r][c] = null as any;
             }
             emptySpot--;
           }
         }
-        // Rellenar espacios superiores con nuevas gemas
         for (let r = emptySpot; r >= 0; r--) {
-          activeBoard[r][c] = getRandomGem();
+          activeBoard[r][c] = getRandomKind();
         }
       }
 
       comboMultiplier++;
     }
 
-    if (totalScoreGained > 0) {
-      scoreRef.current += totalScoreGained;
-      coinsRef.current += totalCoinsGained;
+    if (gainedScore > 0) {
+      scoreRef.current += gainedScore;
+      // Fórmula de Monedas Equilibrada: 1 moneda cada 150 puntos
+      coinsRef.current = Math.floor(scoreRef.current / 150);
       setScore(scoreRef.current);
       setCoinsEarned(coinsRef.current);
+    }
+
+    if (!hasPossibleMoves(activeBoard)) {
+      setComboText('¡MEZCLANDO TABLERO! 🔄');
+      activeBoard = createInitialBoard();
+      setTimeout(() => setComboText(null), 1500);
     }
 
     setBoard(activeBoard);
     isProcessingRef.current = false;
 
-    // Verificar Fin de Partida
     if (movesRef.current <= 0) {
       setGameOver(true);
       if (coinsRef.current > 0) addCoins(coinsRef.current);
@@ -188,13 +213,11 @@ export function GarrFly() {
       return;
     }
 
-    // Si toca la misma gema, deseleccionar
     if (selected.r === r && selected.c === c) {
       setSelected(null);
       return;
     }
 
-    // Verificar si son adyacentes
     const isAdjacent =
       (Math.abs(selected.r - r) === 1 && selected.c === c) ||
       (Math.abs(selected.c - c) === 1 && selected.r === r);
@@ -204,7 +227,6 @@ export function GarrFly() {
       return;
     }
 
-    // Intercambiar Gemas
     isProcessingRef.current = true;
     const newBoard = board.map((row) => [...row]);
     const temp = newBoard[selected.r][selected.c];
@@ -214,14 +236,12 @@ export function GarrFly() {
     const matches = findMatches(newBoard);
 
     if (matches.length > 0) {
-      // Movimiento Válido
       movesRef.current -= 1;
       setMoves(movesRef.current);
       setSelected(null);
       setBoard(newBoard);
       await processCascades(newBoard);
     } else {
-      // Movimiento Inválido -> Regresar a su lugar
       setSelected(null);
       isProcessingRef.current = false;
     }
@@ -247,7 +267,7 @@ export function GarrFly() {
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
 
-      {/* Barra Superior */}
+      {/* Header */}
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
           onClick={() => setScreen('arcade')}
@@ -272,36 +292,44 @@ export function GarrFly() {
         </div>
       </div>
 
-      {/* Mensaje de Combos */}
-      {comboMessage && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-full bg-[#00f3ff]/20 border border-[#00f3ff]/60 animate-bounce">
-          <span className="text-[#00f3ff] text-xs font-black tracking-wider">{comboMessage}</span>
+      {/* Combos Overlay */}
+      {comboText && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-4 py-1.5 rounded-full bg-[#00f3ff]/20 border border-[#00f3ff]/60 animate-bounce shadow-lg shadow-[#00f3ff]/20">
+          <span className="text-[#00f3ff] text-xs font-black tracking-wider">{comboText}</span>
         </div>
       )}
 
-      {/* Tablero Neón Match-3 */}
+      {/* Tablero Neón Cyberpunk */}
       <div className="flex-1 flex flex-col items-center justify-center p-3">
-        <div className="bg-black/40 border border-[#00f3ff]/20 rounded-2xl p-2 shadow-2xl shadow-[#00f3ff]/10 w-full max-w-[340px]">
-          <div className="grid grid-cols-6 gap-1.5 aspect-[6/7]">
+        <div className="bg-black/60 border border-[#00f3ff]/30 rounded-2xl p-2.5 shadow-2xl shadow-[#00f3ff]/10 w-full max-w-[340px] backdrop-blur-md">
+          <div className="grid grid-cols-6 gap-2 aspect-[6/7]">
             {board.map((row, r) =>
-              row.map((gemId, c) => {
+              row.map((kind, c) => {
                 const isSelected = selected?.r === r && selected?.c === c;
-                const gem = GEM_TYPES[gemId] || GEM_TYPES[0];
+                const gem = GEM_MAP[kind] || GEM_MAP.cyan;
+                const IconComponent = gem.icon;
 
                 return (
                   <button
                     key={`${r}-${c}`}
                     onClick={() => handleGemClick(r, c)}
-                    className={`relative rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 ${
+                    className={`relative rounded-xl flex items-center justify-center transition-all duration-200 active:scale-90 ${
+                      gem.bg
+                    } ${gem.border} border ${
                       isSelected
-                        ? 'border-2 border-white scale-105 z-10 shadow-lg shadow-white/50 bg-white/20'
-                        : `border border-white/10 hover:border-white/30 bg-black/50`
+                        ? 'scale-105 z-10 border-white shadow-lg bg-white/20'
+                        : 'hover:scale-95'
                     }`}
                     style={{
-                      boxShadow: isSelected ? `0 0 15px ${gem.glow}` : 'none',
+                      boxShadow: isSelected
+                        ? `0 0 20px ${gem.color}`
+                        : `0 0 8px ${gem.glow}`,
                     }}
                   >
-                    <span className="text-2xl filter drop-shadow-md select-none">{gem.icon}</span>
+                    <IconComponent
+                      className="w-6 h-6 transition-transform"
+                      style={{ color: gem.color }}
+                    />
                   </button>
                 );
               })
@@ -309,8 +337,8 @@ export function GarrFly() {
           </div>
         </div>
 
-        <p className="text-white/40 text-[10px] font-bold mt-3 uppercase tracking-widest">
-          Toca 2 gemas adyacentes para juntar 3 iguales
+        <p className="text-white/40 text-[10px] font-bold mt-3 uppercase tracking-widest text-center">
+          Toca 2 gemas para intercambiarlas · Combina 3 o más
         </p>
       </div>
 
