@@ -3,7 +3,7 @@
 import { db } from '@/lib/firebase';
 import {
   doc, updateDoc, setDoc, increment, serverTimestamp, collection, addDoc,
-  query, where, getDocs, orderBy, limit, getDoc,
+  query, where, getDocs, limit, getDoc,
 } from 'firebase/firestore';
 import { RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS } from '@/lib/config';
 
@@ -137,17 +137,27 @@ export async function fetchSuggestions(): Promise<Array<{
   id: string; text: string; userId: string; nombre: string; createdAt: Date | null; atendida: boolean;
 }>> {
   try {
-    const q = query(collection(db, 'sugerencias'), where('atendida', '==', false), orderBy('createdAt', 'desc'), limit(50));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({
-      id: d.id,
-      text: (d.data().text ?? d.data().texto ?? '') as string,
-      userId: (d.data().userId ?? '') as string,
-      nombre: (d.data().nombre ?? 'Usuario') as string,
-      createdAt: d.data().createdAt?.toDate ? d.data().createdAt.toDate() : null,
-      atendida: false,
-    }));
-  } catch {
+    const snap = await getDocs(collection(db, 'sugerencias'));
+    
+    const docs = snap.docs.map((d) => {
+      const data = d.data();
+      const isAttended = data.atendida === true || data.estado === 'atendida' || data.estado === 'descartada';
+      return {
+        id: d.id,
+        text: (data.text || data.mensaje || data.texto || '') as string,
+        userId: (data.userId || '') as string,
+        nombre: (data.nombre || data.nickname || 'Usuario') as string,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : null,
+        atendida: isAttended,
+      };
+    });
+
+    return docs
+      .filter((item) => !item.atendida)
+      .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
+      .slice(0, 50);
+  } catch (err) {
+    console.error('Error al cargar sugerencias:', err);
     return [];
   }
 }
@@ -158,12 +168,12 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
 
     if (action === 'coherent' && userId) {
       await updateDoc(doc(db, 'usuarios', userId), { coins: increment(100) });
-      await updateDoc(sugRef, { atendida: true, attendedAt: serverTimestamp(), rewardGiven: 100 });
+      await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 100 });
     } else if (action === 'simple' && userId) {
       await updateDoc(doc(db, 'usuarios', userId), { coins: increment(5) });
-      await updateDoc(sugRef, { atendida: true, attendedAt: serverTimestamp(), rewardGiven: 5 });
+      await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 5 });
     } else {
-      await updateDoc(sugRef, { atendida: true, attendedAt: serverTimestamp() });
+      await updateDoc(sugRef, { atendida: true, estado: 'descartada', attendedAt: serverTimestamp() });
     }
 
     return { ok: true };
@@ -177,7 +187,7 @@ export async function sendWinBackPush(inactiveUsers: Array<{ uid: string }>): Pr
     for (const user of inactiveUsers) {
       await addDoc(collection(db, 'notifications'), {
         userId: user.uid,
-        title: '¡Te extranan en GarrDash!',
+        title: '¡Te extrañan en GarrDash!',
         body: 'Entra hoy y reclama tu bono de 300 monedas',
         type: 'winback',
         createdAt: serverTimestamp(),
