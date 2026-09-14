@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, Sparkles, Flame, Zap, Gem, Star, Skull, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Coins, Trophy, Flame, Zap, Gem, Star, Skull, Clock } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 const ROWS = 7;
 const COLS = 6;
-const INITIAL_MOVES = 20;
+const INITIAL_TIME = 60; // 60 segundos de partida rápida
 
-type GemKind = 'cyan' | 'amber' | 'red' | 'emerald' | 'purple' | 'rainbow' | 'bomb';
+type GemKind = 'cyan' | 'amber' | 'red' | 'emerald' | 'purple';
 
 interface GemType {
   kind: GemKind;
@@ -27,8 +27,6 @@ const GEM_MAP: Record<GemKind, GemType> = {
   red: { kind: 'red', color: '#ef4444', glow: 'rgba(239,68,68,0.6)', bg: 'bg-red-500/15', border: 'border-red-500/50', icon: Flame },
   emerald: { kind: 'emerald', color: '#34d399', glow: 'rgba(52,211,153,0.6)', bg: 'bg-emerald-500/15', border: 'border-emerald-500/50', icon: Zap },
   purple: { kind: 'purple', color: '#a855f7', glow: 'rgba(168,85,247,0.6)', bg: 'bg-purple-500/15', border: 'border-purple-500/50', icon: Skull },
-  rainbow: { kind: 'rainbow', color: '#ffffff', glow: 'rgba(255,255,255,0.8)', bg: 'bg-gradient-to-r from-cyan-500 via-purple-500 to-amber-500', border: 'border-white', icon: Sparkles },
-  bomb: { kind: 'bomb', color: '#f97316', glow: 'rgba(249,115,22,0.8)', bg: 'bg-orange-500/30', border: 'border-orange-500 animate-pulse', icon: RefreshCw },
 };
 
 const BASE_KINDS: GemKind[] = ['cyan', 'amber', 'red', 'emerald', 'purple'];
@@ -62,14 +60,15 @@ export function GarrFly() {
   const [selected, setSelected] = useState<{ r: number; c: number } | null>(null);
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [moves, setMoves] = useState(INITIAL_MOVES);
+  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [gameOver, setGameOver] = useState(false);
   const [comboText, setComboText] = useState<string | null>(null);
 
   const scoreRef = useRef(0);
   const coinsRef = useRef(0);
-  const movesRef = useRef(INITIAL_MOVES);
+  const timeRef = useRef(INITIAL_TIME);
   const isProcessingRef = useRef(false);
+  const gameOverRef = useRef(false);
 
   const initGame = useCallback(() => {
     const newBoard = createInitialBoard();
@@ -77,18 +76,37 @@ export function GarrFly() {
     setSelected(null);
     setScore(0);
     setCoinsEarned(0);
-    setMoves(INITIAL_MOVES);
+    setTimeLeft(INITIAL_TIME);
     setGameOver(false);
     setComboText(null);
     scoreRef.current = 0;
     coinsRef.current = 0;
-    movesRef.current = INITIAL_MOVES;
+    timeRef.current = INITIAL_TIME;
     isProcessingRef.current = false;
+    gameOverRef.current = false;
   }, []);
 
   useEffect(() => {
     initGame();
   }, [initGame]);
+
+  // Temporizador regresivo de 60 segundos
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (gameOverRef.current) return;
+
+      if (timeRef.current > 0) {
+        timeRef.current -= 1;
+        setTimeLeft(timeRef.current);
+      } else {
+        gameOverRef.current = true;
+        setGameOver(true);
+        if (coinsRef.current > 0) addCoins(coinsRef.current);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [addCoins]);
 
   const findMatches = (grid: GemKind[][]): { r: number; c: number }[] => {
     const matched = new Set<string>();
@@ -96,7 +114,7 @@ export function GarrFly() {
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS - 2; c++) {
         const k = grid[r][c];
-        if (k && k !== 'rainbow' && k === grid[r][c + 1] && k === grid[r][c + 2]) {
+        if (k && k === grid[r][c + 1] && k === grid[r][c + 2]) {
           matched.add(`${r},${c}`);
           matched.add(`${r},${c + 1}`);
           matched.add(`${r},${c + 2}`);
@@ -107,7 +125,7 @@ export function GarrFly() {
     for (let r = 0; r < ROWS - 2; r++) {
       for (let c = 0; c < COLS; c++) {
         const k = grid[r][c];
-        if (k && k !== 'rainbow' && k === grid[r + 1][c] && k === grid[r + 2][c]) {
+        if (k && k === grid[r + 1][c] && k === grid[r + 2][c]) {
           matched.add(`${r},${c}`);
           matched.add(`${r + 1},${c}`);
           matched.add(`${r + 2},${c}`);
@@ -121,28 +139,6 @@ export function GarrFly() {
     });
   };
 
-  const hasPossibleMoves = (grid: GemKind[][]): boolean => {
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (c < COLS - 1) {
-          const testBoard = grid.map((row) => [...row]);
-          const temp = testBoard[r][c];
-          testBoard[r][c] = testBoard[r][c + 1];
-          testBoard[r][c + 1] = temp;
-          if (findMatches(testBoard).length > 0) return true;
-        }
-        if (r < ROWS - 1) {
-          const testBoard = grid.map((row) => [...row]);
-          const temp = testBoard[r][c];
-          testBoard[r][c] = testBoard[r + 1][c];
-          testBoard[r + 1][c] = temp;
-          if (findMatches(testBoard).length > 0) return true;
-        }
-      }
-    }
-    return false;
-  };
-
   const processCascades = async (currentBoard: GemKind[][]) => {
     let activeBoard = currentBoard.map((row) => [...row]);
     let comboMultiplier = 1;
@@ -153,11 +149,13 @@ export function GarrFly() {
       if (matches.length === 0) break;
 
       if (comboMultiplier > 1) {
-        setComboText(`¡COMBO X${comboMultiplier}! 🔥`);
+        setComboText(`¡COMBO X${comboMultiplier}! +2s 🔥`);
+        timeRef.current += 2; // Bonificación de tiempo por combos
+        setTimeLeft(timeRef.current);
         setTimeout(() => setComboText(null), 1000);
       }
 
-      gainedScore += matches.length * 40 * comboMultiplier;
+      gainedScore += matches.length * 50 * comboMultiplier;
 
       for (const m of matches) {
         activeBoard[m.r][m.c] = null as any;
@@ -184,29 +182,18 @@ export function GarrFly() {
 
     if (gainedScore > 0) {
       scoreRef.current += gainedScore;
-      // Fórmula de Monedas Equilibrada: 1 moneda cada 150 puntos
-      coinsRef.current = Math.floor(scoreRef.current / 150);
+      // Monedas equilibradas (1 moneda cada 120 puntos)
+      coinsRef.current = Math.floor(scoreRef.current / 120);
       setScore(scoreRef.current);
       setCoinsEarned(coinsRef.current);
     }
 
-    if (!hasPossibleMoves(activeBoard)) {
-      setComboText('¡MEZCLANDO TABLERO! 🔄');
-      activeBoard = createInitialBoard();
-      setTimeout(() => setComboText(null), 1500);
-    }
-
     setBoard(activeBoard);
     isProcessingRef.current = false;
-
-    if (movesRef.current <= 0) {
-      setGameOver(true);
-      if (coinsRef.current > 0) addCoins(coinsRef.current);
-    }
   };
 
   const handleGemClick = async (r: number, c: number) => {
-    if (isProcessingRef.current || gameOver) return;
+    if (isProcessingRef.current || gameOverRef.current) return;
 
     if (!selected) {
       setSelected({ r, c });
@@ -236,8 +223,6 @@ export function GarrFly() {
     const matches = findMatches(newBoard);
 
     if (matches.length > 0) {
-      movesRef.current -= 1;
-      setMoves(movesRef.current);
       setSelected(null);
       setBoard(newBoard);
       await processCascades(newBoard);
@@ -248,8 +233,9 @@ export function GarrFly() {
   };
 
   const handleRevive = () => {
-    movesRef.current = 10;
-    setMoves(10);
+    timeRef.current = 15; // +15 segundos extra por ver anuncio
+    setTimeLeft(15);
+    gameOverRef.current = false;
     setGameOver(false);
   };
 
@@ -277,9 +263,11 @@ export function GarrFly() {
         </button>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 bg-black/60 border border-[#00f3ff]/30 rounded-full px-3 py-1">
-            <Sparkles className="w-3.5 h-3.5 text-[#00f3ff]" />
-            <span className="text-[#00f3ff] text-xs font-bold">{moves} Movs</span>
+          <span className={`flex items-center gap-1 bg-black/60 border rounded-full px-3 py-1 ${
+            timeLeft <= 10 ? 'border-red-500 text-red-400 animate-pulse' : 'border-[#00f3ff]/30 text-[#00f3ff]'
+          }`}>
+            <Clock className="w-3.5 h-3.5" />
+            <span className="text-xs font-bold">{timeLeft}s</span>
           </span>
           <span className="flex items-center gap-1 bg-black/60 border border-amber-500/30 rounded-full px-3 py-1">
             <Trophy className="w-3.5 h-3.5 text-[#ffb700]" />
@@ -338,7 +326,7 @@ export function GarrFly() {
         </div>
 
         <p className="text-white/40 text-[10px] font-bold mt-3 uppercase tracking-widest text-center">
-          Toca 2 gemas para intercambiarlas · Combina 3 o más
+          Junta 3 o más iguales antes de que acabe el tiempo
         </p>
       </div>
 
