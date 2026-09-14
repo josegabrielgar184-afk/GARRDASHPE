@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowLeft as ArrowL, ArrowRight as ArrowR } from 'lucide-react';
+import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 const COLS = 15;
 const ROWS = 21;
-const CELL = 25; // Aumentado a 25px para que se vea grande en celulares
-const W = COLS * CELL; // 375px
-const H = ROWS * CELL; // 525px
+const CELL = 25;
+const W = COLS * CELL;
+const H = ROWS * CELL;
 
 const MAZE_TEMPLATE = [
   '###############',
@@ -182,7 +182,7 @@ export function NeonMazeSurvival() {
       const coinKey = `${p.x},${p.y}`;
       if (coinPositionsRef.current.has(coinKey)) {
         coinPositionsRef.current.delete(coinKey);
-        coinsRef.current += 1; // 1 moneda por recolección
+        coinsRef.current += 1;
         scoreRef.current += 10;
         setScore(scoreRef.current);
         setCoinsEarned(Math.floor(coinsRef.current));
@@ -304,7 +304,7 @@ export function NeonMazeSurvival() {
     return () => cancelAnimationFrame(rafRef.current);
   }, [addCoins]);
 
-  // Controles por Deslizamiento (Swipe)
+  // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartRef.current = {
       x: e.touches[0].clientX,
@@ -349,7 +349,7 @@ export function NeonMazeSurvival() {
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
 
-      {/* Bar Superior */}
+      {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button onClick={() => setScreen('arcade')} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/60 border border-[#00f3ff]/30 text-white text-sm font-bold active:scale-95">
           <ArrowLeft className="w-5 h-5 text-[#00f3ff]" /> Salir
@@ -378,7 +378,7 @@ export function NeonMazeSurvival() {
         </div>
       )}
 
-      {/* Canvas Principal */}
+      {/* Canvas */}
       <div className="flex-1 flex items-center justify-center pt-14 pb-2 text-center">
         <canvas
           ref={canvasRef}
@@ -391,7 +391,7 @@ export function NeonMazeSurvival() {
         />
       </div>
 
-      {/* Cruceta Táctil D-Pad abajo */}
+      {/* Cruceta Táctil D-Pad */}
       <div className="pb-6 pt-1 flex flex-col items-center justify-center gap-1.5 z-20">
         <button
           onClick={() => setDir(0, -1)}
@@ -404,7 +404,7 @@ export function NeonMazeSurvival() {
             onClick={() => setDir(-1, 0)}
             className="w-14 h-11 rounded-xl bg-black/80 border border-[#00f3ff]/40 flex items-center justify-center text-[#00f3ff] active:bg-[#00f3ff]/30 active:scale-90 transition-all shadow-md"
           >
-            <ArrowL className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
           <button
             onClick={() => setDir(0, 1)}
@@ -416,7 +416,7 @@ export function NeonMazeSurvival() {
             onClick={() => setDir(1, 0)}
             className="w-14 h-11 rounded-xl bg-black/80 border border-[#00f3ff]/40 flex items-center justify-center text-[#00f3ff] active:bg-[#00f3ff]/30 active:scale-90 transition-all shadow-md"
           >
-            <ArrowR className="w-6 h-6" />
+            <ArrowRight className="w-6 h-6" />
           </button>
         </div>
       </div>
