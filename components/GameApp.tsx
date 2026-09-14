@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from '@/hooks/use-game';
-import { ShieldAlert, X } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 import { IntroScreen } from '@/components/screens/IntroScreen';
 import { LoginScreen } from '@/components/screens/LoginScreen';
 import { MenuScreen } from '@/components/screens/MenuScreen';
@@ -22,6 +22,7 @@ import { OperatorScreen } from '@/components/screens/OperatorScreen';
 import { InfluencerScreen } from '@/components/screens/InfluencerScreen';
 import { ArcadeHub } from '@/components/screens/ArcadeHub';
 import { NeonMazeSurvival } from '@/components/screens/NeonMazeSurvival';
+import { GarrFly } from '@/components/screens/GarrFly';
 import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
@@ -30,10 +31,10 @@ import { AdMob } from '@capacitor-community/admob';
 import { checkMinVersion } from '@/lib/firebase';
 import { ForceUpdateModal } from '@/components/game/ForceUpdateModal';
 
-const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze'];
+const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade'];
 const INTERSTITIAL_INTERVAL_MS = 5 * 60 * 1000;
-const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze'];
+const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -77,6 +78,8 @@ function GameRouter() {
       return <ArcadeHub />;
     case 'neon-maze':
       return <NeonMazeSurvival />;
+    case 'garrfly':
+      return <GarrFly />;
     default:
       return <IntroScreen />;
   }
@@ -92,7 +95,7 @@ function BackButtonHandler() {
       const now = Date.now();
       if (GAMEPLAY_SCREENS.includes(screen)) {
         pauseAudio();
-        setScreen('menu');
+        setScreen('arcade');
       } else if (screen === 'campaign') {
         setScreen('menu');
       } else if (MENU_SCREENS.includes(screen) && screen !== 'menu' && screen !== 'login' && screen !== 'intro') {
@@ -106,19 +109,16 @@ function BackButtonHandler() {
           setTimeout(() => setShowExitToast(false), 2000);
         }
       }
-      // Push state so back button stays in app
       if (typeof history !== 'undefined') {
         history.pushState(null, '', window.location.href);
       }
     };
 
-    // Listen for Capacitor/backbutton event
     const handleBackButton = () => handlePopState();
 
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('backbutton', handleBackButton as EventListener);
 
-    // Initial push state
     if (typeof history !== 'undefined') {
       history.pushState(null, '', window.location.href);
     }
@@ -210,7 +210,6 @@ function AppShell() {
     })();
   }, []);
 
-  // Wake Lock: keep screen on while in gameplay
   useEffect(() => {
     if (isGameplay) {
       acquireWakeLock();
@@ -220,7 +219,6 @@ function AppShell() {
     return () => { releaseWakeLock(); };
   }, [isGameplay]);
 
-  // Capture referral code from URL on first load
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
