@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { BookOpen, X, Send, CheckCircle2 } from 'lucide-react';
 import { useGame } from '@/hooks/use-game';
+import { db } from '@/lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface SuggestionModalProps {
   open: boolean;
@@ -10,7 +12,7 @@ interface SuggestionModalProps {
 }
 
 export function SuggestionModal({ open, onClose }: SuggestionModalProps) {
-  const { sendSuggestion } = useGame();
+  const { user, sendSuggestion } = useGame();
   const [text, setText] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -20,15 +22,40 @@ export function SuggestionModal({ open, onClose }: SuggestionModalProps) {
   const handleSubmit = async () => {
     if (text.trim().length < 5 || sending) return;
     setSending(true);
-    const result = await sendSuggestion(text.trim());
-    setSending(false);
-    if (result.ok) {
+
+    try {
+      // 1. Intento primario directo a Firestore con la estructura exacta que lee AdminScreen
+      if (db && user) {
+        await addDoc(collection(db, 'sugerencias'), {
+          text: text.trim(),
+          userId: user.uid,
+          nombre: user.displayName || user.email?.split('@')[0] || 'Jugador',
+          estado: 'pendiente',
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        // Fallback vía useGame
+        await sendSuggestion(text.trim());
+      }
+
       setText('');
       setSent(true);
       setTimeout(() => {
         setSent(false);
         onClose();
       }, 1800);
+    } catch (error) {
+      console.error('Error enviando sugerencia:', error);
+      // Respaldo en caso de fallo de red
+      await sendSuggestion(text.trim());
+      setText('');
+      setSent(true);
+      setTimeout(() => {
+        setSent(false);
+        onClose();
+      }, 1800);
+    } finally {
+      setSending(false);
     }
   };
 
