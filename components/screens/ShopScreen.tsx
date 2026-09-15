@@ -1,347 +1,341 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Video, Loader2, CheckCircle2, XCircle, Flame } from 'lucide-react';
-import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
-import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
-import { getFallbackRewardedId } from '@/lib/config';
+import { useState, useEffect, useRef } from 'react';
+import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
+import { ZOMBIE_CHARACTERS } from '@/lib/characters';
+import { MuteButton } from '@/components/game/MuteButton';
+import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
+import { RewardAdModal } from '@/components/game/RewardAdModal';
+import { ADMOB_CONFIG, getRewardedAdId } from '@/lib/config';
+import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video } from 'lucide-react';
+import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
+import { getCoinAdStatus, recordCoinAd, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
+import { getPerformanceTier, type PerformanceTier } from '@/lib/performance';
 
-interface RewardAdModalProps {
-  open: boolean;
-  onClose: () => void;
-  onReward: () => void;
-  title: string;
-  rewardText: string;
-  adId?: string;
-  userRole?: 'user' | 'operador' | 'admin';
-  vip?: boolean;
-  marathonMode?: boolean;
-  marathonReward?: number;
-  touchKey?: string;
-}
+export function ShopScreen() {
+  const {
+    coins, spendCoins, addCoins, vip, vipExpiry, buyVIP, setScreen,
+    upgrades, selectedZombie, selectZombie,
+    getTowerLevel, campaignProgress,
+    buyCampaignKey, getCampaignKeyPrice: getGameCampaignKeyPrice,
+    addCampaignKeyFromAd, userRole,
+  } = useGame();
+  const [showSuggestion, setShowSuggestion] = useState(false);
+  const [tab, setTab] = useState<'companions' | 'keys' | 'heroes'>('companions');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [showCoinAd, setShowCoinAd] = useState(false);
+  const [showKeyAd, setShowKeyAd] = useState(false);
+  const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
+  const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
+  const [perfTier] = useState<PerformanceTier>(getPerformanceTier());
+  const adDebounceRef = useRef<number>(0);
 
-const MARATHON_CHAIN_LENGTH = 4;
-
-export function RewardAdModal({
-  open, onClose, onReward, title, rewardText, adId, userRole = 'user', vip = false,
-  marathonMode = false, marathonReward = 100, touchKey,
-}: RewardAdModalProps) {
-  const [phase, setPhase] = useState<'loading' | 'ad' | 'reward' | 'error' | 'marathon' | 'marathon_ad' | 'marathon_reward'>('loading');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [chainProgress, setChainProgress] = useState(0);
-  const rewardedRef = useRef(false);
-  const closedRef = useRef(false);
-  const onCloseRef = useRef(onClose);
-  const onRewardRef = useRef(onReward);
-
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-  useEffect(() => { onRewardRef.current = onReward; }, [onReward]);
+  const adDebounced = (): boolean => {
+    const now = Date.now();
+    if (now - adDebounceRef.current < 4000) return false;
+    adDebounceRef.current = now;
+    return true;
+  };
 
   useEffect(() => {
-    if (!open) {
-      setPhase('loading');
-      setErrorMsg('');
-      setChainProgress(0);
-      rewardedRef.current = false;
-      closedRef.current = false;
-      return;
-    }
+    setCoinAdStatus(getCoinAdStatus());
+    setKeyProgress(getKeyAdProgress());
+  }, []);
 
-    if (!shouldShowAds(userRole, vip)) {
-      setErrorMsg('Los anuncios no estan disponibles para esta cuenta.');
-      setPhase('error');
-      return;
-    }
+  const companionDefs: Array<{ key: 'turret' | 'drone' | 'medic' | 'neon-shield'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
+    { key: 'neon-shield', icon: Shield, name: 'Escudo Neón Básico', desc: 'Escudo inicial en cada partida', color: '#00f3ff', baseCost: 400 },
+    { key: 'turret', icon: Zap, name: 'Francotirador', desc: 'Dispara junto a ti', color: '#f97316', baseCost: 200 },
+    { key: 'drone', icon: Swords, name: 'Dron', desc: 'Vuela y dispara a múltiples enemigos', color: '#ef4444', baseCost: 500 },
+    { key: 'medic', icon: Shield, name: 'Médico', desc: 'Repara la barricada automáticamente', color: '#34d399', baseCost: 800 },
+  ];
+  const companionCost = (key: 'turret' | 'drone' | 'medic' | 'neon-shield') => {
+    const def = companionDefs.find((t) => t.key === key)!;
+    const level = key === 'neon-shield' ? 0 : getTowerLevel(key as 'turret' | 'drone' | 'medic');
+    return def.baseCost * Math.pow(2, level);
+  };
 
-    // ELIMINADO EL touchKey && shouldSkipAd PARA QUE NUNCA SE SALTE EL ANUNCIO
-
-    if (!checkRateLimit()) {
-      setErrorMsg('Has alcanzado el limite de anuncios por minuto. Intenta de nuevo mas tarde.');
-      setPhase('error');
-      return;
-    }
-
-    setChainProgress(0);
-    rewardedRef.current = false;
-    closedRef.current = false;
-
-    if (marathonMode) {
-      setPhase('marathon');
+  const handleCoinAdReward = () => {
+    setShowCoinAd(false);
+    const ok = recordCoinAd();
+    if (ok) {
+      const reward = 120;
+      addCoins(reward);
+      setSuccess(`¡+${reward} monedas ganadas!`);
+      setCoinAdStatus(getCoinAdStatus());
     } else {
-      setPhase('loading');
-      setErrorMsg('');
-      loadAndShowAd();
-    }
-  }, [open, adId, userRole, vip, marathonMode, touchKey]);
-
-  const loadAndShowAd = async (isMarathonStep = false) => {
-    let cancelled = false;
-    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-
-    const Capacitor = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-    const isNative = Capacitor?.isNativePlatform?.() ?? false;
-
-    if (!isNative) {
-      if (marathonMode) {
-        setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
-        setTimeout(() => {
-          if (cancelled) return;
-          rewardedRef.current = true;
-          handleAdComplete(isMarathonStep);
-        }, 2000);
-      } else {
-        // En navegador web de prueba
-        rewardedRef.current = true;
-        onRewardRef.current();
-        onCloseRef.current();
-      }
-      return;
-    }
-
-    const tryLoadAd = async (useAdId: string): Promise<boolean> => {
-      try {
-        let adWatched = false;
-
-        const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
-          adWatched = true;
-          rewardedRef.current = true;
-        });
-
-        const dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
-          if (cancelled) return;
-          try { rewardListener.remove(); dismissListener.remove(); } catch {}
-          
-          if (adWatched || rewardedRef.current) {
-            handleAdComplete(isMarathonStep);
-          } else {
-            closedRef.current = true;
-            onCloseRef.current();
-          }
-        });
-
-        timeoutHandle = setTimeout(() => {
-          if (cancelled) return;
-          try { rewardListener.remove(); dismissListener.remove(); } catch {}
-          setErrorMsg('El anuncio tardó demasiado en cargar. Revisa tu conexión e intenta de nuevo.');
-          setPhase('error');
-        }, 12000);
-
-        await AdMob.prepareRewardVideoAd({ adId: useAdId });
-
-        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
-
-        if (cancelled) {
-          rewardListener.remove();
-          dismissListener.remove();
-          return false;
-        }
-
-        setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
-        await AdMob.showRewardVideoAd();
-
-        return true;
-      } catch {
-        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
-        return false;
-      }
-    };
-
-    try {
-      const ids = getActiveAdIds();
-      const primaryAdId = adId || ids.ruletaId || ids.revivirId;
-
-      const success = await tryLoadAd(primaryAdId);
-
-      if (!success && !cancelled) {
-        const fallbackId = getFallbackRewardedId();
-        if (fallbackId && fallbackId !== primaryAdId) {
-          const retrySuccess = await tryLoadAd(fallbackId);
-          if (!retrySuccess && !cancelled) {
-            setErrorMsg('No se pudo cargar el anuncio. Verifica tu conexión a internet e intenta de nuevo.');
-            setPhase('error');
-          }
-        } else {
-          setErrorMsg('No se pudo cargar el anuncio. Verifica tu conexión a internet e intenta de nuevo.');
-          setPhase('error');
-        }
-      }
-    } catch {
-      if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
-      if (!cancelled) {
-        setErrorMsg('No se pudo cargar el anuncio. Verifica tu conexión a internet e intenta de nuevo.');
-        setPhase('error');
-      }
+      setError('Has alcanzado el límite diario de anuncios.');
     }
   };
 
-  const handleAdComplete = (isMarathonStep: boolean) => {
-    if (isMarathonStep) {
-      const next = chainProgress + 1;
-      setChainProgress(next);
-      if (next >= MARATHON_CHAIN_LENGTH) {
-        setPhase('marathon_reward');
-      } else {
-        setPhase('marathon');
-      }
+  const handleKeyAdReward = () => {
+    setShowKeyAd(false);
+    const result = recordKeyAd();
+    if (result.earnedKey) {
+      addCampaignKeyFromAd();
+      setSuccess('¡Llave de Campaña ganada!');
     } else {
-      onRewardRef.current();
-      onCloseRef.current();
+      setSuccess(`Progreso: ${result.newProgress}/${result.adsNeeded} anuncios vistos`);
     }
+    setKeyProgress(getKeyAdProgress());
   };
 
-  const startMarathonStep = () => {
-    rewardedRef.current = false;
-    setPhase('loading');
-    loadAndShowAd(true);
-  };
-
-  if (!open) return null;
+  const renderGlow = perfTier === 'high';
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 animate-fade-in">
-      {(phase === 'loading') && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
-          <div className="flex items-center justify-center mb-4">
-            <Loader2 className="w-12 h-12 text-primary animate-spin" />
-          </div>
-          <p className="text-white font-bold text-lg mb-1">Preparando anuncio...</p>
-          <p className="text-white/50 text-sm">Cargando recompensa</p>
-        </div>
-      )}
+    <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
+      <MuteButton />
+      <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      {phase === 'ad' && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
-          <div className="flex items-center justify-center mb-4">
-            <Video className="w-16 h-16 text-primary animate-pulse" />
-          </div>
-          <p className="text-white font-bold text-lg mb-1">Anuncio en reproduccion</p>
-          <p className="text-white/50 text-sm">Espera a que termine para recibir tu recompensa</p>
-          <button
-            onClick={() => { onCloseRef.current(); }}
-            className="mt-6 w-full py-2.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-sm hover:bg-red-500/30 transition-colors"
-          >
-            Cancelar anuncio
+      <div className="pt-16 px-4 pb-16 flex-1 overflow-y-auto no-scrollbar">
+        <div className="flex items-center gap-3 mb-4">
+          <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
+            <ArrowLeft className="w-6 h-6" />
           </button>
+          <h1 className="text-white font-black text-xl tracking-widest uppercase" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 10px rgba(34,211,238,0.5)' : 'none', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px))' }}>TIENDA</h1>
         </div>
-      )}
 
-      {phase === 'error' && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-red-900/40 to-gray-900 border border-red-500/40 p-8 text-center animate-scale-in">
-          <div className="flex items-center justify-center mb-3">
-            <XCircle className="w-16 h-16 text-red-400" />
-          </div>
-          <p className="text-white font-bold text-xl mb-2">Anuncio no disponible</p>
-          <p className="text-red-300/70 text-sm mb-6">{errorMsg}</p>
-          <button onClick={() => onClose()} className="w-full py-3 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 font-bold hover:bg-red-500/30 transition-colors">
-            Cerrar
-          </button>
-        </div>
-      )}
-
-      {phase === 'reward' && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-green-900/40 to-gray-900 border border-green-500/40 p-8 text-center animate-scale-in">
-          <div className="flex items-center justify-center mb-3">
-            <CheckCircle2 className="w-16 h-16 text-green-400" />
-          </div>
-          <p className="text-white font-bold text-xl mb-2">¡Recompensa obtenida!</p>
-          <p className="text-green-300 text-sm mb-6">{rewardText}</p>
-          <button
-            onClick={() => { onRewardRef.current(); onCloseRef.current(); }}
-            className="w-full py-3 rounded-xl bg-green-500 hover:bg-green-400 text-white font-bold transition-colors"
-          >
-            Reclamar
-          </button>
-        </div>
-      )}
-
-      {phase === 'marathon' && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-gray-900 border border-amber-500/40 p-8 text-center animate-scale-in">
-          <div className="flex items-center justify-center mb-4">
-            <Flame className="w-14 h-14 text-amber-400 animate-pulse" />
-          </div>
-          <p className="text-white font-bold text-xl mb-2">MARATON DE ANUNCIOS</p>
-          <p className="text-amber-300/70 text-sm mb-4">Mira {MARATHON_CHAIN_LENGTH} videos consecutivos para ganar {marathonReward} monedas</p>
-
-          <div className="flex items-center justify-center gap-3 mb-6">
-            {Array.from({ length: MARATHON_CHAIN_LENGTH }, (_, i) => (
-              <div
-                key={i}
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
-                  i < chainProgress
-                    ? 'bg-green-500 border-green-400'
-                    : i === chainProgress
-                    ? 'bg-amber-500/20 border-amber-400 animate-pulse'
-                    : 'bg-gray-800 border-gray-700'
-                }`}
-              >
-                {i < chainProgress ? (
-                  <CheckCircle2 className="w-5 h-5 text-white" />
-                ) : (
-                  <span className="text-white/50 text-xs font-bold">{i + 1}</span>
-                )}
-              </div>
-            ))}
+        <div className="max-w-md mx-auto">
+          {/* Balance card */}
+          <div className="mb-4">
+            <div className="rounded-none bg-gradient-to-r from-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+              <div className="w-9 h-9 rounded-none bg-amber-500/20 flex items-center justify-center" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 4px 100%, 0 calc(100% - 4px))' }}><Coins className="w-4 h-4 text-amber-400" /></div>
+              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
+            </div>
           </div>
 
-          <p className="text-white/40 text-xs mb-4">
-            Progreso: {chainProgress}/{MARATHON_CHAIN_LENGTH} videos completados
-          </p>
+          {/* Tabs */}
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => setTab('companions')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'companions' ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Compañeros</button>
+            <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'keys' ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Llaves</button>
+            <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Héroes</button>
+          </div>
 
-          {chainProgress < MARATHON_CHAIN_LENGTH && (
-            <button
-              onClick={startMarathonStep}
-              className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold transition-colors flex items-center justify-center gap-2"
-            >
-              <Video className="w-5 h-5" />
-              Ver video {chainProgress + 1} de {MARATHON_CHAIN_LENGTH}
-            </button>
+          {tab === 'companions' && (
+            <div className="grid grid-cols-1 gap-3">
+              {companionDefs.map((t) => {
+                const Icon = t.icon;
+                const cost = companionCost(t.key);
+                const level = t.key === 'neon-shield' ? 0 : getTowerLevel(t.key as 'turret' | 'drone' | 'medic');
+                const isShield = t.key === 'neon-shield';
+                const shieldOwned = typeof window !== 'undefined' && localStorage.getItem('neon_shield_owned') === '1';
+                return (
+                  <div key={t.key} className="rounded-none bg-[#1a1a28] border-l-4 p-4 flex items-center gap-4" style={{ borderColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                    <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${t.color}20` }}>
+                      <Icon className="w-6 h-6" style={{ color: t.color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-white font-bold text-sm uppercase tracking-wide">{t.name}</h3>
+                      <p className="text-white/40 text-xs">{t.desc}</p>
+                      {!isShield && <span className="font-black text-lg" style={{ color: t.color }}>Nv.{level}</span>}
+                    </div>
+                    {isShield && shieldOwned ? (
+                      <span className="px-4 py-3 text-green-400 font-bold text-sm">Comprado</span>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setError(''); setSuccess('');
+                          if (isShield) {
+                            if (spendCoins(cost)) {
+                              if (typeof window !== 'undefined') localStorage.setItem('neon_shield_owned', '1');
+                              setSuccess('¡Escudo Neón Básico comprado!');
+                            } else {
+                              setError('No tienes suficientes monedas.');
+                            }
+                          }
+                        }}
+                        disabled={isShield && (coins < cost || shieldOwned)}
+                        className="px-4 py-3 rounded-none text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shrink-0 disabled:opacity-40"
+                        style={{ backgroundColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}
+                      >
+                        <Coins className="w-4 h-4" />{cost.toLocaleString()}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
 
-          <button onClick={() => onClose()} className="w-full py-2 mt-2 text-white/40 text-sm hover:text-white">
-            {chainProgress > 0 ? 'Abandonar cadena' : 'Cancelar'}
-          </button>
-        </div>
-      )}
+          {tab === 'heroes' && (
+            <div className="grid grid-cols-2 gap-3">
+              {ZOMBIE_CHARACTERS.map((hero) => {
+                const isOwned = hero.price === 0 || (typeof window !== 'undefined' && localStorage.getItem(`hero_${hero.id}`) === '1');
+                const isEquipped = selectedZombie === hero.id;
+                const canAfford = coins >= hero.price;
+                return (
+                  <div key={hero.id} className="rounded-none bg-[#1a1a28] border-l-4 p-3 flex flex-col" style={{ borderColor: isEquipped ? hero.color : `${hero.color}44`, clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-10 h-10 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${hero.color}20` }}>
+                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: hero.color }} />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-white font-bold text-xs truncate uppercase tracking-wide" style={{ color: isEquipped ? hero.color : undefined }}>{hero.name}</h3>
+                        <p className="text-white/40 text-[9px] truncate">{hero.skill}</p>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-white/50 mb-2 leading-tight">{hero.skillDesc}</div>
+                    {isEquipped ? (
+                      <div className="w-full py-2 rounded-none text-white font-bold text-xs text-center" style={{ backgroundColor: hero.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>EQUIPADO</div>
+                    ) : isOwned ? (
+                      <button onClick={() => selectZombie(hero.id)} className="w-full py-2 rounded-none text-white font-bold text-xs transition-colors" style={{ backgroundColor: `${hero.color}88`, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>Equipar</button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          if (canAfford && spendCoins(hero.price)) {
+                            if (typeof window !== 'undefined') localStorage.setItem(`hero_${hero.id}`, '1');
+                            selectZombie(hero.id);
+                            setSuccess(`¡${hero.name} equipado!`);
+                          } else { setError('No tienes suficientes monedas.'); }
+                        }}
+                        disabled={!canAfford}
+                        className="w-full py-2 rounded-none text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
+                        style={{ backgroundColor: hero.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}
+                      >
+                        <Coins className="w-3 h-3" />{hero.price.toLocaleString()}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-      {phase === 'marathon_ad' && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-amber-900/40 to-gray-900 border border-amber-500/40 p-8 text-center">
-          <div className="flex items-center justify-center mb-4">
-            <Video className="w-16 h-16 text-amber-400 animate-pulse" />
-          </div>
-          <p className="text-white font-bold text-lg mb-1">Video {chainProgress + 1} de {MARATHON_CHAIN_LENGTH}</p>
-          <p className="text-white/50 text-sm">Espera a que termine el video</p>
-          <div className="flex items-center justify-center gap-2 mt-4">
-            {Array.from({ length: MARATHON_CHAIN_LENGTH }, (_, i) => (
-              <div
-                key={i}
-                className={`w-3 h-3 rounded-full ${i < chainProgress ? 'bg-green-500' : i === chainProgress ? 'bg-amber-400 animate-pulse' : 'bg-gray-700'}`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+          {tab === 'keys' && (
+            <div className="space-y-4">
+              {/* Buy key with coins */}
+              <div className="rounded-none bg-gradient-to-br from-amber-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#f59e0b20' }}>
+                    <Key className="w-7 h-7 text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold uppercase tracking-wide">Llaves de Campaña</h2>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-white/40 text-[10px] uppercase">Tienes</p>
+                    <p className="text-amber-400 font-bold text-lg flex items-center gap-1 justify-end"><Key className="w-4 h-4" />{campaignProgress.keys}</p>
+                  </div>
+                </div>
 
-      {phase === 'marathon_reward' && (
-        <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-amber-900/50 to-gray-900 border border-amber-500/60 p-8 text-center animate-scale-in">
-          <div className="flex items-center justify-center mb-3">
-            <Flame className="w-16 h-16 text-amber-400" />
-          </div>
-          <p className="text-white font-bold text-xl mb-2">¡MARATON COMPLETADO!</p>
-          <p className="text-amber-300 text-sm mb-2">Has visto los {MARATHON_CHAIN_LENGTH} videos consecutivos</p>
-          <p className="text-amber-400 font-bold text-2xl mb-6">+{marathonReward} MONEDAS</p>
-          <div className="flex items-center justify-center gap-2 mb-6">
-            {Array.from({ length: MARATHON_CHAIN_LENGTH }, (_, i) => (
-              <CheckCircle2 key={i} className="w-6 h-6 text-green-400" />
-            ))}
-          </div>
-          <button
-            onClick={() => { onRewardRef.current(); onCloseRef.current(); }}
-            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold transition-colors"
-          >
-            Reclamar {marathonReward} monedas
-          </button>
+                <button
+                  onClick={() => {
+                    setError(''); setSuccess('');
+                    const result = buyCampaignKey();
+                    if (result.ok) setSuccess(`¡Llave comprada! Tienes ${campaignProgress.keys + 1} llaves.`);
+                    else setError(result.error || 'No se pudo completar la compra.');
+                  }}
+                  disabled={coins < getGameCampaignKeyPrice()}
+                  className="w-full py-3 rounded-none bg-gradient-to-r from-amber-600 to-orange-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+                >
+                  <Key className="w-5 h-5" />Comprar 1 Llave ({getGameCampaignKeyPrice().toLocaleString()})
+                </button>
+              </div>
+
+              {/* Earn key by watching ads */}
+              <div className="rounded-none bg-gradient-to-br from-cyan-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-cyan-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#22d3ee20' }}>
+                    <Video className="w-7 h-7 text-cyan-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold uppercase tracking-wide">Llave por Anuncios</h2>
+                    <p className="text-white/40 text-xs">Ve {getAdsPerKey()} anuncios para ganar 1 llave</p>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-cyan-400 text-xs font-bold uppercase">Progreso</span>
+                    <span className="text-white/60 text-xs">{keyProgress.adsWatched}/{keyProgress.adsNeeded}</span>
+                  </div>
+                  <div className="h-3 bg-[#0f1520] border border-cyan-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
+                    <div className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all" style={{ width: `${(keyProgress.adsWatched / keyProgress.adsNeeded) * 100}%` }} />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!adDebounced()) return;
+                    setShowKeyAd(true);
+                  }}
+                  className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+                >
+                  <Video className="w-5 h-5" />Ver Anuncio ({keyProgress.adsWatched}/{keyProgress.adsNeeded})
+                </button>
+              </div>
+
+              {/* Coins by watching ads (120 monedas) */}
+              <div className="rounded-none bg-gradient-to-br from-green-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-green-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#10b98120' }}>
+                    <Coins className="w-7 h-7 text-green-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-bold uppercase tracking-wide">Monedas por Anuncio</h2>
+                    <p className="text-white/40 text-xs">+120 monedas por anuncio · Máx {getMaxCoinAdsPerDay()}/día</p>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <div className="flex justify-between mb-1">
+                    <span className="text-green-400 text-xs font-bold uppercase">Hoy</span>
+                    <span className="text-white/60 text-xs">{coinAdStatus.count}/{getMaxCoinAdsPerDay()}</span>
+                  </div>
+                  <div className="h-3 bg-[#0f1520] border border-green-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
+                    <div className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all" style={{ width: `${(coinAdStatus.count / getMaxCoinAdsPerDay()) * 100}%` }} />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!adDebounced()) return;
+                    setError(''); setSuccess(''); setShowCoinAd(true);
+                  }}
+                  disabled={coinAdStatus.remaining <= 0}
+                  className="w-full py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+                >
+                  <Video className="w-5 h-5" />{coinAdStatus.remaining > 0 ? `Ver Anuncio (${coinAdStatus.remaining} restantes)` : 'Límite diario alcanzado'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 flex items-center gap-2 rounded-none bg-red-500/10 border-l-4 border-red-500 p-3 text-red-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>
+          )}
+          {success && (
+            <div className="mt-4 flex items-center gap-2 rounded-none bg-green-500/10 border-l-4 border-green-500 p-3 text-green-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><CheckCircle2 className="w-4 h-4 shrink-0" />{success}</div>
+          )}
         </div>
-      )}
+      </div>
+
+      <RewardAdModal
+        open={showCoinAd}
+        onClose={() => setShowCoinAd(false)}
+        onReward={handleCoinAdReward}
+        title="Monedas por Anuncio"
+        rewardText="¡+120 monedas!"
+        adId={getRewardedAdId('shop')}
+        userRole={userRole}
+        vip={vip}
+        touchKey="shop_coins"
+      />
+      <RewardAdModal
+        open={showKeyAd}
+        onClose={() => setShowKeyAd(false)}
+        onReward={handleKeyAdReward}
+        title="Llave por Anuncio"
+        rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
+        adId={getRewardedAdId('shop')}
+        userRole={userRole}
+        vip={vip}
+        touchKey="shop_keys"
+      />
+      <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
   );
 }
