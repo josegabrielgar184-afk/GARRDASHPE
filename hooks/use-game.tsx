@@ -204,6 +204,7 @@ interface GameState {
   lives: number;
   vip: boolean;
   muted: boolean;
+  user: User | null;
   selectedCharacter: string;
   selectedShip: string;
   selectedZombie: string;
@@ -287,7 +288,6 @@ interface GameState {
   refreshPendingRequests: () => Promise<void>;
   confirmPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
   rejectPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
-  // New canjes system
   canjes: CanjeRequest[];
   refreshCanjes: () => Promise<void>;
   submitCanje: (rewardId: string, gameId: CanjeGameId, playerID: string, nickname: string) => Promise<{ ok: boolean; error?: string }>;
@@ -432,6 +432,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [screen, setScreenState] = useState<Screen>('intro');
   const [coins, setCoins] = useState(0);
   const [points, setPoints] = useState(0);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [lives, setLivesState] = useState(3);
   const [vip, setVip] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -539,6 +540,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user: User | null) => {
+      setCurrentUser(user);
       if (userDocUnsubRef.current) {
         userDocUnsubRef.current();
         userDocUnsubRef.current = null;
@@ -547,7 +549,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         await verificarYCrearUsuario(user);
         setLoggedInState(true);
         setEmail(user.email ?? '');
-        // Register FCM push notification token for this device
         registerServiceWorker().then(() => requestNotificationPermissionAndToken(user.uid));
         let role: 'user' | 'operador' | 'admin' = 'user';
         try {
@@ -569,7 +570,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               }
             }
           } else {
-            // Document doesn't exist - create it immediately to prevent ghost registrations
             await setDoc(doc(db, 'usuarios', user.uid), {
               nombre: user.email?.split('@')[0] ?? 'Player',
               email: user.email ?? '',
@@ -593,10 +593,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         else if (role === 'operador') setScreenState('operator');
         else setScreenState('menu');
 
-        // Schedule 3 daily push notifications to remind user to play
         setupDailyNotifications();
 
-        // One-time read instead of onSnapshot to avoid burning Firestore reads
         try {
           const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
           if (userDoc.exists()) {
@@ -629,6 +627,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           }
         } catch {}
       } else {
+        setCurrentUser(null);
         setLoggedInState(false);
         setUserRole('user');
         setCoins(0);
@@ -667,7 +666,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pendingCoins]);
 
-  // One-time read for top player (cached) instead of onSnapshot
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -700,7 +698,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  // One-time query for top player by bestScore (cached) instead of onSnapshot
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -770,7 +767,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [muted, screen]);
 
-  // Pause all audio when app goes to background (zero ghost music)
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
@@ -985,11 +981,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     saveData({ uiTheme: t });
   }, []);
 
-  // Apply theme to CSS variables globally
   useEffect(() => {
     const theme = UI_THEMES.find((t) => t.id === uiTheme) ?? UI_THEMES[0];
     const root = document.documentElement;
-    // Convert hex to HSL components
     const hexToHsl = (hex: string): string => {
       const r = parseInt(hex.slice(1, 3), 16) / 255;
       const g = parseInt(hex.slice(3, 5), 16) / 255;
@@ -1211,7 +1205,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         saveData({ campaignProgress: next });
         return next;
       });
-      // Write to 'canjes' collection (user-writable) instead of 'solicitudes_pendientes' (admin-only)
       const newReqRef = doc(collection(db, 'canjes'));
       await setDoc(newReqRef, {
         id: newReqRef.id,
@@ -1233,7 +1226,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         rejectReason: '',
         type: 'diamond_exchange',
       });
-      // Update user doc with coins and keys
       await updateDoc(doc(db, 'usuarios', user.uid), {
         coins: coins - MIN_CLAIM_COINS,
         campaignKeys: Math.max(0, campaignProgress.keys - DIAMOND_CLAIM_KEYS_REQUIRED),
@@ -1415,7 +1407,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  // Real-time listener for all users (admin panel)
   useEffect(() => {
     if (userRole !== 'admin' && userRole !== 'operador') return;
     try {
@@ -1569,7 +1560,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const uid = cred.user.uid;
-      // Force token refresh so Firestore security rules see the fresh auth state
       try { await cred.user.getIdToken(true); } catch {}
       await setDoc(doc(db, 'usuarios', uid), {
         nombre: data.fullName,
@@ -1827,7 +1817,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // ===== New Canjes System =====
   const refreshCanjes = useCallback(async () => {
     try {
       const user = auth.currentUser;
@@ -1862,7 +1851,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       list.sort((a, b) => b.createdAt - a.createdAt);
       setCanjes(list);
 
-      // Also fetch approved canjes for the user
       const approvedSnap = await getDocs(query(
         collection(db, 'canjes_aprobadas'),
         where('userId', '==', user.uid)
@@ -1903,7 +1891,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (coins < reward.coinCost) return { ok: false, error: 'Monedas insuficientes' };
       if (campaignProgress.keys < reward.keyCost) return { ok: false, error: 'Llaves insuficientes' };
 
-      // Count pending canjes to calculate queue position
       const pendingSnap = await getDocs(query(
         collection(db, 'canjes'),
         where('status', 'in', ['pending_review', 'waiting_correction'])
@@ -1932,13 +1919,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         rejectReason: '',
       });
 
-      // Deduct coins and keys
       spendCoins(reward.coinCost);
       if (typeof window !== 'undefined') {
         const newKeys = Math.max(0, campaignProgress.keys - reward.keyCost);
         localStorage.setItem('campaignKeys', String(newKeys));
       }
-      // Update keys in Firebase user doc
       await updateDoc(doc(db, 'usuarios', user.uid), {
         coins: coins - reward.coinCost,
         campaignKeys: Math.max(0, campaignProgress.keys - reward.keyCost),
@@ -1981,7 +1966,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const canjeDoc = await getDoc(canjeRef);
       if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
       const data = canjeDoc.data();
-      // Refund coins and keys
       const refundCoins = data.coinCost ?? 0;
       const refundKeys = data.keyCost ?? 0;
       await updateDoc(doc(db, 'usuarios', user.uid), {
@@ -1997,7 +1981,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [coins, campaignProgress.keys, refreshCanjes]);
 
-  // Admin functions
   const logOperatorAction = useCallback(async (action: string, details?: string) => {
     try {
       const user = auth.currentUser;
@@ -2035,7 +2018,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           read: false,
         }).catch(() => {});
 
-        // Send FCM push notification to the player's device
         try {
           const userRef = doc(db, 'usuarios', data.userId);
           const userDoc = await getDoc(userRef);
@@ -2107,7 +2089,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
       const data = canjeDoc.data();
       const now = Date.now();
-      // Refund user
       const refundCoins = data.coinCost ?? 0;
       const refundKeys = data.keyCost ?? 0;
       if (data.userId) {
@@ -2138,7 +2119,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshCanjes, logOperatorAction]);
 
-  // Auto-cancel expired correction canjes
   useEffect(() => {
     const interval = setInterval(() => {
       canjes.forEach(async (c) => {
@@ -2151,7 +2131,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             if (!canjeDoc.exists()) return;
             const data = canjeDoc.data();
             if (data.status !== 'waiting_correction') return;
-            // Auto-reject with refund
             const now = Date.now();
             const refundCoins = data.coinCost ?? 0;
             const refundKeys = data.keyCost ?? 0;
@@ -2177,12 +2156,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           } catch {}
         }
       });
-    }, 30000); // check every 30s
+    }, 30000);
     return () => clearInterval(interval);
   }, [canjes, refreshCanjes]);
 
-  // Admin: fetch all canjes with pagination
-  const adminCanjes = useRef<CanjeRequest[]>([]);
   const [adminCanjesList, setAdminCanjesList] = useState<CanjeRequest[]>([]);
   const [adminApprovedList, setAdminApprovedList] = useState<CanjeRequest[]>([]);
   const [adminCanjesCounts, setAdminCanjesCounts] = useState({ total: 0, approved: 0, pending: 0, rejected: 0 });
@@ -2193,7 +2170,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return Promise.resolve();
   }, []);
 
-  // Real-time listener for admin canjes (pending + approved)
   useEffect(() => {
     if (userRole !== 'admin' && userRole !== 'operador') return;
     try {
@@ -2711,18 +2687,15 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         const userZombie = userData.puntos_zombies ?? 0;
         const userWeekly = userData.puntos_semanales ?? 0;
 
-        // If user has no points at all, they can't be ranked
         if (userSpace <= 0 && userZombie <= 0 && userWeekly <= 0) {
           setCurrentUserRank(null);
           setCurrentUserScore(0);
           return;
         }
 
-        // Set the user's best score for display
         const bestScore = Math.max(userSpace, userZombie, userWeekly);
         setCurrentUserScore(bestScore);
 
-        // Compute rank for each category: count users with higher score
         let bestRank: number | null = null;
 
         if (userSpace > 0) {
@@ -2745,15 +2718,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         }
 
         setCurrentUserRank(bestRank);
-      } catch {
-        // Keep the rank from checkRank if dynamic computation fails
-      }
+      } catch {}
     };
     computeDynamicRank();
   }, [spaceRanking, zombieRanking, weeklyRanking, loggedIn, playerName]);
 
   const value: GameState = {
-    screen, coins, points, lives, vip, muted, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
+    screen, coins, points, lives, vip, muted, user: currentUser, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
     topPlayerName, topPlayerScore, topPlayerAvatar, absoluteRecord,
     lastRouletteDate, rouletteSpinsToday, suggestions, upgrades,
     spaceRanking, zombieRanking, weeklyRanking, isOnline, pendingCoins, bloodEnabled,
