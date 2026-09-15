@@ -178,7 +178,6 @@ export function ZRunner() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Carriles
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.12)';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -204,7 +203,6 @@ export function ZRunner() {
         setScore(Math.floor(scoreRef.current / 5));
         gameSpeedRef.current += 0.0006;
 
-        // Generar Hileras de Monedas Doradas en Carriles
         coinSpawnTimerRef.current++;
         if (coinSpawnTimerRef.current > 25) {
           coinSpawnTimerRef.current = 0;
@@ -218,7 +216,6 @@ export function ZRunner() {
           }
         }
 
-        // Generar Obstáculos
         spawnTimerRef.current++;
         if (spawnTimerRef.current > 45) {
           spawnTimerRef.current = 0;
@@ -232,7 +229,6 @@ export function ZRunner() {
           });
         }
 
-        // Procesar Monedas
         for (let i = coinsListRef.current.length - 1; i >= 0; i--) {
           const coin = coinsListRef.current[i];
           coin.y += gameSpeedRef.current;
@@ -251,7 +247,6 @@ export function ZRunner() {
           }
         }
 
-        // Procesar Obstáculos
         for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
           const obs = obstaclesRef.current[i];
           obs.y += gameSpeedRef.current;
@@ -273,7 +268,6 @@ export function ZRunner() {
         }
       }
 
-      // Dibujar Monedas Doradas
       for (const coin of coinsListRef.current) {
         if (coin.collected) continue;
         const cx = LANES[coin.lane];
@@ -286,7 +280,6 @@ export function ZRunner() {
       }
       ctx.shadowBlur = 0;
 
-      // Dibujar Obstáculos
       for (const obs of obstaclesRef.current) {
         const ox = LANES[obs.lane];
 
@@ -304,7 +297,6 @@ export function ZRunner() {
       }
       ctx.shadowBlur = 0;
 
-      // Dibujar Jugador
       const px = playerXRef.current;
       const py = PLAYER_Y + jumpOffsetRef.current;
 
@@ -314,7 +306,6 @@ export function ZRunner() {
       ctx.fillRect(px - PLAYER_SIZE / 2, py - PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
       ctx.shadowBlur = 0;
 
-      // Partículas
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
         p.x += p.vx;
