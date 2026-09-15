@@ -77,7 +77,7 @@ export function ZRunner() {
     obstaclesRef.current = [];
     coinsListRef.current = [];
     particlesRef.current = [];
-    gameSpeedRef.current = 4.8; // Velocidad inicial base
+    gameSpeedRef.current = 4.8;
     spawnTimerRef.current = 0;
     coinSpawnTimerRef.current = 0;
 
@@ -219,7 +219,7 @@ export function ZRunner() {
         scoreRef.current += 1;
         setScore(Math.floor(scoreRef.current / 5));
 
-        // AUMENTO DE VELOCIDAD PROGRESIVO: Cada vez que avanzas, la velocidad y dificultad suben dinámicamente
+        // Aumento de velocidad progresivo
         gameSpeedRef.current += 0.0025; 
 
         coinSpawnTimerRef.current++;
@@ -237,7 +237,6 @@ export function ZRunner() {
           }
         }
 
-        // Los obstáculos aparecen más rápido conforme aumenta la velocidad general
         spawnTimerRef.current++;
         const spawnInterval = Math.max(20, 45 - Math.floor(gameSpeedRef.current * 3.5));
         if (spawnTimerRef.current > spawnInterval) {
@@ -254,7 +253,7 @@ export function ZRunner() {
 
         for (let i = coinsListRef.current.length - 1; i >= 0; i--) {
           const coin = coinsListRef.current[i];
-          coin.y += gameSpeedRef.current; // Se mueven a la velocidad actual del juego
+          coin.y += gameSpeedRef.current;
 
           const cx = LANES[coin.lane];
 
@@ -272,7 +271,7 @@ export function ZRunner() {
 
         for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
           const obs = obstaclesRef.current[i];
-          obs.y += gameSpeedRef.current; // Los obstáculos se aceleran progresivamente aquí
+          obs.y += gameSpeedRef.current;
 
           if (Math.abs(obs.y - PLAYER_Y) < 22 && laneRef.current === obs.lane) {
             const isSafeByJump = obs.type === 'laser' && jumpOffsetRef.current < -18;
@@ -360,8 +359,8 @@ export function ZRunner() {
   const handleDoubleCoins = () => {
     if (coinsRef.current > 0 && !doubledRef.current) {
       doubledRef.current = true;
-      addCoins(coinsRef.current); // Suma el bono extra exacto para completar el x2 sin multiplicar de más
-      setCoinsEarned(coinsRef.current * 2);
+      addCoins(coinsRef.current); // Añade exactamente el bono extra (ej. 7 más para sumar 14 en total)
+      // Nota: Ya NO tocamos setCoinsEarned aquí para evitar que el GameOverModal lo multiplique de más.
     }
   };
 
