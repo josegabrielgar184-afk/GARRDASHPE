@@ -47,7 +47,10 @@ export type Screen =
   | 'influencer'
   | 'canjes'
   | 'arcade'
-  | 'neon-maze';
+  | 'neon-maze'
+  | 'garrfly'
+  | 'zrunner'
+  | 'garrblade';
 
 export interface UpgradeState {
   fireRate: number;
