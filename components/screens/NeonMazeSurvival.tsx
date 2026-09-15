@@ -69,6 +69,10 @@ export function NeonMazeSurvival() {
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(0);
 
+  // Candados para evitar duplicados incorrectos de monedas
+  const baseCoinsAddedRef = useRef(false);
+  const doubledRef = useRef(false);
+
   const initGame = useCallback(() => {
     playerRef.current = { x: 1, y: 1, dir: { dx: 0, dy: 0 } };
     zombiesRef.current = [
@@ -92,6 +96,9 @@ export function NeonMazeSurvival() {
     coinsRef.current = 0;
     livesRef.current = 3;
     gameOverRef.current = false;
+    baseCoinsAddedRef.current = false;
+    doubledRef.current = false;
+
     setScore(0);
     setCoinsEarned(0);
     setLives(3);
@@ -112,6 +119,17 @@ export function NeonMazeSurvival() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
+
+  const triggerGameOver = () => {
+    if (!gameOverRef.current) {
+      gameOverRef.current = true;
+      setGameOver(true);
+      if (coinsRef.current > 0 && !baseCoinsAddedRef.current) {
+        baseCoinsAddedRef.current = true;
+        addCoins(coinsRef.current);
+      }
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -226,9 +244,7 @@ export function NeonMazeSurvival() {
             livesRef.current -= 1;
             setLives(livesRef.current);
             if (livesRef.current <= 0) {
-              gameOverRef.current = true;
-              setGameOver(true);
-              if (coinsRef.current > 0) addCoins(coinsRef.current);
+              triggerGameOver();
             } else {
               p.x = 1; p.y = 1;
             }
@@ -298,7 +314,7 @@ export function NeonMazeSurvival() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins]);
+  }, [addCoins, overcharge]);
 
   const handleTouch = (e: React.TouchEvent) => {
     e.preventDefault();
@@ -323,9 +339,12 @@ export function NeonMazeSurvival() {
   };
 
   const handleDoubleCoins = () => {
-    coinsRef.current *= 2;
-    setCoinsEarned(coinsRef.current);
-    if (coinsRef.current > 0) addCoins(coinsRef.current);
+    if (coinsRef.current > 0 && !doubledRef.current) {
+      doubledRef.current = true;
+      addCoins(coinsRef.current); // Agrega el monto extra para completar el x2 exacto
+      coinsRef.current *= 2;
+      setCoinsEarned(coinsRef.current);
+    }
   };
 
   const handleClose = () => {
