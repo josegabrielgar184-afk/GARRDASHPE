@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video, Loader2, CheckCircle2, XCircle, Flame } from 'lucide-react';
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
-import { getActiveAdIds, shouldShowAds, checkRateLimit, shouldSkipAd } from '@/lib/ad-security';
+import { getActiveAdIds, shouldShowAds, checkRateLimit } from '@/lib/ad-security';
 import { getFallbackRewardedId } from '@/lib/config';
 
 interface RewardAdModalProps {
@@ -53,12 +53,6 @@ export function RewardAdModal({
       return;
     }
 
-    if (touchKey && shouldSkipAd(touchKey)) {
-      rewardedRef.current = true;
-      setPhase('reward');
-      return;
-    }
-
     if (!checkRateLimit()) {
       setErrorMsg('Has alcanzado el limite de anuncios por minuto. Intenta de nuevo mas tarde.');
       setPhase('error');
@@ -94,10 +88,9 @@ export function RewardAdModal({
           handleAdComplete(isMarathonStep);
         }, 2000);
       } else {
-        // En navegador web de prueba, otorgamos directo para no trabar el flujo de desarrollo
+        // En navegador web de prueba (en PC simulamos el éxito directo)
         rewardedRef.current = true;
-        onRewardRef.current();
-        onCloseRef.current();
+        setPhase('reward');
       }
       return;
     }
@@ -128,7 +121,7 @@ export function RewardAdModal({
           try { rewardListener.remove(); dismissListener.remove(); } catch {}
           setErrorMsg('El anuncio tardó demasiado en cargar. Revisa tu conexión e intenta de nuevo.');
           setPhase('error');
-        }, 12000);
+        }, 15000);
 
         await AdMob.prepareRewardVideoAd({ adId: useAdId });
 
@@ -188,9 +181,8 @@ export function RewardAdModal({
         setPhase('marathon');
       }
     } else {
-      // ÉXITO AUTOMÁTICO: Da el premio y cierra limpio sin congelarse
-      onRewardRef.current();
-      onCloseRef.current();
+      // AQUÍ OBLIGAMOS A MOSTRAR LA PANTALLA VERDE SOLO DESPUÉS DE VER EL ANUNCIO
+      setPhase('reward');
     }
   };
 
@@ -204,7 +196,7 @@ export function RewardAdModal({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 animate-fade-in">
-      {(phase === 'loading') && (
+      {phase === 'loading' && (
         <div className="w-full max-w-sm mx-4 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 border border-primary/30 p-8 text-center">
           <div className="flex items-center justify-center mb-4">
             <Loader2 className="w-12 h-12 text-primary animate-spin" />
