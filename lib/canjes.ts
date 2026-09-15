@@ -13,10 +13,10 @@ export const CANJE_GAMES: Array<{ id: CanjeGameId; label: string; icon: string }
 ];
 
 export const CANJE_REWARDS: Array<{ id: string; label: string; coinCost: number; keyCost: number; usdValue: number }> = [
-  { id: 'diamonds_100', label: '100 Diamantes', coinCost: 10000, keyCost: 5, usdValue: 1.0 },
-  { id: 'diamonds_310', label: '310 Diamantes', coinCost: 25000, keyCost: 10, usdValue: 3.0 },
-  { id: 'diamonds_520', label: '520 Diamantes', coinCost: 40000, keyCost: 15, usdValue: 5.0 },
-  { id: 'diamonds_1060', label: '1060 Diamantes', coinCost: 75000, keyCost: 25, usdValue: 10.0 },
+  { id: 'diamonds_100', label: '100 Diamantes', coinCost: 20000, keyCost: 5, usdValue: 1.0 },
+  { id: 'diamonds_310', label: '310 Diamantes', coinCost: 40000, keyCost: 10, usdValue: 3.0 },
+  { id: 'diamonds_520', label: '520 Diamantes', coinCost: 80000, keyCost: 15, usdValue: 5.0 },
+  { id: 'diamonds_1060', label: '1060 Diamantes', coinCost: 160000, keyCost: 25, usdValue: 10.0 },
 ];
 
 export const CORRECTION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
