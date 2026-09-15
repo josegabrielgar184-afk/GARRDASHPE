@@ -1,374 +1,305 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useGame, UPGRADE_COSTS } from '@/hooks/use-game';
-import { ZOMBIE_CHARACTERS } from '@/lib/characters';
+import { useState, useRef, useEffect } from 'react';
+import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
-import { ADMOB_CONFIG, getRewardedAdId } from '@/lib/config';
-import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video } from 'lucide-react';
-import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
-import { getCoinAdStatus, recordCoinAd, getCoinAdReward, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
-import { getPerformanceTier, type PerformanceTier } from '@/lib/performance';
+import { getRewardedAdId } from '@/lib/config';
+import { ArrowLeft, Calendar, Crown, Video, Sparkles } from 'lucide-react';
+import { OfflineBanner } from '@/components/game/OfflineBanner';
+import { playCoin, playPickup, initAudio, playExplosion } from '@/lib/audio';
+import { hapticPattern } from '@/lib/engine2d';
+import { getPerformanceTier } from '@/lib/performance';
 
-export function ShopScreen() {
-  const {
-    coins, spendCoins, addCoins, vip, vipExpiry, buyVIP, setScreen,
-    upgrades, selectedZombie, selectZombie,
-    getTowerLevel, campaignProgress,
-    buyCampaignKey, getCampaignKeyPrice: getGameCampaignKeyPrice,
-    addCampaignKeyFromAd, userRole,
-  } = useGame();
+interface Prize { coins: number; label: string; color: string; glow: string; tier: 'high' | 'medium' | 'consolation'; }
+interface ConfettiPiece { id: number; x: number; y: number; vx: number; vy: number; color: string; size: number; rot: number; rotVel: number; life: number; }
+
+const PRIZES: Prize[] = [
+    { coins: 5, label: '5', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 10, label: '10', color: '#3b82f6', glow: 'rgba(59,130,246,0.6)', tier: 'medium' },
+    { coins: 15, label: '15', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 20, label: '20', color: '#06b6d4', glow: 'rgba(6,182,212,0.6)', tier: 'medium' },
+    { coins: 10, label: '10', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 30, label: '30', color: '#10b981', glow: 'rgba(16,185,129,0.6)', tier: 'medium' },
+    { coins: 15, label: '15', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 200, label: '200', color: '#f59e0b', glow: 'rgba(245,158,11,0.7)', tier: 'high' },
+    { coins: 10, label: '10', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 25, label: '25', color: '#8b5cf6', glow: 'rgba(139,92,246,0.6)', tier: 'medium' },
+    { coins: 20, label: '20', color: '#64748b', glow: 'rgba(100,116,139,0.5)', tier: 'consolation' },
+    { coins: 500, label: '500', color: '#ef4444', glow: 'rgba(239,68,68,0.7)', tier: 'high' },
+];
+
+const PROB_HIGH = 0.002;       // 0.2% de probabilidad para los premios gordos (200 y 500)
+const PROB_MEDIUM = 0.10;      // 10% para premios medianos
+const PROB_CONSOLATION = 0.898; // 89.8% para los de consolación
+
+export function RouletteScreen() {
+  const { addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin, canShowInterstitial, recordInterstitial } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [tab, setTab] = useState<'companions' | 'keys' | 'heroes'>('companions');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [showCoinAd, setShowCoinAd] = useState(false);
-  const [showKeyAd, setShowKeyAd] = useState(false);
-  const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
-  const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
-  const [perfTier] = useState<PerformanceTier>(getPerformanceTier());
-  const adDebounceRef = useRef<number>(0);
+  const [spinning, setSpinning] = useState(false);
+  const [rotation, setRotation] = useState(0);
+  const [result, setResult] = useState<Prize | null>(null);
+  const [showReward, setShowReward] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [confetti, setConfetti] = useState<ConfettiPiece[]>([]);
+  const [adSpins, setAdSpins] = useState(0);
+  const rotationRef = useRef(0);
+  const confettiIdRef = useRef(0);
+  const renderGlow = getPerformanceTier() === 'high';
 
-  const adDebounced = (): boolean => {
-    const now = Date.now();
-    if (now - adDebounceRef.current < 4000) return false;
-    adDebounceRef.current = now;
-    return true;
+  const freeSpinsRemaining = getFreeSpinsRemaining();
+  const canSpin = freeSpinsRemaining > 0 || adSpins > 0;
+  const isFreeSpin = freeSpinsRemaining > 0;
+
+  useEffect(() => {
+    if (canShowInterstitial() && !vip) {
+      recordInterstitial();
+    }
+  }, []);
+
+  const spawnConfetti = () => {
+    const colors = ['#fbbf24', '#22d3ee', '#ef4444', '#34d399', '#a855f7', '#f97316'];
+    const pieces: ConfettiPiece[] = [];
+    for (let i = 0; i < 50; i++) {
+      pieces.push({
+        id: ++confettiIdRef.current,
+        x: 150, y: 150,
+        vx: (Math.random() - 0.5) * 10,
+        vy: -Math.random() * 10 - 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 5 + Math.random() * 8,
+        rot: Math.random() * Math.PI * 2,
+        rotVel: (Math.random() - 0.5) * 0.4,
+        life: 150,
+      });
+    }
+    setConfetti(pieces);
   };
 
   useEffect(() => {
-    setCoinAdStatus(getCoinAdStatus());
-    setKeyProgress(getKeyAdProgress());
-  }, []);
+    if (confetti.length === 0) return;
+    const interval = setInterval(() => {
+      setConfetti((prev) => {
+        const updated = prev.map((c) => ({ ...c, x: c.x + c.vx, y: c.y + c.vy, vy: c.vy + 0.3, rot: c.rot + c.rotVel, life: c.life - 1 })).filter((c) => c.life > 0 && c.y < 400);
+        return updated;
+      });
+    }, 30);
+    return () => clearInterval(interval);
+  }, [confetti.length > 0]);
 
-  const companionDefs: Array<{ key: 'turret' | 'drone' | 'medic' | 'neon-shield'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
-    { key: 'neon-shield', icon: Shield, name: 'Escudo Neón Básico', desc: 'Escudo inicial en cada partida', color: '#00f3ff', baseCost: 400 },
-    { key: 'turret', icon: Zap, name: 'Francotirador', desc: 'Dispara junto a ti', color: '#f97316', baseCost: 200 },
-    { key: 'drone', icon: Swords, name: 'Dron', desc: 'Vuela y dispara a múltiples enemigos', color: '#ef4444', baseCost: 500 },
-    { key: 'medic', icon: Shield, name: 'Médico', desc: 'Repara la barricada automáticamente', color: '#34d399', baseCost: 800 },
-  ];
-  const companionCost = (key: 'turret' | 'drone' | 'medic' | 'neon-shield') => {
-    const def = companionDefs.find((t) => t.key === key)!;
-    const level = key === 'neon-shield' ? 0 : getTowerLevel(key as 'turret' | 'drone' | 'medic');
-    return def.baseCost * Math.pow(2, level);
+  const selectPrize = (): { prize: Prize; index: number } => {
+    const roll = Math.random();
+    let tier: 'high' | 'medium' | 'consolation';
+    if (roll < PROB_HIGH) tier = 'high';
+    else if (roll < PROB_HIGH + PROB_MEDIUM) tier = 'medium';
+    else tier = 'consolation';
+    const candidates = PRIZES.map((p, i) => ({ p, i })).filter((x) => x.p.tier === tier);
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    return { prize: chosen.p, index: chosen.i };
   };
 
-  const handleCoinAdReward = () => {
-    setShowCoinAd(false);
-    const ok = recordCoinAd();
-    if (ok) {
-      const reward = getCoinAdReward();
-      addCoins(reward);
-      setSuccess(`¡+${reward} monedas ganadas!`);
-      setCoinAdStatus(getCoinAdStatus());
-    } else {
-      setError('Has alcanzado el límite diario de anuncios.');
-    }
+  const spin = () => {
+    if (spinning || !canSpin) return;
+    initAudio();
+    setSpinning(true);
+    setResult(null);
+
+    const { prize, index } = selectPrize();
+    const segmentAngle = 360 / PRIZES.length;
+    const targetAngle = index * segmentAngle + segmentAngle / 2;
+    const fullSpins = 5 + Math.floor(Math.random() * 3);
+    const finalRotation = rotationRef.current + fullSpins * 360 + (360 - targetAngle);
+    const startRotation = rotationRef.current;
+    const duration = 4000;
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 4);
+      const current = startRotation + (finalRotation - startRotation) * eased;
+      rotationRef.current = current;
+      setRotation(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        rotationRef.current = finalRotation % 360;
+        setSpinning(false);
+        setResult(prize);
+        addCoins(prize.coins);
+        playCoin();
+        playPickup();
+        hapticPattern([30, 20, 50]);
+        if (prize.tier !== 'consolation') {
+          spawnConfetti();
+          playExplosion();
+          hapticPattern([50, 30, 100]);
+        }
+        if (isFreeSpin) {
+          recordRouletteSpin();
+        } else {
+          setAdSpins((e) => Math.max(0, e - 1));
+        }
+        setRefreshKey((k) => k + 1);
+      }
+    };
+    requestAnimationFrame(animate);
   };
 
-  const handleKeyAdReward = () => {
-    setShowKeyAd(false);
-    const result = recordKeyAd();
-    if (result.earnedKey) {
-      addCampaignKeyFromAd();
-      setSuccess('¡Llave de Campaña ganada!');
-    } else {
-      setSuccess(`Progreso: ${result.newProgress}/${result.adsNeeded} anuncios vistos`);
-    }
-    setKeyProgress(getKeyAdProgress());
+  const handleRewardAdComplete = () => {
+    setShowReward(false);
+    setAdSpins((prev) => prev + 1);
+    playPickup();
+    hapticPattern([40, 40]);
   };
-
-  const renderGlow = perfTier === 'high';
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
+      <OfflineBanner />
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      <div className="pt-16 px-4 pb-16 flex-1 overflow-y-auto no-scrollbar">
-        <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <h1 className="text-white font-black text-xl tracking-widest uppercase" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 10px rgba(34,211,238,0.5)' : 'none', clipPath: 'polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px))' }}>TIENDA</h1>
+      {renderGlow && (
+        <>
+          <div className="absolute top-10 left-5 w-40 h-40 rounded-full opacity-20 pointer-events-none" style={{ background: 'radial-gradient(circle, #22d3ee, transparent)', filter: 'blur(40px)' }} />
+          <div className="absolute bottom-20 right-5 w-48 h-48 rounded-full opacity-15 pointer-events-none" style={{ background: 'radial-gradient(circle, #f59e0b, transparent)', filter: 'blur(50px)' }} />
+        </>
+      )}
+
+      <div className="pt-16 px-6 pb-16 flex-1 flex flex-col items-center relative z-10 overflow-y-auto no-scrollbar">
+        <div className="flex items-center gap-3 mb-6 w-full max-w-sm">
+          <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white"><ArrowLeft className="w-6 h-6" /></button>
+          <h1 className="text-white font-black text-xl uppercase tracking-widest flex items-center gap-2" style={{ fontFamily: 'Inter, sans-serif', textShadow: renderGlow ? '0 0 20px rgba(245,158,11,0.6)' : 'none' }}>
+            <Sparkles className="w-5 h-5 text-amber-400" /> Ruleta
+          </h1>
         </div>
 
-        <div className="max-w-md mx-auto">
-          {/* Balance card */}
-          <div className="mb-4">
-            <div className="rounded-none bg-gradient-to-r from-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500 p-3 flex items-center gap-2" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-              <div className="w-9 h-9 rounded-none bg-amber-500/20 flex items-center justify-center" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 4px 100%, 0 calc(100% - 4px))' }}><Coins className="w-4 h-4 text-amber-400" /></div>
-              <div><p className="text-white/40 text-[10px] uppercase tracking-wider">Monedas</p><p className="text-amber-400 font-bold">{coins.toLocaleString()}</p></div>
-            </div>
+        <div className="max-w-sm w-full flex flex-col items-center">
+          <div key={refreshKey} className="flex items-center gap-2 mb-4 animate-fade-in">
+            <Calendar className="w-4 h-4 text-amber-400" />
+            <span className="text-white/60 text-sm">
+              {freeSpinsRemaining > 0 ? `${freeSpinsRemaining} giro${freeSpinsRemaining > 1 ? 's' : ''} gratis disponible${freeSpinsRemaining > 1 ? 's' : ''}` : adSpins > 0 ? `${adSpins} giro extra por anuncio` : 'Sin giros gratis hoy'}
+            </span>
           </div>
 
-          {/* VIP card hidden */}
-          {false && (
-          <div className="rounded-none bg-gradient-to-r from-amber-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500/60 p-3 mb-4" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-            {vip ? (
-              <div className="flex items-center gap-2 text-green-400 font-bold text-sm">
-                <Crown className="w-5 h-5 text-amber-400" />
-                <span>VIP Activo</span>
-                {vipExpiry && (
-                  <span className="text-white/40 text-xs font-normal ml-1">
-                    · {Math.max(0, Math.ceil((new Date(vipExpiry as string).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} días restantes
-                  </span>
-                )}
-              </div>
-            ) : VIP_DISPONIBLE_PLAYSTORE ? (
-              <div className="flex items-center gap-3">
-                <Crown className="w-6 h-6 text-amber-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-white font-bold text-sm uppercase tracking-wide">Pase VIP (60 días)</h2>
-                  <p className="text-white/40 text-[11px] leading-tight">Sin anuncios · 2x monedas · 3 ruletas gratis</p>
-                </div>
-                <button onClick={buyVIP} className="px-4 py-2 rounded-none bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-sm hover:opacity-90 transition-opacity shrink-0" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>Comprar</button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 opacity-60">
-                <Lock className="w-6 h-6 text-white/40 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-white/50 font-bold text-sm uppercase tracking-wide">Pase VIP Próximamente</h2>
-                  <p className="text-white/30 text-[11px] leading-tight">Disponible muy pronto en la Play Store</p>
-                </div>
-              </div>
+          {vip && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-none bg-amber-500/10 border-l-4 border-amber-500/60 mb-4" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}>
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-amber-400 text-xs font-bold uppercase tracking-wide">VIP: 3 giros gratis diarios</span>
+            </div>
+          )}
+
+          {/* Wheel container */}
+          <div className="relative w-72 h-72 mb-6">
+            {renderGlow && (
+              <div className="absolute -inset-4 rounded-full pointer-events-none" style={{ background: 'conic-gradient(from 0deg, #22d3ee, #f59e0b, #ef4444, #8b5cf6, #22d3ee)', opacity: 0.3, filter: 'blur(15px)' }} />
             )}
-          </div>
-          )}
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-4">
-            <button onClick={() => setTab('companions')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'companions' ? 'bg-gradient-to-r from-cyan-600 to-cyan-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Compañeros</button>
-            <button onClick={() => setTab('keys')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'keys' ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Llaves</button>
-            <button onClick={() => setTab('heroes')} className={`flex-1 py-2.5 rounded-none font-bold text-sm transition-colors uppercase tracking-wide ${tab === 'heroes' ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white' : 'bg-[#1a1a28] border border-white/10 text-white/60'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>Héroes</button>
-          </div>
-
-          {tab === 'companions' && (
-            <div className="grid grid-cols-1 gap-3">
-              {companionDefs.map((t) => {
-                const Icon = t.icon;
-                const cost = companionCost(t.key);
-                const level = t.key === 'neon-shield' ? 0 : getTowerLevel(t.key as 'turret' | 'drone' | 'medic');
-                const isShield = t.key === 'neon-shield';
-                const shieldOwned = typeof window !== 'undefined' && localStorage.getItem('neon_shield_owned') === '1';
+            <div className="absolute inset-0 rounded-full" style={{
+              background: 'linear-gradient(135deg, #1a1a2e, #16213e, #1a1a2e)',
+              boxShadow: renderGlow ? '0 0 30px rgba(245,158,11,0.3), inset 0 0 20px rgba(0,0,0,0.8)' : 'inset 0 0 20px rgba(0,0,0,0.8)',
+              border: '4px solid rgba(245,158,11,0.4)',
+            }}>
+              {Array.from({ length: 16 }).map((_, i) => {
+                const angle = (i * 360) / 16;
                 return (
-                  <div key={t.key} className="rounded-none bg-[#1a1a28] border-l-4 p-4 flex items-center gap-4" style={{ borderColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-                    <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${t.color}20` }}>
-                      <Icon className="w-6 h-6" style={{ color: t.color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-bold text-sm uppercase tracking-wide">{t.name}</h3>
-                      <p className="text-white/40 text-xs">{t.desc}</p>
-                      {!isShield && <span className="font-black text-lg" style={{ color: t.color }}>Nv.{level}</span>}
-                    </div>
-                    {isShield && shieldOwned ? (
-                      <span className="px-4 py-3 text-green-400 font-bold text-sm">Comprado</span>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setError(''); setSuccess('');
-                          if (isShield) {
-                            if (spendCoins(cost)) {
-                              if (typeof window !== 'undefined') localStorage.setItem('neon_shield_owned', '1');
-                              setSuccess('¡Escudo Neón Básico comprado!');
-                            } else {
-                              setError('No tienes suficientes monedas.');
-                            }
-                          }
-                        }}
-                        disabled={isShield && (coins < cost || shieldOwned)}
-                        className="px-4 py-3 rounded-none text-white font-bold text-sm transition-colors flex items-center justify-center gap-1 shrink-0 disabled:opacity-40"
-                        style={{ backgroundColor: t.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}
-                      >
-                        <Coins className="w-4 h-4" />{cost.toLocaleString()}
-                      </button>
-                    )}
+                  <div key={i} className="absolute w-2.5 h-2.5 rounded-full" style={{
+                    top: '50%', left: '50%',
+                    transform: `rotate(${angle}deg) translateY(-136px) translate(-50%, -50%)`,
+                    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                    boxShadow: renderGlow ? '0 0 6px rgba(251,191,36,0.6)' : 'none',
+                  }} />
+                );
+              })}
+            </div>
+
+            <div className="absolute top-[-2px] left-1/2 -translate-x-1/2 z-30">
+              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[24px] border-l-transparent border-r-transparent border-t-amber-400" style={{ filter: renderGlow ? 'drop-shadow(0 0 8px rgba(251,191,36,0.8))' : 'none' }} />
+            </div>
+
+            <div
+              className="absolute inset-3 rounded-full overflow-hidden"
+              style={{
+                transform: `rotate(${rotation}deg)`,
+                background: `conic-gradient(${PRIZES.map((p, i) => {
+                  const angle = 360 / PRIZES.length;
+                  return `${p.color} ${i * angle}deg ${(i + 1) * angle}deg`;
+                }).join(', ')})`,
+                boxShadow: 'inset 0 0 30px rgba(0,0,0,0.6)',
+                border: '3px solid rgba(255,255,255,0.15)',
+              }}
+            >
+              {PRIZES.map((_, i) => {
+                const angle = (i * 360) / PRIZES.length;
+                return (
+                  <div key={i} className="absolute top-1/2 left-1/2 origin-left h-px" style={{
+                    width: '50%',
+                    transform: `rotate(${angle}deg)`,
+                    background: 'rgba(255,255,255,0.15)',
+                  }} />
+                );
+              })}
+
+              {/* Prize numbers */}
+              {PRIZES.map((prize, i) => {
+                const angle = (i * 360) / PRIZES.length + (360 / PRIZES.length) / 2;
+                return (
+                  <div
+                    key={i}
+                    className="absolute top-1/2 left-1/2 w-12 h-6 -ml-6 -mt-3 flex items-center justify-center font-black text-white text-xs drop-shadow-md"
+                    style={{
+                      transform: `rotate(${angle}deg) translateY(-85px) rotate(90deg)`,
+                    }}
+                  >
+                    {prize.label}
                   </div>
                 );
               })}
             </div>
-          )}
 
-          {tab === 'heroes' && (
-            <div className="grid grid-cols-2 gap-3">
-              {ZOMBIE_CHARACTERS.map((hero) => {
-                const isOwned = hero.price === 0 || (typeof window !== 'undefined' && localStorage.getItem(`hero_${hero.id}`) === '1');
-                const isEquipped = selectedZombie === hero.id;
-                const canAfford = coins >= hero.price;
-                return (
-                  <div key={hero.id} className="rounded-none bg-[#1a1a28] border-l-4 p-3 flex flex-col" style={{ borderColor: isEquipped ? hero.color : `${hero.color}44`, clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-10 h-10 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: `${hero.color}20` }}>
-                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: hero.color }} />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-white font-bold text-xs truncate uppercase tracking-wide" style={{ color: isEquipped ? hero.color : undefined }}>{hero.name}</h3>
-                        <p className="text-white/40 text-[9px] truncate">{hero.skill}</p>
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-white/50 mb-2 leading-tight">{hero.skillDesc}</div>
-                    {isEquipped ? (
-                      <div className="w-full py-2 rounded-none text-white font-bold text-xs text-center" style={{ backgroundColor: hero.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>EQUIPADO</div>
-                    ) : isOwned ? (
-                      <button onClick={() => selectZombie(hero.id)} className="w-full py-2 rounded-none text-white font-bold text-xs transition-colors" style={{ backgroundColor: `${hero.color}88`, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}>Equipar</button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          if (canAfford && spendCoins(hero.price)) {
-                            if (typeof window !== 'undefined') localStorage.setItem(`hero_${hero.id}`, '1');
-                            selectZombie(hero.id);
-                            setSuccess(`¡${hero.name} equipado!`);
-                          } else { setError('No tienes suficientes monedas.'); }
-                        }}
-                        disabled={!canAfford}
-                        className="w-full py-2 rounded-none text-white font-bold text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-40"
-                        style={{ backgroundColor: hero.color, clipPath: 'polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%)' }}
-                      >
-                        <Coins className="w-3 h-3" />{hero.price.toLocaleString()}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+            <button
+              onClick={spin}
+              disabled={spinning || !canSpin}
+              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex flex-col items-center justify-center z-20 font-black text-xs uppercase tracking-wider transition-transform active:scale-95 ${
+                canSpin && !spinning ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-black shadow-lg shadow-amber-500/40 cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              }`}
+              style={{ border: '3px solid rgba(255,255,255,0.3)' }}
+            >
+              {spinning ? 'GIRANDO' : 'GIRAR'}
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowReward(true)}
+            className="w-full py-3 mb-4 rounded-none bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 text-cyan-400 font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-cyan-500/30 transition-all active:scale-[0.98]"
+            style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+          >
+            <Video className="w-4 h-4" /> Ver Anuncio (Giro Extra)
+          </button>
+
+          {result && (
+            <div className="w-full p-4 rounded-none bg-slate-900/90 border-l-4 border-amber-400 text-center animate-fade-in" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}>
+              <p className="text-white/60 text-xs uppercase">Premio obtenido</p>
+              <p className="text-amber-400 font-black text-lg">{result.label} Monedas</p>
             </div>
-          )}
-
-          {tab === 'keys' && (
-            <div className="space-y-4">
-              {/* Buy key with coins */}
-              <div className="rounded-none bg-gradient-to-br from-amber-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-amber-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#f59e0b20' }}>
-                    <Key className="w-7 h-7 text-amber-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-white font-bold uppercase tracking-wide">Llaves de Campaña</h2>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-white/40 text-[10px] uppercase">Tienes</p>
-                    <p className="text-amber-400 font-bold text-lg flex items-center gap-1 justify-end"><Key className="w-4 h-4" />{campaignProgress.keys}</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setError(''); setSuccess('');
-                    const result = buyCampaignKey();
-                    if (result.ok) setSuccess(`¡Llave comprada! Tienes ${campaignProgress.keys + 1} llaves.`);
-                    else setError(result.error || 'No se pudo completar la compra.');
-                  }}
-                  disabled={coins < getGameCampaignKeyPrice()}
-                  className="w-full py-3 rounded-none bg-gradient-to-r from-amber-600 to-orange-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
-                >
-                  <Key className="w-5 h-5" />Comprar 1 Llave ({getGameCampaignKeyPrice().toLocaleString()})
-                </button>
-              </div>
-
-              {/* Earn key by watching ads */}
-              <div className="rounded-none bg-gradient-to-br from-cyan-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-cyan-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#22d3ee20' }}>
-                    <Video className="w-7 h-7 text-cyan-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-white font-bold uppercase tracking-wide">Llave por Anuncios</h2>
-                    <p className="text-white/40 text-xs">Ve {getAdsPerKey()} anuncios para ganar 1 llave</p>
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-cyan-400 text-xs font-bold uppercase">Progreso</span>
-                    <span className="text-white/60 text-xs">{keyProgress.adsWatched}/{keyProgress.adsNeeded}</span>
-                  </div>
-                  <div className="h-3 bg-[#0f1520] border border-cyan-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
-                    <div className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all" style={{ width: `${(keyProgress.adsWatched / keyProgress.adsNeeded) * 100}%` }} />
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (!adDebounced()) return;
-                    setShowKeyAd(true);
-                  }}
-                  className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
-                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
-                >
-                  <Video className="w-5 h-5" />Ver Anuncio ({keyProgress.adsWatched}/{keyProgress.adsNeeded})
-                </button>
-              </div>
-
-              {/* Coins by watching ads */}
-              <div className="rounded-none bg-gradient-to-br from-green-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-green-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#10b98120' }}>
-                    <Coins className="w-7 h-7 text-green-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-white font-bold uppercase tracking-wide">Monedas por Anuncio</h2>
-                    <p className="text-white/40 text-xs">+{getCoinAdReward()} monedas por anuncio · Máx {getMaxCoinAdsPerDay()}/día</p>
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-green-400 text-xs font-bold uppercase">Hoy</span>
-                    <span className="text-white/60 text-xs">{coinAdStatus.count}/{getMaxCoinAdsPerDay()}</span>
-                  </div>
-                  <div className="h-3 bg-[#0f1520] border border-green-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
-                    <div className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all" style={{ width: `${(coinAdStatus.count / getMaxCoinAdsPerDay()) * 100}%` }} />
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (!adDebounced()) return;
-                    setError(''); setSuccess(''); setShowCoinAd(true);
-                  }}
-                  disabled={coinAdStatus.remaining <= 0}
-                  className="w-full py-3 rounded-none bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
-                >
-                  <Video className="w-5 h-5" />{coinAdStatus.remaining > 0 ? `Ver Anuncio (${coinAdStatus.remaining} restantes)` : 'Límite diario alcanzado'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-4 flex items-center gap-2 rounded-none bg-red-500/10 border-l-4 border-red-500 p-3 text-red-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>
-          )}
-          {success && (
-            <div className="mt-4 flex items-center gap-2 rounded-none bg-green-500/10 border-l-4 border-green-500 p-3 text-green-400 text-sm" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)' }}><CheckCircle2 className="w-4 h-4 shrink-0" />{success}</div>
           )}
         </div>
       </div>
 
       <RewardAdModal
-        open={showCoinAd}
-        onClose={() => setShowCoinAd(false)}
-        onReward={handleCoinAdReward}
-        title="Monedas por Anuncio"
-        rewardText={`¡+${getCoinAdReward()} monedas!`}
-        adId={getRewardedAdId('shop')}
+        open={showReward}
+        onClose={() => setShowReward(false)}
+        onReward={handleRewardAdComplete}
+        title="Giro Extra por Anuncio"
+        rewardText="Giro extra por ver anuncio"
+        adId={getRewardedAdId('ruleta')}
         userRole={userRole}
         vip={vip}
-        touchKey="shop_coins"
+        touchKey="roulette"
       />
-      <RewardAdModal
-        open={showKeyAd}
-        onClose={() => setShowKeyAd(false)}
-        onReward={handleKeyAdReward}
-        title="Llave por Anuncio"
-        rewardText={keyProgress.adsWatched + 1 >= getAdsPerKey() ? '¡Llave ganada!' : `Progreso: ${keyProgress.adsWatched + 1}/${getAdsPerKey()}`}
-        adId={getRewardedAdId('shop')}
-        userRole={userRole}
-        vip={vip}
-        touchKey="shop_keys"
-      />
+
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
     </div>
   );
