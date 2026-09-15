@@ -3,17 +3,31 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { CANJE_GAMES, CANJE_REWARDS, formatElapsed, formatCountdown, getDayLabel } from '@/lib/canjes';
+import { formatElapsed, formatCountdown, getDayLabel } from '@/lib/canjes';
 import type { CanjeGameId } from '@/lib/canjes';
 import { ArrowLeft, Coins, Key, Clock, AlertCircle, CheckCircle2, XCircle, Loader2, RefreshCw, ChevronDown, ShieldCheck } from 'lucide-react';
 import { getPerformanceTier } from '@/lib/performance';
+
+const LOCAL_CANJE_GAMES = [
+  { id: 'free_fire', label: 'Free Fire' },
+  { id: 'roblox', label: 'Roblox' },
+  { id: 'clash_royale', label: 'Clash Royale' },
+  { id: 'efootball', label: 'eFootball' },
+];
+
+const LOCAL_CANJE_REWARDS = [
+  { id: '100_dm', label: '100 Diamantes', coinCost: 20000, keyCost: 1 },
+  { id: '310_dm', label: '310 Diamantes', coinCost: 40000, keyCost: 2 },
+  { id: '520_dm', label: '520 Diamantes', coinCost: 80000, keyCost: 3 },
+  { id: '1060_dm', label: '1060 Diamantes', coinCost: 160000, keyCost: 5 },
+];
 
 export function CanjesScreen() {
   const {
     setScreen, coins, campaignProgress, canjes, approvedCanjes,
     refreshCanjes, submitCanje, correctCanjeId, cancelCanje,
   } = useGame();
-  const [selectedReward, setSelectedReward] = useState(CANJE_REWARDS[0].id);
+  const [selectedReward, setSelectedReward] = useState(LOCAL_CANJE_REWARDS[0].id);
   const [selectedGame, setSelectedGame] = useState<CanjeGameId>('free_fire');
   const [playerId, setPlayerId] = useState('');
   const [nick, setNick] = useState('');
@@ -100,7 +114,7 @@ export function CanjesScreen() {
     setSubmitting(false);
     if (result.ok) {
       setSuccess('¡Canje exitoso! Los diamantes están en camino a tu cuenta');
-      const r = CANJE_REWARDS.find((rr) => rr.id === selectedReward);
+      const r = LOCAL_CANJE_REWARDS.find((rr) => rr.id === selectedReward);
       const pkgLabel = r ? r.label.replace(' Diamantes', '') : '100';
       const userNick = nick.trim() || 'Usuario';
       const masked = userNick.length > 3 ? userNick.slice(0, 3) + '***' : userNick + '***';
@@ -162,7 +176,7 @@ export function CanjesScreen() {
     else setError(result.error || 'Error al cancelar');
   };
 
-  const reward = CANJE_REWARDS.find((r) => r.id === selectedReward)!;
+  const reward = LOCAL_CANJE_REWARDS.find((r) => r.id === selectedReward)!;
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
@@ -225,7 +239,7 @@ export function CanjesScreen() {
                         </span>
                         <div>
                           <p className="text-white font-bold text-sm uppercase tracking-wide">{c.selectedReward}</p>
-                          <p className="text-white/40 text-[10px]">{CANJE_GAMES.find((g) => g.id === c.gameId)?.label}</p>
+                          <p className="text-white/40 text-[10px]">{LOCAL_CANJE_GAMES.find((g) => g.id === c.gameId)?.label}</p>
                         </div>
                       </div>
                       <span className={`px-2 py-0.5 rounded-none text-[10px] font-bold uppercase tracking-wide ${isCorrection ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}`} style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
@@ -312,7 +326,7 @@ export function CanjesScreen() {
 
             <label className="text-white/60 text-xs font-bold mb-2 block uppercase tracking-wider">Recompensa de Diamantes</label>
             <div className="grid grid-cols-2 gap-3 mb-5">
-              {CANJE_REWARDS.map((r) => {
+              {LOCAL_CANJE_REWARDS.map((r) => {
                 const canAfford = coins >= r.coinCost && campaignProgress.keys >= r.keyCost;
                 return (
                   <button key={r.id} onClick={() => setSelectedReward(r.id)} disabled={!canAfford} className={`p-4 rounded-xl text-left transition-all border-2 ${selectedReward === r.id ? 'bg-cyan-500/15 border-cyan-500 shadow-lg shadow-cyan-500/20 scale-[1.02]' : 'bg-[#0f1520] border-white/10 hover:border-cyan-500/30'} ${!canAfford ? 'opacity-40 cursor-not-allowed' : ''}`}>
