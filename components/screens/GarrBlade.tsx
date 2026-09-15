@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, Zap, ArrowUp, ArrowDown, ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Coins, Trophy, Zap } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 type ArrowDir = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
@@ -11,8 +11,8 @@ type ArrowDir = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
 const ARROW_ICONS: Record<ArrowDir, any> = {
   UP: ArrowUp,
   DOWN: ArrowDown,
-  LEFT: ArrowLeftIcon,
-  RIGHT: ArrowRightIcon,
+  LEFT: ArrowLeft,
+  RIGHT: ArrowRight,
 };
 
 const ALL_DIRS: ArrowDir[] = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
@@ -80,7 +80,6 @@ export function GarrBlade() {
     initGame();
   }, [initGame]);
 
-  // Temporizador por Turno
   useEffect(() => {
     const timer = setInterval(() => {
       if (gameOverRef.current) return;
@@ -119,7 +118,6 @@ export function GarrBlade() {
     const expected = sequenceRef.current[indexRef.current];
 
     if (dir === expected) {
-      // Impacto Daga Neón
       createSparks(180, 160, '#00f3ff', 12);
       indexRef.current += 1;
       setCurrentIndex(indexRef.current);
@@ -129,7 +127,6 @@ export function GarrBlade() {
       setScore(scoreRef.current);
       setCoinsEarned(coinsRef.current);
 
-      // Turno Completado
       if (indexRef.current >= sequenceRef.current.length) {
         createSparks(180, 160, '#ffb700', 25);
         scoreRef.current += 200;
@@ -142,7 +139,6 @@ export function GarrBlade() {
         }, 300);
       }
     } else {
-      // Error de Flecha -> Fin de Turno / Perdió
       createSparks(180, 160, '#ef4444', 20);
       gameOverRef.current = true;
       setGameOver(true);
@@ -150,7 +146,6 @@ export function GarrBlade() {
     }
   };
 
-  // Canvas Target Render
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -161,14 +156,12 @@ export function GarrBlade() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, 360, 320);
 
-      // Rejilla
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
       ctx.lineWidth = 1;
       for (let i = 0; i < 360; i += 30) {
         ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 320); ctx.stroke();
       }
 
-      // Objetivo Neón Central
       ctx.fillStyle = '#111827';
       ctx.strokeStyle = '#a855f7';
       ctx.lineWidth = 5;
@@ -185,7 +178,6 @@ export function GarrBlade() {
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // Partículas
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
         p.x += p.vx;
@@ -229,7 +221,6 @@ export function GarrBlade() {
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
 
-      {/* Header */}
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
           onClick={() => setScreen('arcade')}
@@ -254,7 +245,6 @@ export function GarrBlade() {
         </div>
       </div>
 
-      {/* Barra de Tiempo del Turno */}
       <div className="px-4 pt-3">
         <div className="h-2 bg-black/60 rounded-full overflow-hidden border border-[#00f3ff]/30">
           <div
@@ -264,7 +254,6 @@ export function GarrBlade() {
         </div>
       </div>
 
-      {/* Canvas Objetivo */}
       <div className="flex-1 flex flex-col items-center justify-center p-2 relative">
         <canvas
           ref={canvasRef}
@@ -273,7 +262,6 @@ export function GarrBlade() {
           className="border border-[#00f3ff]/30 rounded-2xl shadow-xl shadow-purple-500/10 max-h-[40vh] object-contain bg-black/40"
         />
 
-        {/* Secuencia de Flechas del Turno */}
         <div className="mt-4 flex items-center justify-center gap-2">
           {sequence.map((dir, idx) => {
             const Icon = ARROW_ICONS[dir];
@@ -298,7 +286,6 @@ export function GarrBlade() {
         </div>
       </div>
 
-      {/* Botones de Flechas de Control en Cruz */}
       <div className="pb-8 pt-2 flex flex-col items-center justify-center gap-1">
         <button
           onClick={() => handleArrowPress('UP')}
@@ -311,7 +298,7 @@ export function GarrBlade() {
             onClick={() => handleArrowPress('LEFT')}
             className="p-3.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 active:scale-90"
           >
-            <ArrowLeftIcon className="w-7 h-7" />
+            <ArrowLeft className="w-7 h-7" />
           </button>
           <button
             onClick={() => handleArrowPress('DOWN')}
@@ -323,7 +310,7 @@ export function GarrBlade() {
             onClick={() => handleArrowPress('RIGHT')}
             className="p-3.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 active:scale-90"
           >
-            <ArrowRightIcon className="w-7 h-7" />
+            <ArrowRight className="w-7 h-7" />
           </button>
         </div>
       </div>
