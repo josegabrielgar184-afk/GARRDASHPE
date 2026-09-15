@@ -26,8 +26,9 @@ export function GameOverModal({
   if (!open) return null;
 
   const handleDoubleReward = () => {
+    if (coinsDoubled) return;
     setCoinsDoubled(true);
-    onDoubleCoins();
+    onDoubleCoins(); // Suma las monedas duplicadas una sola vez de forma limpia
     setShowDoubleAd(false);
   };
 
