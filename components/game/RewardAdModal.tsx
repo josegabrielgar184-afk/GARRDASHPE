@@ -94,21 +94,28 @@ export function RewardAdModal({
           handleAdComplete(isMarathonStep);
         }, 2000);
       } else {
-        setErrorMsg('Los anuncios solo estan disponibles en la app movil.');
-        setPhase('error');
+        // En navegador web de prueba, otorgamos directo para no trabar el flujo de desarrollo
+        rewardedRef.current = true;
+        onRewardRef.current();
+        onCloseRef.current();
       }
       return;
     }
 
     const tryLoadAd = async (useAdId: string): Promise<boolean> => {
       try {
+        let adWatched = false;
+
         const rewardListener = await AdMob.addListener(RewardAdPluginEvents.Rewarded, () => {
+          adWatched = true;
           rewardedRef.current = true;
         });
 
         const dismissListener = await AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
           if (cancelled) return;
-          if (rewardedRef.current) {
+          try { rewardListener.remove(); dismissListener.remove(); } catch {}
+          
+          if (adWatched || rewardedRef.current) {
             handleAdComplete(isMarathonStep);
           } else {
             closedRef.current = true;
@@ -136,8 +143,6 @@ export function RewardAdModal({
         setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
         await AdMob.showRewardVideoAd();
 
-        rewardListener.remove();
-        dismissListener.remove();
         return true;
       } catch {
         if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null; }
@@ -183,7 +188,9 @@ export function RewardAdModal({
         setPhase('marathon');
       }
     } else {
-      setPhase('reward');
+      // ÉXITO AUTOMÁTICO: Da el premio y cierra limpio sin congelarse
+      onRewardRef.current();
+      onCloseRef.current();
     }
   };
 
@@ -215,7 +222,7 @@ export function RewardAdModal({
           <p className="text-white font-bold text-lg mb-1">Anuncio en reproduccion</p>
           <p className="text-white/50 text-sm">Espera a que termine para recibir tu recompensa</p>
           <button
-            onClick={() => { try { AdMob.showRewardVideoAd().catch(() => {}); } catch {} onCloseRef.current(); }}
+            onClick={() => { onCloseRef.current(); }}
             className="mt-6 w-full py-2.5 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-sm hover:bg-red-500/30 transition-colors"
           >
             Cancelar anuncio
