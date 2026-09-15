@@ -359,8 +359,8 @@ export function ZRunner() {
   const handleDoubleCoins = () => {
     if (coinsRef.current > 0 && !doubledRef.current) {
       doubledRef.current = true;
-      addCoins(coinsRef.current); // Añade exactamente el bono extra (ej. 7 más para sumar 14 en total)
-      // Nota: Ya NO tocamos setCoinsEarned aquí para evitar que el GameOverModal lo multiplique de más.
+      addCoins(coinsRef.current); // Añade exactamente el bono extra una sola vez (ej. 3 más)
+      // Dejamos que GameOverModal multiplique visualmente la base * 2
     }
   };
 
