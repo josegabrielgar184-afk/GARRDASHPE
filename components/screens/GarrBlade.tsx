@@ -401,9 +401,8 @@ export function GarrBlade() {
   const handleDoubleCoins = () => {
     if (coinsEarnedRef.current > 0 && !doubledRef.current) {
       doubledRef.current = true;
-      addCoins(coinsEarnedRef.current); // Agrega el monto extra exacto para completar el doble
-      coinsEarnedRef.current *= 2;
-      setCoinsEarned(coinsEarnedRef.current);
+      addCoins(coinsEarnedRef.current); // Agrega exactamente el bono extra una sola vez
+      // Dejamos que GameOverModal multiplique visualmente la base * 2
     }
   };
 
