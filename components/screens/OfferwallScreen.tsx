@@ -17,14 +17,16 @@ export function OfferwallScreen() {
     setLoading(true);
     try {
       const uid = auth.currentUser?.uid ?? 'guest';
-      // Enlace directo de tu Offerwall de CPAlead con el subid del usuario
-      const url = `https://www.cdnflair.com/wall/6tnML7l?subid=${uid}`;
+      
+      // Usamos tu App ID oficial de AdGem (33565)
+      const appId = '33565'; 
+      const url = `https://api.adgem.com/v1/wall?appid=${appId}&player_id=${uid}`;
       
       // Abre el offerwall en una nueva pestaña
       window.open(url, '_blank');
       setResult({ ok: true });
     } catch {
-      setResult({ ok: false, error: 'No se pudo abrir el offerwall de CPAlead' });
+      setResult({ ok: false, error: 'No se pudo abrir el offerwall de AdGem' });
     }
     setLoading(false);
   };
@@ -39,7 +41,7 @@ export function OfferwallScreen() {
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-white font-bold text-xl">Misiones CPAlead</h1>
+          <h1 className="text-white font-bold text-xl">Misiones AdGem</h1>
         </div>
 
         <div className="max-w-sm mx-auto w-full flex-1 flex flex-col">
@@ -72,7 +74,7 @@ export function OfferwallScreen() {
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-lg hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
               >
                 <ExternalLink className="w-6 h-6" />
-                {loading ? 'Abriendo...' : 'Abrir Offerwall CPAlead'}
+                {loading ? 'Abriendo...' : 'Abrir Offerwall AdGem'}
               </button>
 
               {result?.ok && (
@@ -90,7 +92,7 @@ export function OfferwallScreen() {
 
               <div className="mt-6 rounded-xl bg-card border border-border p-4 text-xs space-y-2">
                 <p className="text-white/50 font-bold mb-1">Cómo funciona:</p>
-                <p className="text-white/40">1. Presiona &quot;Abrir Offerwall CPAlead&quot;.</p>
+                <p className="text-white/40">1. Presiona &quot;Abrir Offerwall AdGem&quot;.</p>
                 <p className="text-white/40">2. Completa una aplicación o tarea.</p>
                 <p className="text-white/40">3. Las ganancias se registran para tu cuenta y la meta del panel.</p>
               </div>
