@@ -4,7 +4,7 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import {
   Zap, Trophy, Coins, ShoppingBag, Star, Gamepad2, Crown, ArrowLeft,
-  Lock, Rocket, ShieldAlert,
+  Rocket, ShieldAlert,
 } from 'lucide-react';
 
 export function ArcadeHub() {
@@ -115,7 +115,7 @@ export function ArcadeHub() {
           </div>
         </button>
 
-        {/* Card 2: GarrFly */}
+        {/* Card 2: Culebrita Neón (garrfly) */}
         <button
           onClick={() => setScreen('garrfly')}
           className="w-full rounded-3xl bg-gradient-to-br from-amber-500/10 via-[#0a0e17] to-amber-900/20 border-2 border-amber-500/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-amber-500/10"
@@ -123,16 +123,16 @@ export function ArcadeHub() {
           <div className="flex items-start justify-between mb-3">
             <div>
               <p className="text-amber-400 text-[10px] font-black tracking-widest uppercase mb-1">
-                Nuevo Minijuego
+                Disponible
               </p>
               <h2
                 className="text-white font-black text-xl"
                 style={{ textShadow: '0 0 15px rgba(245,158,11,0.4)' }}
               >
-                GARRFLY
+                CULEBRITA NEÓN
               </h2>
               <p className="text-white/40 text-xs mt-1">
-                Vuela entre obstáculos y tuberías neón
+                Come monedas doradas y haz crecer tu serpiente
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
@@ -148,51 +148,83 @@ export function ArcadeHub() {
             </span>
           </div>
           <div className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
-            JUGAR GARRFLY
+            JUGAR CULEBRITA
           </div>
         </button>
 
         {/* Card 3: Z-Runner */}
-        <div className="w-full rounded-3xl bg-black/40 border border-white/10 p-5 text-left opacity-70">
+        <button
+          onClick={() => setScreen('zrunner')}
+          className="w-full rounded-3xl bg-gradient-to-br from-red-500/10 via-[#0a0e17] to-red-900/20 border-2 border-red-500/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-red-500/10"
+        >
           <div className="flex items-start justify-between mb-3">
             <div>
-              <p className="text-white/40 text-[10px] font-black tracking-widest uppercase mb-1 flex items-center gap-1">
-                <Lock className="w-3 h-3" /> Próximamente
+              <p className="text-red-400 text-[10px] font-black tracking-widest uppercase mb-1">
+                Disponible
               </p>
-              <h2 className="text-white/80 font-black text-xl">Z-RUNNER</h2>
-              <p className="text-white/30 text-xs mt-1">
+              <h2
+                className="text-white font-black text-xl"
+                style={{ textShadow: '0 0 15px rgba(239,68,68,0.4)' }}
+              >
+                Z-RUNNER
+              </h2>
+              <p className="text-white/40 text-xs mt-1">
                 Carrera continua esquivando hordas en 3 carriles
               </p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-6 h-6 text-white/30" />
+            <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-6 h-6 text-red-400" />
             </div>
           </div>
-          <div className="w-full py-3 rounded-xl bg-white/5 text-white/30 font-bold text-center text-xs">
-            BLOQUEADO
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-bold">
+              REFLEJOS
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-red-400/10 border border-red-400/30 text-red-400 text-[10px] font-bold">
+              +Supervivencia
+            </span>
           </div>
-        </div>
+          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
+            JUGAR Z-RUNNER
+          </div>
+        </button>
 
-        {/* Card 4: Astro Defense */}
-        <div className="w-full rounded-3xl bg-black/40 border border-white/10 p-5 text-left opacity-70">
+        {/* Card 4: GarrBlade */}
+        <button
+          onClick={() => setScreen('garrblade')}
+          className="w-full rounded-3xl bg-gradient-to-br from-purple-500/10 via-[#0a0e17] to-purple-900/20 border-2 border-purple-500/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-purple-500/10"
+        >
           <div className="flex items-start justify-between mb-3">
             <div>
-              <p className="text-white/40 text-[10px] font-black tracking-widest uppercase mb-1 flex items-center gap-1">
-                <Lock className="w-3 h-3" /> Próximamente
+              <p className="text-purple-400 text-[10px] font-black tracking-widest uppercase mb-1">
+                Disponible
               </p>
-              <h2 className="text-white/80 font-black text-xl">ASTRO DEFENSE</h2>
-              <p className="text-white/30 text-xs mt-1">
-                Dispara a las oleadas espaciales desde tu nave
+              <h2
+                className="text-white font-black text-xl"
+                style={{ textShadow: '0 0 15px rgba(168,85,247,0.4)' }}
+              >
+                GARRBLADE
+              </h2>
+              <p className="text-white/40 text-xs mt-1">
+                Clava dagas neón en la rueda sin chocar
               </p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-              <Rocket className="w-6 h-6 text-white/30" />
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shrink-0">
+              <Rocket className="w-6 h-6 text-purple-400" />
             </div>
           </div>
-          <div className="w-full py-3 rounded-xl bg-white/5 text-white/30 font-bold text-center text-xs">
-            BLOQUEADO
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-[10px] font-bold">
+              PRECISIÓN
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-purple-400/10 border border-purple-400/30 text-purple-400 text-[10px] font-bold">
+              +Puntos
+            </span>
           </div>
-        </div>
+          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
+            JUGAR GARRBLADE
+          </div>
+        </button>
 
         {/* Footer: quick access buttons */}
         <div className="grid grid-cols-4 gap-3 pt-2">
