@@ -62,6 +62,10 @@ export function GarrBlade() {
   const isGroundedRef = useRef(true);
   const isOnLadderRef = useRef(false);
 
+  // Control de cobro único para evitar duplicados incorrectos
+  const baseCoinsAddedRef = useRef(false);
+  const doubledRef = useRef(false);
+
   const platforms: Platform[] = [
     { x: 0, y: H - 30, w: W, h: 15 },
     { x: 0, y: H - 130, w: 270, h: 12 },
@@ -77,7 +81,6 @@ export function GarrBlade() {
     { x: 110, y: H - 430, w: 24, h: 100 },
   ];
 
-  // Monedas repartidas por pisos
   const initialCoins: Coin[] = [
     { id: 1, x: 150, y: H - 45, collected: false },
     { id: 2, x: 50, y: H - 145, collected: false },
@@ -119,6 +122,8 @@ export function GarrBlade() {
     scoreRef.current = 0;
     coinsEarnedRef.current = 0;
     gameOverRef.current = false;
+    baseCoinsAddedRef.current = false;
+    doubledRef.current = false;
 
     resetCoins();
     setScore(0);
@@ -164,6 +169,17 @@ export function GarrBlade() {
     }
   };
 
+  const triggerGameOver = () => {
+    if (!gameOverRef.current) {
+      gameOverRef.current = true;
+      setGameOver(true);
+      if (coinsEarnedRef.current > 0 && !baseCoinsAddedRef.current) {
+        baseCoinsAddedRef.current = true;
+        addCoins(coinsEarnedRef.current);
+      }
+    }
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -179,14 +195,12 @@ export function GarrBlade() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Rejilla
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.04)';
       ctx.lineWidth = 1;
       for (let i = 0; i < W; i += 30) {
         ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
       }
 
-      // Generar Barriles
       spawnTimerRef.current++;
       if (spawnTimerRef.current > 140 && barrelsRef.current.length < 3) {
         spawnTimerRef.current = 0;
@@ -199,7 +213,6 @@ export function GarrBlade() {
         });
       }
 
-      // Escaleras
       ctx.strokeStyle = '#00f3ff';
       ctx.shadowColor = '#00f3ff';
       ctx.shadowBlur = 8;
@@ -211,7 +224,6 @@ export function GarrBlade() {
         }
       }
 
-      // Plataformas
       ctx.fillStyle = '#1e293b';
       ctx.strokeStyle = '#ffb700';
       ctx.lineWidth = 2;
@@ -223,7 +235,6 @@ export function GarrBlade() {
       }
       ctx.shadowBlur = 0;
 
-      // Dibujar y Recoger Monedas Doradas
       for (const coin of coinsRef.current) {
         if (coin.collected) continue;
 
@@ -235,7 +246,6 @@ export function GarrBlade() {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Detección de Recogida
         const distToPlayer = Math.hypot(pxRef.current - coin.x, pyRef.current - coin.y);
         if (distToPlayer < 18) {
           coin.collected = true;
@@ -247,7 +257,6 @@ export function GarrBlade() {
         }
       }
 
-      // Verificar Escaleras
       let nearLadder = false;
       for (const l of ladders) {
         if (
@@ -262,7 +271,6 @@ export function GarrBlade() {
       }
       isOnLadderRef.current = nearLadder;
 
-      // Física del Jugador
       pxRef.current += vxRef.current;
       pxRef.current = Math.max(12, Math.min(W - 12, pxRef.current));
 
@@ -287,7 +295,6 @@ export function GarrBlade() {
         }
       }
 
-      // Llegar a la Cima -> Premia con Puntos, Recarga Monedas y Reinicia Posición
       if (pyRef.current < H - 440) {
         createSparks(pxRef.current, pyRef.current, '#00f3ff', 20);
         scoreRef.current += 300;
@@ -295,12 +302,11 @@ export function GarrBlade() {
         setScore(scoreRef.current);
         setCoinsEarned(coinsEarnedRef.current);
 
-        resetCoins(); // Recargar Monedas en el Mapa
+        resetCoins();
         pxRef.current = 40;
         pyRef.current = H - 50;
       }
 
-      // Mover y Dibujar Barriles
       for (let i = barrelsRef.current.length - 1; i >= 0; i--) {
         const b = barrelsRef.current[i];
 
@@ -333,14 +339,12 @@ export function GarrBlade() {
           b.y += b.vy;
         }
 
-        // Eliminar Barril en Esquinas del Fondo
         if (b.y >= H - 30 - b.radius && (b.x <= 25 || b.x >= W - 25)) {
           createSparks(b.x, b.y, '#ef4444', 8);
           barrelsRef.current.splice(i, 1);
           continue;
         }
 
-        // Dibujar Barril
         ctx.fillStyle = '#ef4444';
         ctx.shadowColor = '#ef4444';
         ctx.shadowBlur = 12;
@@ -349,24 +353,19 @@ export function GarrBlade() {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Choque con el Jugador
         const dist = Math.hypot(pxRef.current - b.x, pyRef.current - b.y);
         if (dist < b.radius + 10) {
           createSparks(pxRef.current, pyRef.current, '#ef4444', 18);
-          gameOverRef.current = true;
-          setGameOver(true);
-          if (coinsEarnedRef.current > 0) addCoins(coinsEarnedRef.current);
+          triggerGameOver();
         }
       }
 
-      // Dibujar Jugador
       ctx.fillStyle = '#ffb700';
       ctx.shadowColor = '#ffb700';
       ctx.shadowBlur = 14;
       ctx.fillRect(pxRef.current - 12, pyRef.current - 14, 24, 28);
       ctx.shadowBlur = 0;
 
-      // Partículas
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
         p.x += p.vx;
@@ -400,16 +399,18 @@ export function GarrBlade() {
   };
 
   const handleDoubleCoins = () => {
-    coinsEarnedRef.current *= 2;
-    setCoinsEarned(coinsEarnedRef.current);
-    if (coinsEarnedRef.current > 0) addCoins(coinsEarnedRef.current);
+    if (coinsEarnedRef.current > 0 && !doubledRef.current) {
+      doubledRef.current = true;
+      addCoins(coinsEarnedRef.current); // Agrega el monto extra exacto para completar el doble
+      coinsEarnedRef.current *= 2;
+      setCoinsEarned(coinsEarnedRef.current);
+    }
   };
 
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
 
-      {/* Header */}
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
           onClick={() => setScreen('arcade')}
@@ -430,7 +431,6 @@ export function GarrBlade() {
         </div>
       </div>
 
-      {/* Canvas */}
       <div className="flex-1 flex flex-col items-center justify-center p-2 relative touch-none">
         <canvas
           ref={canvasRef}
@@ -440,7 +440,6 @@ export function GarrBlade() {
         />
       </div>
 
-      {/* Botones de Control */}
       <div className="pb-6 px-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button
