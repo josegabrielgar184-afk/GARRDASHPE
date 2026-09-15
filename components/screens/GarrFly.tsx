@@ -50,6 +50,10 @@ export function GarrFly() {
   const gameStartedRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Control de cobro único para evitar duplicados incorrectos
+  const baseCoinsAddedRef = useRef(false);
+  const doubledRef = useRef(false);
+
   const spawnCoin = useCallback((currentSnake: Point[]) => {
     let newCoin: Point;
     while (true) {
@@ -77,6 +81,8 @@ export function GarrFly() {
     coinsRef.current = 0;
     gameOverRef.current = false;
     gameStartedRef.current = false;
+    baseCoinsAddedRef.current = false;
+    doubledRef.current = false;
 
     setScore(0);
     setCoinsEarned(0);
@@ -102,7 +108,6 @@ export function GarrFly() {
     if (newDir === 'RIGHT' && current !== 'LEFT') nextDirRef.current = 'RIGHT';
   }, []);
 
-  // Controles de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowUp' || e.key === 'w') changeDirection('UP');
@@ -114,7 +119,6 @@ export function GarrFly() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [changeDirection]);
 
-  // Controles por deslizamiento del dedo (Swipe)
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
@@ -153,7 +157,17 @@ export function GarrFly() {
     }
   };
 
-  // Bucle Principal del Juego
+  const triggerGameOver = () => {
+    if (!gameOverRef.current) {
+      gameOverRef.current = true;
+      setGameOver(true);
+      if (coinsRef.current > 0 && !baseCoinsAddedRef.current) {
+        baseCoinsAddedRef.current = true;
+        addCoins(coinsRef.current);
+      }
+    }
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -163,11 +177,9 @@ export function GarrFly() {
     const interval = setInterval(() => {
       if (gameOverRef.current) return;
 
-      // Renderizado de fondo
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Rejilla Neón
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
       ctx.lineWidth = 1;
       for (let x = 0; x < W; x += GRID_SIZE) {
@@ -186,27 +198,20 @@ export function GarrFly() {
         if (dirRef.current === 'LEFT') head.x -= 1;
         if (dirRef.current === 'RIGHT') head.x += 1;
 
-        // Detección de colisión con paredes
         if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-          gameOverRef.current = true;
-          setGameOver(true);
-          if (coinsRef.current > 0) addCoins(coinsRef.current);
+          triggerGameOver();
           return;
         }
 
-        // Detección de colisión con el propio cuerpo
         for (const segment of snakeRef.current) {
           if (segment.x === head.x && segment.y === head.y) {
-            gameOverRef.current = true;
-            setGameOver(true);
-            if (coinsRef.current > 0) addCoins(coinsRef.current);
+            triggerGameOver();
             return;
           }
         }
 
         snakeRef.current.unshift(head);
 
-        // Comer Moneda
         if (head.x === coinRef.current.x && head.y === coinRef.current.y) {
           scoreRef.current += 100;
           coinsRef.current += 1;
@@ -224,7 +229,6 @@ export function GarrFly() {
         }
       }
 
-      // Dibujar Moneda Dorada Neón
       const coinX = coinRef.current.x * GRID_SIZE + GRID_SIZE / 2;
       const coinY = coinRef.current.y * GRID_SIZE + GRID_SIZE / 2;
       ctx.fillStyle = '#ffb700';
@@ -235,7 +239,6 @@ export function GarrFly() {
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // Dibujar Culebrita Neón
       snakeRef.current.forEach((segment, index) => {
         const isHead = index === 0;
         ctx.fillStyle = isHead ? '#ffffff' : '#00f3ff';
@@ -250,7 +253,6 @@ export function GarrFly() {
       });
       ctx.shadowBlur = 0;
 
-      // Dibujar Partículas
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
         p.x += p.vx;
@@ -275,21 +277,22 @@ export function GarrFly() {
   const handleRevive = () => {
     gameOverRef.current = false;
     setGameOver(false);
-    // Acortar la serpiente a la mitad para darle espacio al revivir
     snakeRef.current = snakeRef.current.slice(0, Math.max(3, Math.floor(snakeRef.current.length / 2)));
   };
 
   const handleDoubleCoins = () => {
-    coinsRef.current *= 2;
-    setCoinsEarned(coinsRef.current);
-    if (coinsRef.current > 0) addCoins(coinsRef.current);
+    if (coinsRef.current > 0 && !doubledRef.current) {
+      doubledRef.current = true;
+      addCoins(coinsRef.current); // Suma exactamente el mismo monto base para completar el x2 exacto
+      coinsRef.current *= 2;
+      setCoinsEarned(coinsRef.current);
+    }
   };
 
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
 
-      {/* Top Bar */}
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
           onClick={() => setScreen('arcade')}
@@ -319,7 +322,6 @@ export function GarrFly() {
         </div>
       )}
 
-      {/* Canvas del Juego */}
       <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -333,7 +335,6 @@ export function GarrFly() {
         />
       </div>
 
-      {/* Cruceta Virtual de Controles abajo para Celular */}
       <div className="pb-6 pt-1 flex flex-col items-center justify-center gap-1">
         <button
           onClick={() => changeDirection('UP')}
