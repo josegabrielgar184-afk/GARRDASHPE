@@ -283,9 +283,8 @@ export function GarrFly() {
   const handleDoubleCoins = () => {
     if (coinsRef.current > 0 && !doubledRef.current) {
       doubledRef.current = true;
-      addCoins(coinsRef.current); // Suma exactamente el mismo monto base para completar el x2 exacto
-      coinsRef.current *= 2;
-      setCoinsEarned(coinsRef.current);
+      addCoins(coinsRef.current); // Añade exactamente el bono extra una sola vez
+      // Dejamos que GameOverModal multiplique visualmente la base * 2
     }
   };
 
