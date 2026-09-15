@@ -203,16 +203,19 @@ export function ZRunner() {
         setScore(Math.floor(scoreRef.current / 5));
         gameSpeedRef.current += 0.0006;
 
+        // Monedas mucho más espaciadas y en poca cantidad (sin saturar)
         coinSpawnTimerRef.current++;
-        if (coinSpawnTimerRef.current > 25) {
+        if (coinSpawnTimerRef.current > 90) {
           coinSpawnTimerRef.current = 0;
-          const coinLane = Math.floor(Math.random() * 3);
-          for (let i = 0; i < 4; i++) {
-            coinsListRef.current.push({
-              lane: coinLane,
-              y: -30 - i * 32,
-              collected: false,
-            });
+          if (Math.random() < 0.6) {
+            const coinLane = Math.floor(Math.random() * 3);
+            for (let i = 0; i < 2; i++) {
+              coinsListRef.current.push({
+                lane: coinLane,
+                y: -30 - i * 35,
+                collected: false,
+              });
+            }
           }
         }
 
@@ -369,9 +372,9 @@ export function ZRunner() {
       {!gameStarted && !gameOver && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
           <p className="text-[#00f3ff] font-black text-lg animate-bounce tracking-widest">
-            ¡RECOGE HILERAS DE MONEDAS!
+            ¡ESQUIVA Y RECOGE MONEDAS!
           </p>
-          <p className="text-white/50 text-xs mt-1">Muévete de carril para ganar más</p>
+          <p className="text-white/50 text-xs mt-1">Desliza para moverte y saltar</p>
         </div>
       )}
 
