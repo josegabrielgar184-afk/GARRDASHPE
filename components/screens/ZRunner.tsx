@@ -63,6 +63,10 @@ export function ZRunner() {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef<number>(0);
 
+  // Candados para evitar duplicados incorrectos de monedas
+  const baseCoinsAddedRef = useRef(false);
+  const doubledRef = useRef(false);
+
   const initGame = useCallback(() => {
     laneRef.current = 1;
     playerXRef.current = LANES[1];
@@ -81,6 +85,8 @@ export function ZRunner() {
     coinsRef.current = 0;
     gameOverRef.current = false;
     gameStartedRef.current = false;
+    baseCoinsAddedRef.current = false;
+    doubledRef.current = false;
 
     setScore(0);
     setCoinsEarned(0);
@@ -163,6 +169,17 @@ export function ZRunner() {
     }
   };
 
+  const triggerGameOver = () => {
+    if (!gameOverRef.current) {
+      gameOverRef.current = true;
+      setGameOver(true);
+      if (coinsRef.current > 0 && !baseCoinsAddedRef.current) {
+        baseCoinsAddedRef.current = true;
+        addCoins(coinsRef.current);
+      }
+    }
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -203,7 +220,6 @@ export function ZRunner() {
         setScore(Math.floor(scoreRef.current / 5));
         gameSpeedRef.current += 0.0006;
 
-        // Monedas mucho más espaciadas y en poca cantidad (sin saturar)
         coinSpawnTimerRef.current++;
         if (coinSpawnTimerRef.current > 90) {
           coinSpawnTimerRef.current = 0;
@@ -259,9 +275,7 @@ export function ZRunner() {
 
             if (!isSafeByJump) {
               createSparks(playerXRef.current, PLAYER_Y, '#ef4444', 20);
-              gameOverRef.current = true;
-              setGameOver(true);
-              if (coinsRef.current > 0) addCoins(coinsRef.current);
+              triggerGameOver();
             }
           }
 
@@ -340,9 +354,12 @@ export function ZRunner() {
   };
 
   const handleDoubleCoins = () => {
-    coinsRef.current *= 2;
-    setCoinsEarned(coinsRef.current);
-    if (coinsRef.current > 0) addCoins(coinsRef.current);
+    if (coinsRef.current > 0 && !doubledRef.current) {
+      doubledRef.current = true;
+      addCoins(coinsRef.current); // Agrega el monto extra para completar el x2 exacto
+      coinsRef.current *= 2;
+      setCoinsEarned(coinsRef.current);
+    }
   };
 
   return (
