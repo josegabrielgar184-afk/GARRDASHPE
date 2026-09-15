@@ -341,9 +341,8 @@ export function NeonMazeSurvival() {
   const handleDoubleCoins = () => {
     if (coinsRef.current > 0 && !doubledRef.current) {
       doubledRef.current = true;
-      addCoins(coinsRef.current); // Agrega el monto extra para completar el x2 exacto
-      coinsRef.current *= 2;
-      setCoinsEarned(coinsRef.current);
+      addCoins(coinsRef.current); // Añade exactamente el bono extra una sola vez (ej: 3 más)
+      // Dejamos que el GameOverModal se encargue de la multiplicación visual limpia (x2)
     }
   };
 
