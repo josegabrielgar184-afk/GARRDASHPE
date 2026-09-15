@@ -27,7 +27,15 @@ interface Barrel {
   x: number;
   y: number;
   vx: number;
+  vy: number;
   radius: number;
+}
+
+interface Coin {
+  id: number;
+  x: number;
+  y: number;
+  collected: boolean;
 }
 
 interface Particle {
@@ -47,42 +55,58 @@ export function GarrBlade() {
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [gameOver, setGameOver] = useState(false);
 
-  // Posición del Jugador
   const pxRef = useRef(40);
-  const pyRef = useRef(H - 60);
+  const pyRef = useRef(H - 50);
   const vxRef = useRef(0);
   const vyRef = useRef(0);
   const isGroundedRef = useRef(true);
   const isOnLadderRef = useRef(false);
 
-  // Plataformas y Escaleras fijas
   const platforms: Platform[] = [
     { x: 0, y: H - 30, w: W, h: 15 },
-    { x: 0, y: H - 130, w: 280, h: 12 },
-    { x: 80, y: H - 230, w: 280, h: 12 },
-    { x: 0, y: H - 330, w: 280, h: 12 },
-    { x: 80, y: H - 430, w: 280, h: 12 },
+    { x: 0, y: H - 130, w: 270, h: 12 },
+    { x: 90, y: H - 230, w: 270, h: 12 },
+    { x: 0, y: H - 330, w: 270, h: 12 },
+    { x: 90, y: H - 430, w: 270, h: 12 },
   ];
 
   const ladders: Ladder[] = [
-    { x: 220, y: H - 130, w: 24, h: 100 },
-    { x: 100, y: H - 230, w: 24, h: 100 },
-    { x: 220, y: H - 330, w: 24, h: 100 },
-    { x: 100, y: H - 430, w: 24, h: 100 },
+    { x: 210, y: H - 130, w: 24, h: 100 },
+    { x: 110, y: H - 230, w: 24, h: 100 },
+    { x: 210, y: H - 330, w: 24, h: 100 },
+    { x: 110, y: H - 430, w: 24, h: 100 },
   ];
 
+  // Monedas repartidas por pisos
+  const initialCoins: Coin[] = [
+    { id: 1, x: 150, y: H - 45, collected: false },
+    { id: 2, x: 50, y: H - 145, collected: false },
+    { id: 3, x: 160, y: H - 145, collected: false },
+    { id: 4, x: 140, y: H - 245, collected: false },
+    { id: 5, x: 280, y: H - 245, collected: false },
+    { id: 6, x: 60, y: H - 345, collected: false },
+    { id: 7, x: 180, y: H - 345, collected: false },
+    { id: 8, x: 150, y: H - 445, collected: false },
+    { id: 9, x: 270, y: H - 445, collected: false },
+  ];
+
+  const coinsRef = useRef<Coin[]>(JSON.parse(JSON.stringify(initialCoins)));
   const barrelsRef = useRef<Barrel[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const spawnTimerRef = useRef(0);
 
   const scoreRef = useRef(0);
-  const coinsRef = useRef(0);
+  const coinsEarnedRef = useRef(0);
   const gameOverRef = useRef(false);
   const rafRef = useRef<number>(0);
 
+  const resetCoins = () => {
+    coinsRef.current = JSON.parse(JSON.stringify(initialCoins));
+  };
+
   const initGame = useCallback(() => {
     pxRef.current = 40;
-    pyRef.current = H - 60;
+    pyRef.current = H - 50;
     vxRef.current = 0;
     vyRef.current = 0;
     isGroundedRef.current = true;
@@ -93,9 +117,10 @@ export function GarrBlade() {
     spawnTimerRef.current = 0;
 
     scoreRef.current = 0;
-    coinsRef.current = 0;
+    coinsEarnedRef.current = 0;
     gameOverRef.current = false;
 
+    resetCoins();
     setScore(0);
     setCoinsEarned(0);
     setGameOver(false);
@@ -105,15 +130,15 @@ export function GarrBlade() {
     initGame();
   }, [initGame]);
 
-  const moveLeft = () => { vxRef.current = -3.5; };
-  const moveRight = () => { vxRef.current = 3.5; };
+  const moveLeft = () => { vxRef.current = -3.2; };
+  const moveRight = () => { vxRef.current = 3.2; };
   const stopX = () => { vxRef.current = 0; };
 
   const jumpOrClimbUp = () => {
     if (isOnLadderRef.current) {
       pyRef.current -= 4;
     } else if (isGroundedRef.current) {
-      vyRef.current = -8.5;
+      vyRef.current = -8.2;
       isGroundedRef.current = false;
     }
   };
@@ -124,7 +149,7 @@ export function GarrBlade() {
     }
   };
 
-  const createSparks = (x: number, y: number, color: string, count = 12) => {
+  const createSparks = (x: number, y: number, color: string, count = 10) => {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 4 + 1;
@@ -154,26 +179,27 @@ export function GarrBlade() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Rejilla Neón de Fondo
+      // Rejilla
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.04)';
       ctx.lineWidth = 1;
       for (let i = 0; i < W; i += 30) {
         ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
       }
 
-      // Generar Barriles desde la cima
+      // Generar Barriles
       spawnTimerRef.current++;
-      if (spawnTimerRef.current > 110) {
+      if (spawnTimerRef.current > 140 && barrelsRef.current.length < 3) {
         spawnTimerRef.current = 0;
         barrelsRef.current.push({
           x: 100,
           y: H - 445,
           vx: 2.2,
+          vy: 0,
           radius: 10,
         });
       }
 
-      // Dibujar Escaleras Neón
+      // Escaleras
       ctx.strokeStyle = '#00f3ff';
       ctx.shadowColor = '#00f3ff';
       ctx.shadowBlur = 8;
@@ -185,7 +211,7 @@ export function GarrBlade() {
         }
       }
 
-      // Dibujar Plataformas Neón
+      // Plataformas
       ctx.fillStyle = '#1e293b';
       ctx.strokeStyle = '#ffb700';
       ctx.lineWidth = 2;
@@ -197,14 +223,38 @@ export function GarrBlade() {
       }
       ctx.shadowBlur = 0;
 
-      // Verificar si el jugador está en escalera
+      // Dibujar y Recoger Monedas Doradas
+      for (const coin of coinsRef.current) {
+        if (coin.collected) continue;
+
+        ctx.fillStyle = '#ffb700';
+        ctx.shadowColor = '#ffb700';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(coin.x, coin.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Detección de Recogida
+        const distToPlayer = Math.hypot(pxRef.current - coin.x, pyRef.current - coin.y);
+        if (distToPlayer < 18) {
+          coin.collected = true;
+          coinsEarnedRef.current += 1;
+          scoreRef.current += 50;
+          setCoinsEarned(coinsEarnedRef.current);
+          setScore(scoreRef.current);
+          createSparks(coin.x, coin.y, '#ffb700', 10);
+        }
+      }
+
+      // Verificar Escaleras
       let nearLadder = false;
       for (const l of ladders) {
         if (
           pxRef.current + 10 > l.x &&
           pxRef.current - 10 < l.x + l.w &&
-          pyRef.current > l.y &&
-          pyRef.current < l.y + l.h + 20
+          pyRef.current > l.y - 10 &&
+          pyRef.current < l.y + l.h + 10
         ) {
           nearLadder = true;
           break;
@@ -217,10 +267,9 @@ export function GarrBlade() {
       pxRef.current = Math.max(12, Math.min(W - 12, pxRef.current));
 
       if (!isOnLadderRef.current) {
-        vyRef.current += 0.45; // Gravedad
+        vyRef.current += 0.45;
         pyRef.current += vyRef.current;
 
-        // Detección de colisión con plataformas
         isGroundedRef.current = false;
         for (const p of platforms) {
           if (
@@ -238,40 +287,60 @@ export function GarrBlade() {
         }
       }
 
-      // Si llega a la meta arriba -> Puntos y reinicio a la base
+      // Llegar a la Cima -> Premia con Puntos, Recarga Monedas y Reinicia Posición
       if (pyRef.current < H - 440) {
-        createSparks(pxRef.current, pyRef.current, '#00f3ff', 25);
+        createSparks(pxRef.current, pyRef.current, '#00f3ff', 20);
         scoreRef.current += 300;
-        coinsRef.current += 3;
+        coinsEarnedRef.current += 3;
         setScore(scoreRef.current);
-        setCoinsEarned(coinsRef.current);
+        setCoinsEarned(coinsEarnedRef.current);
 
+        resetCoins(); // Recargar Monedas en el Mapa
         pxRef.current = 40;
-        pyRef.current = H - 60;
+        pyRef.current = H - 50;
       }
 
       // Mover y Dibujar Barriles
       for (let i = barrelsRef.current.length - 1; i >= 0; i--) {
         const b = barrelsRef.current[i];
-        b.x += b.vx;
 
-        // Rebotar barriles en bordes de pared
-        if (b.x > W - 15 || b.x < 15) b.vx *= -1;
-
-        // Caer al piso inferior
-        let barrelOnPlatform = false;
+        let onPlatform = false;
         for (const p of platforms) {
-          if (b.x > p.x && b.x < p.x + p.w && Math.abs(b.y + b.radius - p.y) < 6) {
-            barrelOnPlatform = true;
+          if (
+            b.x >= p.x &&
+            b.x <= p.x + p.w &&
+            b.y + b.radius >= p.y &&
+            b.y + b.radius <= p.y + p.h + 4
+          ) {
+            onPlatform = true;
+            b.y = p.y - b.radius;
+            b.vy = 0;
             break;
           }
         }
 
-        if (!barrelOnPlatform) {
-          b.y += 3;
+        if (onPlatform) {
+          b.x += b.vx;
+          if (b.x > W - 15) {
+            b.x = W - 15;
+            b.vx = -Math.abs(b.vx);
+          } else if (b.x < 15) {
+            b.x = 15;
+            b.vx = Math.abs(b.vx);
+          }
+        } else {
+          b.vy += 0.35;
+          b.y += b.vy;
         }
 
-        // Dibujar Barril Rojo Neón
+        // Eliminar Barril en Esquinas del Fondo
+        if (b.y >= H - 30 - b.radius && (b.x <= 25 || b.x >= W - 25)) {
+          createSparks(b.x, b.y, '#ef4444', 8);
+          barrelsRef.current.splice(i, 1);
+          continue;
+        }
+
+        // Dibujar Barril
         ctx.fillStyle = '#ef4444';
         ctx.shadowColor = '#ef4444';
         ctx.shadowBlur = 12;
@@ -280,22 +349,20 @@ export function GarrBlade() {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Choque del Jugador con Barril -> GameOver
+        // Choque con el Jugador
         const dist = Math.hypot(pxRef.current - b.x, pyRef.current - b.y);
-        if (dist < b.radius + 12) {
-          createSparks(pxRef.current, pyRef.current, '#ef4444', 20);
+        if (dist < b.radius + 10) {
+          createSparks(pxRef.current, pyRef.current, '#ef4444', 18);
           gameOverRef.current = true;
           setGameOver(true);
-          if (coinsRef.current > 0) addCoins(coinsRef.current);
+          if (coinsEarnedRef.current > 0) addCoins(coinsEarnedRef.current);
         }
-
-        if (b.y > H + 20) barrelsRef.current.splice(i, 1);
       }
 
       // Dibujar Jugador
       ctx.fillStyle = '#ffb700';
       ctx.shadowColor = '#ffb700';
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = 14;
       ctx.fillRect(pxRef.current - 12, pyRef.current - 14, 24, 28);
       ctx.shadowBlur = 0;
 
@@ -328,13 +395,14 @@ export function GarrBlade() {
     gameOverRef.current = false;
     setGameOver(false);
     barrelsRef.current = [];
-    pyRef.current = Math.min(H - 60, pyRef.current + 80);
+    pyRef.current = H - 50;
+    pxRef.current = 40;
   };
 
   const handleDoubleCoins = () => {
-    coinsRef.current *= 2;
-    setCoinsEarned(coinsRef.current);
-    if (coinsRef.current > 0) addCoins(coinsRef.current);
+    coinsEarnedRef.current *= 2;
+    setCoinsEarned(coinsEarnedRef.current);
+    if (coinsEarnedRef.current > 0) addCoins(coinsEarnedRef.current);
   };
 
   return (
@@ -362,7 +430,7 @@ export function GarrBlade() {
         </div>
       </div>
 
-      {/* Canvas Principal */}
+      {/* Canvas */}
       <div className="flex-1 flex flex-col items-center justify-center p-2 relative touch-none">
         <canvas
           ref={canvasRef}
@@ -372,7 +440,7 @@ export function GarrBlade() {
         />
       </div>
 
-      {/* Controles de Juego */}
+      {/* Botones de Control */}
       <div className="pb-6 px-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button
