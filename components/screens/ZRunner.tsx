@@ -3,13 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, Heart, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 const W = 360;
 const H = 540;
 
-// Posiciones X para los 3 carriles
 const LANES = [70, 180, 290];
 const PLAYER_Y = 440;
 const PLAYER_SIZE = 28;
@@ -18,8 +17,12 @@ interface Obstacle {
   lane: number;
   y: number;
   type: 'zombie' | 'laser';
-  hasCoin?: boolean;
-  coinCollected?: boolean;
+}
+
+interface CoinItem {
+  lane: number;
+  y: number;
+  collected: boolean;
 }
 
 interface Particle {
@@ -37,21 +40,21 @@ export function ZRunner() {
 
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [lives, setLives] = useState(1);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
-  // Estados del Jugador
-  const laneRef = useRef(1); // Empieza en el carril central (1)
+  const laneRef = useRef(1);
   const playerXRef = useRef(LANES[1]);
   const isJumpingRef = useRef(false);
   const jumpOffsetRef = useRef(0);
   const jumpVelocityRef = useRef(0);
 
   const obstaclesRef = useRef<Obstacle[]>([]);
+  const coinsListRef = useRef<CoinItem[]>([]);
   const particlesRef = useRef<Particle[]>([]);
-  const gameSpeedRef = useRef(4.5);
+  const gameSpeedRef = useRef(4.8);
   const spawnTimerRef = useRef(0);
+  const coinSpawnTimerRef = useRef(0);
 
   const scoreRef = useRef(0);
   const coinsRef = useRef(0);
@@ -68,9 +71,11 @@ export function ZRunner() {
     jumpVelocityRef.current = 0;
 
     obstaclesRef.current = [];
+    coinsListRef.current = [];
     particlesRef.current = [];
-    gameSpeedRef.current = 4.5;
+    gameSpeedRef.current = 4.8;
     spawnTimerRef.current = 0;
+    coinSpawnTimerRef.current = 0;
 
     scoreRef.current = 0;
     coinsRef.current = 0;
@@ -79,7 +84,6 @@ export function ZRunner() {
 
     setScore(0);
     setCoinsEarned(0);
-    setLives(1);
     setGameOver(false);
     setGameStarted(false);
   }, []);
@@ -110,7 +114,6 @@ export function ZRunner() {
     }
   }, []);
 
-  // Controles por Teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       handleStartGame();
@@ -122,7 +125,6 @@ export function ZRunner() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [moveLeft, moveRight, jump, handleStartGame]);
 
-  // Controles por Deslizamiento táctil (Swipe)
   const handleTouchStart = (e: React.TouchEvent) => {
     handleStartGame();
     const touch = e.touches[0];
@@ -136,17 +138,17 @@ export function ZRunner() {
     const dy = touch.clientY - touchStartRef.current.y;
 
     if (Math.abs(dx) > Math.abs(dy)) {
-      if (Math.abs(dx) > 25) {
+      if (Math.abs(dx) > 20) {
         if (dx > 0) moveRight();
         else moveLeft();
       }
     } else {
-      if (dy < -25) jump();
+      if (dy < -20) jump();
     }
     touchStartRef.current = null;
   };
 
-  const createSparks = (x: number, y: number, color: string, count = 12) => {
+  const createSparks = (x: number, y: number, color: string, count = 10) => {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = Math.random() * 4 + 1;
@@ -161,7 +163,6 @@ export function ZRunner() {
     }
   };
 
-  // Bucle Principal
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -174,12 +175,11 @@ export function ZRunner() {
         return;
       }
 
-      // Fondo Cyberpunk
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Dibujar Carriles y Pistas Neón
-      ctx.strokeStyle = 'rgba(0, 243, 255, 0.15)';
+      // Carriles
+      ctx.strokeStyle = 'rgba(0, 243, 255, 0.12)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(125, 0); ctx.lineTo(125, H);
@@ -187,14 +187,12 @@ export function ZRunner() {
       ctx.stroke();
 
       if (gameStartedRef.current) {
-        // Movimiento suave del jugador hacia su carril objetivo
         const targetX = LANES[laneRef.current];
-        playerXRef.current += (targetX - playerXRef.current) * 0.25;
+        playerXRef.current += (targetX - playerXRef.current) * 0.28;
 
-        // Física del Salto
         if (isJumpingRef.current) {
           jumpOffsetRef.current += jumpVelocityRef.current;
-          jumpVelocityRef.current += 0.65; // Gravedad
+          jumpVelocityRef.current += 0.65;
 
           if (jumpOffsetRef.current >= 0) {
             jumpOffsetRef.current = 0;
@@ -202,14 +200,27 @@ export function ZRunner() {
           }
         }
 
-        // Incrementar puntuación y velocidad
         scoreRef.current += 1;
         setScore(Math.floor(scoreRef.current / 5));
-        gameSpeedRef.current += 0.0008;
+        gameSpeedRef.current += 0.0006;
 
-        // Generar Obstáculos en los 3 carriles
+        // Generar Hileras de Monedas Doradas en Carriles
+        coinSpawnTimerRef.current++;
+        if (coinSpawnTimerRef.current > 25) {
+          coinSpawnTimerRef.current = 0;
+          const coinLane = Math.floor(Math.random() * 3);
+          for (let i = 0; i < 4; i++) {
+            coinsListRef.current.push({
+              lane: coinLane,
+              y: -30 - i * 32,
+              collected: false,
+            });
+          }
+        }
+
+        // Generar Obstáculos
         spawnTimerRef.current++;
-        if (spawnTimerRef.current > 42) {
+        if (spawnTimerRef.current > 45) {
           spawnTimerRef.current = 0;
           const randomLane = Math.floor(Math.random() * 3);
           const type = Math.random() < 0.6 ? 'zombie' : 'laser';
@@ -218,30 +229,34 @@ export function ZRunner() {
             lane: randomLane,
             y: -40,
             type,
-            hasCoin: Math.random() < 0.7,
           });
         }
 
-        // Actualizar Obstáculos
+        // Procesar Monedas
+        for (let i = coinsListRef.current.length - 1; i >= 0; i--) {
+          const coin = coinsListRef.current[i];
+          coin.y += gameSpeedRef.current;
+
+          const cx = LANES[coin.lane];
+
+          if (!coin.collected && Math.abs(coin.y - PLAYER_Y) < 26 && laneRef.current === coin.lane) {
+            coin.collected = true;
+            coinsRef.current += 1;
+            setCoinsEarned(coinsRef.current);
+            createSparks(cx, PLAYER_Y, '#ffb700', 8);
+          }
+
+          if (coin.y > H + 30) {
+            coinsListRef.current.splice(i, 1);
+          }
+        }
+
+        // Procesar Obstáculos
         for (let i = obstaclesRef.current.length - 1; i >= 0; i--) {
           const obs = obstaclesRef.current[i];
           obs.y += gameSpeedRef.current;
 
-          const obsX = LANES[obs.lane];
-
-          // Recoger Moneda
-          if (obs.hasCoin && !obs.coinCollected && Math.abs(obs.y - PLAYER_Y) < 30) {
-            if (laneRef.current === obs.lane) {
-              obs.coinCollected = true;
-              coinsRef.current += 1;
-              setCoinsEarned(coinsRef.current);
-              createSparks(obsX, PLAYER_Y, '#ffb700', 8);
-            }
-          }
-
-          // Detección de Colisión
           if (Math.abs(obs.y - PLAYER_Y) < 22 && laneRef.current === obs.lane) {
-            // El salto esquiva únicamente los obstáculos tipo láser/barrera
             const isSafeByJump = obs.type === 'laser' && jumpOffsetRef.current < -18;
 
             if (!isSafeByJump) {
@@ -258,35 +273,33 @@ export function ZRunner() {
         }
       }
 
-      // Dibujar Obstáculos y Monedas
+      // Dibujar Monedas Doradas
+      for (const coin of coinsListRef.current) {
+        if (coin.collected) continue;
+        const cx = LANES[coin.lane];
+        ctx.fillStyle = '#ffb700';
+        ctx.shadowColor = '#ffb700';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(cx, coin.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+
+      // Dibujar Obstáculos
       for (const obs of obstaclesRef.current) {
         const ox = LANES[obs.lane];
 
         if (obs.type === 'zombie') {
-          // Zombi Rojo Neón
           ctx.fillStyle = '#ef4444';
           ctx.shadowColor = '#ef4444';
           ctx.shadowBlur = 12;
           ctx.fillRect(ox - 14, obs.y - 14, 28, 28);
-          ctx.fillStyle = '#0a0e17';
-          ctx.fillRect(ox - 8, obs.y - 8, 5, 5);
-          ctx.fillRect(ox + 3, obs.y - 8, 5, 5);
         } else {
-          // Láser Neón Bajo
           ctx.fillStyle = '#00f3ff';
           ctx.shadowColor = '#00f3ff';
           ctx.shadowBlur = 12;
           ctx.fillRect(ox - 25, obs.y - 6, 50, 12);
-        }
-
-        // Moneda
-        if (obs.hasCoin && !obs.coinCollected) {
-          ctx.fillStyle = '#ffb700';
-          ctx.shadowColor = '#ffb700';
-          ctx.shadowBlur = 10;
-          ctx.beginPath();
-          ctx.arc(ox, obs.y - 35, 7, 0, Math.PI * 2);
-          ctx.fill();
         }
       }
       ctx.shadowBlur = 0;
@@ -299,10 +312,6 @@ export function ZRunner() {
       ctx.shadowColor = '#ffb700';
       ctx.shadowBlur = 16;
       ctx.fillRect(px - PLAYER_SIZE / 2, py - PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
-
-      ctx.fillStyle = '#0a0e17';
-      ctx.fillRect(px - 6, py - 6, 4, 4);
-      ctx.fillRect(px + 2, py - 6, 4, 4);
       ctx.shadowBlur = 0;
 
       // Partículas
@@ -346,7 +355,6 @@ export function ZRunner() {
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
 
-      {/* Header */}
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
           onClick={() => setScreen('arcade')}
@@ -370,13 +378,12 @@ export function ZRunner() {
       {!gameStarted && !gameOver && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
           <p className="text-[#00f3ff] font-black text-lg animate-bounce tracking-widest">
-            ¡DESLIZA PARA MOVERTE Y SALTAR!
+            ¡RECOGE HILERAS DE MONEDAS!
           </p>
-          <p className="text-white/50 text-xs mt-1">Esquiva zombis y barreras neón</p>
+          <p className="text-white/50 text-xs mt-1">Muévete de carril para ganar más</p>
         </div>
       )}
 
-      {/* Canvas */}
       <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -390,7 +397,6 @@ export function ZRunner() {
         />
       </div>
 
-      {/* Botones virtuales abajo para celular */}
       <div className="pb-6 px-8 flex items-center justify-between gap-4">
         <button
           onClick={moveLeft}
