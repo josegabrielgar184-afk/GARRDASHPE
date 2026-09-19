@@ -5,7 +5,7 @@ android {
     compileSdk 36
     defaultConfig {
         applicationId "com.garricraft.garrdash"
-        minSdkVersion rootProject.ext.minSdkVersion
+        minSdkVersion 24
         targetSdkVersion 36
         versionCode 53
         versionName "1.0.0.30"
