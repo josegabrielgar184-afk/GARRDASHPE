@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { App } from '@capacitor/app';
+import { APP_VERSION } from '@/lib/config'; // <-- Usamos tu propia configuración
 
 export function VersionChecker() {
   const [needsUpdate, setNeedsUpdate] = useState(false);
@@ -9,16 +9,16 @@ export function VersionChecker() {
   useEffect(() => {
     const checkAppVersion = async () => {
       try {
-        const appInfo = await App.getInfo();
-        const currentVersion = appInfo.version; 
+        const currentVersion = APP_VERSION; 
 
-        // Enlace corregido con tu usuario exacto de GitHub
+        // Consulta gratuita a tu GitHub
         const res = await fetch(`https://josegabrielgar184-afk.github.io/GARRDASHPE/version.json?t=${Date.now()}`);
         if (!res.ok) return;
         const data = await res.json();
         const latestVersion = data.minVersion;
 
-        if (latestVersion && currentVersion !== latestVersion) {
+        // Si la versión en GitHub es mayor a la que tiene el jugador, pedimos actualizar
+        if (latestVersion && currentVersion < latestVersion) {
           setNeedsUpdate(true);
         }
       } catch (e) {
