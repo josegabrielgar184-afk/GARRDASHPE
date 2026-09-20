@@ -30,7 +30,9 @@ import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '@/lib/wake-lock';
 import { AdMob } from '@capacitor-community/admob';
-import { VersionChecker } from '@/components/VersionChecker'; // <-- NUEVO IMPORT
+
+// AQUI ESTA LA RUTA CORREGIDA APUNTANDO A SCREENS:
+import { VersionChecker } from '@/components/screens/VersionChecker';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade'];
@@ -159,8 +161,6 @@ function AppShell() {
   const lastInterstitialTimeRef = useRef<number>(0);
   const menuScreens = ['menu', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
 
-  // ELIMINADO EL useEffect DE FIREBASE QUE BUSCABA LA VERSIÓN AQUÍ
-
   useEffect(() => {
     const fromMenu = menuScreens.includes(lastScreenRef.current);
     const toMenu = menuScreens.includes(screen);
@@ -257,7 +257,7 @@ function AppShell() {
 
   return (
     <div className="fixed inset-0 overflow-hidden flex flex-col">
-      {/* NUEVO COMPONENTE DE VERSIÓN POR GITHUB */}
+      {/* PANTALLA DE VERSIÓN DE GITHUB */}
       <VersionChecker />
       
       <div className="flex-1 relative overflow-hidden min-h-0">
