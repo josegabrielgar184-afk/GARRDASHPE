@@ -30,7 +30,8 @@ import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { pauseAudio, resumeAudio } from '@/lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '@/lib/wake-lock';
 import { AdMob } from '@capacitor-community/admob';
-import { VersionChecker } from '@/components/VersionChecker'; // <-- NUEVO IMPORT
+import { checkMinVersion } from '@/lib/firebase';
+import { ForceUpdateModal } from '@/components/game/ForceUpdateModal';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade'];
@@ -155,11 +156,23 @@ function AppShell() {
   const { screen, isDeviceBanned, canShowInterstitial, recordInterstitial, vip } = useGame();
   const isGameplay = GAMEPLAY_SCREENS.includes(screen);
   const [showInterstitial, setShowInterstitial] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState<{ minVersion: number; currentVersion: number } | null>(null);
   const lastScreenRef = useRef(screen);
   const lastInterstitialTimeRef = useRef<number>(0);
   const menuScreens = ['menu', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'mode-select'];
 
-  // ELIMINADO EL useEffect DE FIREBASE QUE BUSCABA LA VERSIÓN AQUÍ
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await checkMinVersion();
+        if (!cancelled && result.updateRequired) {
+          setForceUpdate({ minVersion: result.minVersion, currentVersion: result.currentVersion });
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const fromMenu = menuScreens.includes(lastScreenRef.current);
@@ -257,9 +270,6 @@ function AppShell() {
 
   return (
     <div className="fixed inset-0 overflow-hidden flex flex-col">
-      {/* NUEVO COMPONENTE DE VERSIÓN POR GITHUB */}
-      <VersionChecker />
-      
       <div className="flex-1 relative overflow-hidden min-h-0">
         <GameRouter />
       </div>
@@ -267,6 +277,7 @@ function AppShell() {
       <BackButtonHandler />
       <OrientationManager />
       {showInterstitial && <InterstitialAd onDone={() => setShowInterstitial(false)} />}
+      {forceUpdate && <ForceUpdateModal minVersion={forceUpdate.minVersion} currentVersion={forceUpdate.currentVersion} />}
     </div>
   );
 }
