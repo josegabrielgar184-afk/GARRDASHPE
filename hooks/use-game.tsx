@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { CHARACTERS, getCharacter, getShip, getZombieCharacter, type CharacterDef, type ShipDef, type ZombieCharDef } from '@/lib/characters';
 import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
-  updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment,
+  updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment, runTransaction,
 } from 'firebase/firestore';
 import { db, auth, verificarYCrearUsuario } from '@/lib/firebase';
 import { pauseAudio, resumeAudio, stopActionMusic, setSfxEnabled } from '@/lib/audio';
@@ -855,9 +855,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline, vip]);
 
   const addCoins = useCallback((n: number) => {
+    if (typeof n !== 'number' || !isFinite(n) || n <= 0 || n > 100000) return;
     const user = auth.currentUser;
     if (!user || !isOnline) {
-      if (!isOnline) { setPendingCoins((prev) => prev + n); return; }
+      if (!isOnline) { setPendingCoins((prev) => Math.min(prev + n, 1000000)); return; }
       setCoins((prev) => { const next = prev + n; saveData({ coins: next }); return next; });
       return;
     }
@@ -870,6 +871,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline]);
 
   const spendCoins = useCallback((n: number): boolean => {
+    if (typeof n !== 'number' || !isFinite(n) || n <= 0) return false;
+    if (n > 1000000) return false;
     const user = auth.currentUser;
     if (!user || !isOnline) {
       let ok = false;
@@ -886,6 +889,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline, coins]);
 
   const addPoints = useCallback((n: number) => {
+    if (typeof n !== 'number' || !isFinite(n) || n <= 0 || n > 10000000) return;
     const user = auth.currentUser;
     if (!user || !isOnline) {
       setPoints((prev) => { const next = prev + n; saveData({ points: next }); return next; });
@@ -900,6 +904,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline]);
 
   const spendPoints = useCallback((n: number): boolean => {
+    if (typeof n !== 'number' || !isFinite(n) || n <= 0) return false;
     const user = auth.currentUser;
     if (!user || !isOnline) {
       let ok = false;
@@ -1984,8 +1989,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (!reward) return { ok: false, error: 'Recompensa no encontrada' };
       if (playerID.trim().length < 4) return { ok: false, error: 'Player ID demasiado corto' };
       if (nickname.trim().length < 2) return { ok: false, error: 'Nickname demasiado corto' };
-      if (coins < reward.coinCost) return { ok: false, error: 'Monedas insuficientes' };
-      if (campaignProgress.keys < reward.keyCost) return { ok: false, error: 'Llaves insuficientes' };
+
+      // Prevent double request: check for existing pending canje from this user
+      const existingPendingSnap = await getDocs(query(
+        collection(db, 'canjes'),
+        where('userId', '==', user.uid),
+        where('status', 'in', ['pending_review', 'waiting_correction'])
+      ));
+      if (!existingPendingSnap.empty) {
+        return { ok: false, error: 'Ya tienes un canje pendiente. Espera a que se procese.' };
+      }
 
       const pendingSnap = await getDocs(query(
         collection(db, 'canjes'),
@@ -1994,36 +2007,50 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const queuePosition = pendingSnap.size + 1;
 
       const newCanjeRef = doc(collection(db, 'canjes'));
+      const userRef = doc(db, 'usuarios', user.uid);
       const now = Date.now();
-      await setDoc(newCanjeRef, {
-        id: newCanjeRef.id,
-        userId: user.uid,
-        userName: nickname,
-        gameId,
-        selectedReward: reward.label,
-        coinCost: reward.coinCost,
-        keyCost: reward.keyCost,
-        estimatedUsdValue: reward.usdValue,
-        status: 'pending_review',
-        createdAt: now,
-        queuePosition,
-        playerID: playerID.trim(),
-        nickname: nickname.trim(),
-        correctionDeadline: null,
-        approvedAt: null,
-        rejectedAt: null,
-        rejectReason: '',
+
+      // Atomic transaction: verify balances + deduct + create canje in one step
+      await runTransaction(db, async (tx) => {
+        const userDoc = await tx.get(userRef);
+        if (!userDoc.exists()) throw new Error('Usuario no encontrado');
+        const userData = userDoc.data();
+        const currentCoins = userData.coins ?? 0;
+        const currentKeys = userData.campaignKeys ?? 0;
+        if (currentCoins < reward.coinCost) throw new Error('Monedas insuficientes');
+        if (currentKeys < reward.keyCost) throw new Error('Llaves insuficientes');
+
+        tx.set(newCanjeRef, {
+          id: newCanjeRef.id,
+          userId: user.uid,
+          userName: nickname,
+          gameId,
+          selectedReward: reward.label,
+          coinCost: reward.coinCost,
+          keyCost: reward.keyCost,
+          estimatedUsdValue: reward.usdValue,
+          status: 'pending_review',
+          createdAt: now,
+          queuePosition,
+          playerID: playerID.trim(),
+          nickname: nickname.trim(),
+          correctionDeadline: null,
+          approvedAt: null,
+          rejectedAt: null,
+          rejectReason: '',
+        });
+        tx.update(userRef, {
+          coins: currentCoins - reward.coinCost,
+          campaignKeys: Math.max(0, currentKeys - reward.keyCost),
+        });
       });
 
-      spendCoins(reward.coinCost);
+      // Update local state after successful transaction
+      setCoins((prev) => Math.max(0, prev - reward.coinCost));
       if (typeof window !== 'undefined') {
         const newKeys = Math.max(0, campaignProgress.keys - reward.keyCost);
         localStorage.setItem('campaignKeys', String(newKeys));
       }
-      await updateDoc(doc(db, 'usuarios', user.uid), {
-        coins: coins - reward.coinCost,
-        campaignKeys: Math.max(0, campaignProgress.keys - reward.keyCost),
-      }).catch(() => {});
 
       await refreshCanjes();
 
@@ -2077,7 +2104,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : 'Error al enviar canje';
       return { ok: false, error: msg };
     }
-  }, [coins, campaignProgress.keys, spendCoins, refreshCanjes]);
+  }, [campaignProgress.keys, refreshCanjes]);
 
   const correctCanjeId = useCallback(async (canjeId: string, newPlayerID: string): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -2105,23 +2132,36 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const user = auth.currentUser;
       if (!user) return { ok: false, error: 'No autenticado' };
       const canjeRef = doc(db, 'canjes', canjeId);
-      const canjeDoc = await getDoc(canjeRef);
-      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
-      const data = canjeDoc.data();
-      const refundCoins = data.coinCost ?? 0;
-      const refundKeys = data.keyCost ?? 0;
-      await updateDoc(doc(db, 'usuarios', user.uid), {
-        coins: (coins + refundCoins),
-        campaignKeys: (campaignProgress.keys + refundKeys),
-      }).catch(() => {});
-      await deleteDoc(canjeRef);
+      const userRef = doc(db, 'usuarios', user.uid);
+
+      await runTransaction(db, async (tx) => {
+        const canjeDoc = await tx.get(canjeRef);
+        if (!canjeDoc.exists()) throw new Error('Canje no encontrado');
+        const data = canjeDoc.data();
+        if (data.userId !== user.uid) throw new Error('No autorizado');
+        if (data.status !== 'pending_review' && data.status !== 'waiting_correction') {
+          throw new Error('Solo puedes cancelar canjes pendientes');
+        }
+        const refundCoins = data.coinCost ?? 0;
+        const refundKeys = data.keyCost ?? 0;
+        const userDoc = await tx.get(userRef);
+        if (!userDoc.exists()) throw new Error('Usuario no encontrado');
+        const userData = userDoc.data();
+        tx.update(userRef, {
+          coins: (userData.coins ?? 0) + refundCoins,
+          campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
+        });
+        tx.delete(canjeRef);
+      });
+
+      setCoins((prev) => prev + (canjes.find((c) => c.id === canjeId)?.coinCost ?? 0));
       await refreshCanjes();
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al cancelar canje';
       return { ok: false, error: msg };
     }
-  }, [coins, campaignProgress.keys, refreshCanjes]);
+  }, [canjes, refreshCanjes]);
 
   const logOperatorAction = useCallback(async (action: string, details?: string) => {
     try {
@@ -2141,17 +2181,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = auth.currentUser;
       if (!user) return { ok: false, error: 'No autenticado' };
+      if (userRole !== 'admin' && userRole !== 'operador') return { ok: false, error: 'Sin permisos' };
       const canjeRef = doc(db, 'canjes', canjeId);
-      const canjeDoc = await getDoc(canjeRef);
-      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
-      const data = canjeDoc.data();
+      const approvedRef = doc(db, 'canjes_aprobadas', canjeId);
       const now = Date.now();
-      await setDoc(doc(db, 'canjes_aprobadas', canjeId), {
-        ...data,
-        status: 'approved',
-        approvedAt: now,
-        approvedBy: user.uid,
+
+      const data = await runTransaction(db, async (tx) => {
+        const canjeDoc = await tx.get(canjeRef);
+        if (!canjeDoc.exists()) throw new Error('Canje no encontrado');
+        const d = canjeDoc.data();
+        if (d.status !== 'pending_review' && d.status !== 'waiting_correction') {
+          throw new Error('El canje ya fue procesado');
+        }
+        tx.set(approvedRef, {
+          ...d,
+          status: 'approved',
+          approvedAt: now,
+          approvedBy: user.uid,
+        });
+        tx.delete(canjeRef);
+        return d;
       });
+
       if (data.userId) {
         await addDoc(collection(db, 'notificaciones'), {
           userId: data.userId,
@@ -2191,7 +2242,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           }
         } catch {}
       }
-      await deleteDoc(canjeRef);
       await refreshCanjes();
       await logOperatorAction('aprobar_canje', `Canje: ${canjeId}, Recompensa: ${data.selectedReward ?? ''}`);
       return { ok: true };
@@ -2199,7 +2249,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : 'Error al aprobar canje';
       return { ok: false, error: msg };
     }
-  }, [refreshCanjes, logOperatorAction]);
+  }, [userRole, refreshCanjes, logOperatorAction]);
 
   const adminMarkCorrection = useCallback(async (canjeId: string): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -2226,62 +2276,79 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = auth.currentUser;
       if (!user) return { ok: false, error: 'No autenticado' };
+      if (userRole !== 'admin' && userRole !== 'operador') return { ok: false, error: 'Sin permisos' };
       const canjeRef = doc(db, 'canjes', canjeId);
-      const canjeDoc = await getDoc(canjeRef);
-      if (!canjeDoc.exists()) return { ok: false, error: 'Canje no encontrado' };
-      const data = canjeDoc.data();
+      const rejectedRef = doc(db, 'canjes_rechazadas', canjeId);
       const now = Date.now();
-      const refundCoins = data.coinCost ?? 0;
-      const refundKeys = data.keyCost ?? 0;
-      if (data.userId) {
-        const userRef = doc(db, 'usuarios', data.userId);
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          await updateDoc(userRef, {
-            coins: (userData.coins ?? 0) + refundCoins,
-            campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
-          }).catch(() => {});
 
-          await addDoc(collection(db, 'notificaciones'), {
-            userId: data.userId,
-            title: '❌ Canje Rechazado',
-            message: `Tu solicitud de canje fue rechazada: ${reason}. Tus monedas y llaves fueron devueltas.`,
-            type: 'canje_rejected',
-            createdAt: now,
-            read: false,
-          }).catch(() => {});
-
-          const fcmToken = userData.fcmToken;
-          if (fcmToken) {
-            await fetch('https://fcm.googleapis.com/fcm/send', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `key=913250323167`,
-              },
-              body: JSON.stringify({
-                to: fcmToken,
-                notification: {
-                  title: '❌ Canje Rechazado',
-                  body: `Tu canje fue rechazado. Monedas y llaves devueltas. Motivo: ${reason}`,
-                  icon: '/ic_launcher_foreground.webp',
-                  click_action: '/',
-                },
-                data: { type: 'canje_rejected', canjeId },
-              }),
-            }).catch(() => {});
+      const data = await runTransaction(db, async (tx) => {
+        const canjeDoc = await tx.get(canjeRef);
+        if (!canjeDoc.exists()) throw new Error('Canje no encontrado');
+        const d = canjeDoc.data();
+        if (d.status !== 'pending_review' && d.status !== 'waiting_correction') {
+          throw new Error('El canje ya fue procesado');
+        }
+        const refundCoins = d.coinCost ?? 0;
+        const refundKeys = d.keyCost ?? 0;
+        if (d.userId) {
+          const userRef = doc(db, 'usuarios', d.userId);
+          const userDoc = await tx.get(userRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            tx.update(userRef, {
+              coins: (userData.coins ?? 0) + refundCoins,
+              campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
+            });
           }
         }
-      }
-      await setDoc(doc(db, 'canjes_rechazadas', canjeId), {
-        ...data,
-        status: 'rejected',
-        rejectedAt: now,
-        rejectedBy: user.uid,
-        rejectReason: reason,
+        tx.set(rejectedRef, {
+          ...d,
+          status: 'rejected',
+          rejectedAt: now,
+          rejectedBy: user.uid,
+          rejectReason: reason,
+        });
+        tx.delete(canjeRef);
+        return d;
       });
-      await deleteDoc(canjeRef);
+
+      if (data.userId) {
+        await addDoc(collection(db, 'notificaciones'), {
+          userId: data.userId,
+          title: '❌ Canje Rechazado',
+          message: `Tu solicitud de canje fue rechazada: ${reason}. Tus monedas y llaves fueron devueltas.`,
+          type: 'canje_rejected',
+          createdAt: now,
+          read: false,
+        }).catch(() => {});
+
+        try {
+          const userRef = doc(db, 'usuarios', data.userId);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const fcmToken = userDoc.data()?.fcmToken;
+            if (fcmToken) {
+              await fetch('https://fcm.googleapis.com/fcm/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `key=913250323167`,
+                },
+                body: JSON.stringify({
+                  to: fcmToken,
+                  notification: {
+                    title: '❌ Canje Rechazado',
+                    body: `Tu canje fue rechazado. Monedas y llaves devueltas. Motivo: ${reason}`,
+                    icon: '/ic_launcher_foreground.webp',
+                    click_action: '/',
+                  },
+                  data: { type: 'canje_rejected', canjeId },
+                }),
+              }).catch(() => {});
+            }
+          }
+        } catch {}
+      }
       await refreshCanjes();
       await logOperatorAction('rechazar_canje', `Canje: ${canjeId}, Motivo: ${reason}`);
       return { ok: true };
@@ -2289,7 +2356,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : 'Error al rechazar canje';
       return { ok: false, error: msg };
     }
-  }, [refreshCanjes, logOperatorAction]);
+  }, [userRole, refreshCanjes, logOperatorAction]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -2299,31 +2366,35 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             const user = auth.currentUser;
             if (!user) return;
             const canjeRef = doc(db, 'canjes', c.id);
-            const canjeDoc = await getDoc(canjeRef);
-            if (!canjeDoc.exists()) return;
-            const data = canjeDoc.data();
-            if (data.status !== 'waiting_correction') return;
+            const rejectedRef = doc(db, 'canjes_rechazadas', c.id);
             const now = Date.now();
-            const refundCoins = data.coinCost ?? 0;
-            const refundKeys = data.keyCost ?? 0;
-            if (data.userId) {
-              const userRef = doc(db, 'usuarios', data.userId);
-              const userDoc = await getDoc(userRef);
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
-                await updateDoc(userRef, {
-                  coins: (userData.coins ?? 0) + refundCoins,
-                  campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
-                }).catch(() => {});
+
+            await runTransaction(db, async (tx) => {
+              const canjeDoc = await tx.get(canjeRef);
+              if (!canjeDoc.exists()) return;
+              const data = canjeDoc.data();
+              if (data.status !== 'waiting_correction') return;
+              const refundCoins = data.coinCost ?? 0;
+              const refundKeys = data.keyCost ?? 0;
+              if (data.userId) {
+                const userRef = doc(db, 'usuarios', data.userId);
+                const userDoc = await tx.get(userRef);
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  tx.update(userRef, {
+                    coins: (userData.coins ?? 0) + refundCoins,
+                    campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
+                  });
+                }
               }
-            }
-            await setDoc(doc(db, 'canjes_rechazadas', c.id), {
-              ...data,
-              status: 'rejected',
-              rejectedAt: now,
-              rejectReason: 'Rechazado por tiempo expirado (2h)',
+              tx.set(rejectedRef, {
+                ...data,
+                status: 'rejected',
+                rejectedAt: now,
+                rejectReason: 'Rechazado por tiempo expirado (2h)',
+              });
+              tx.delete(canjeRef);
             });
-            await deleteDoc(canjeRef);
             await refreshCanjes();
           } catch {}
         }
@@ -2869,6 +2940,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     note?: string;
   }): Promise<{ ok: boolean; error?: string }> => {
     try {
+      if (userRole !== 'admin' && userRole !== 'operador') return { ok: false, error: 'Sin permisos' };
       await addDoc(collection(db, 'admin_income'), {
         amount: params.amount,
         amountPEN: params.amount,
@@ -2883,7 +2955,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : 'Error al registrar ingreso';
       return { ok: false, error: msg };
     }
-  }, []);
+  }, [userRole]);
 
   const adminDeleteIncome = useCallback(async (id: string): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -2898,33 +2970,36 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const adminSetExchangeLimit = useCallback(async (limit: number): Promise<{ ok: boolean; error?: string }> => {
     try {
+      if (userRole !== 'admin' && userRole !== 'operador') return { ok: false, error: 'Sin permisos' };
       await setDoc(doc(db, 'config', 'exchange'), { maxDaily: limit }, { merge: true });
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al actualizar limite';
       return { ok: false, error: msg };
     }
-  }, []);
+  }, [userRole]);
 
   const adminBanUser = useCallback(async (uid: string): Promise<{ ok: boolean; error?: string }> => {
     try {
+      if (userRole !== 'admin') return { ok: false, error: 'Solo admin puede banear' };
       await updateDoc(doc(db, 'usuarios', uid), { banned: true, bannedDate: serverTimestamp() });
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al banear usuario';
       return { ok: false, error: msg };
     }
-  }, []);
+  }, [userRole]);
 
   const adminPanicButton = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     try {
+      if (userRole !== 'admin') return { ok: false, error: 'Solo admin puede activar panico' };
       await setDoc(doc(db, 'config', 'global'), { panicMode: true, panicTime: serverTimestamp() }, { merge: true });
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al activar panico';
       return { ok: false, error: msg };
     }
-  }, []);
+  }, [userRole]);
 
   useEffect(() => {
     if (!loggedIn || !auth.currentUser) return;

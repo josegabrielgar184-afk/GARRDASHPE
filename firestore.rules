@@ -1,0 +1,167 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Role helper functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userDoc().rol == 'admin';
+    }
+
+    function isOperatorOrAdmin() {
+      return isSignedIn() && (userDoc().rol == 'admin' || userDoc().rol == 'operador');
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Privileged fields that regular users must never modify on their own doc
+    function privilegedUserFields() {
+      return ['rol', 'vip', 'vipExpiry', 'banned', 'bannedDate', 'bannedReason'];
+    }
+
+    function noPrivilegedFieldChanged() {
+      return request.resource.data.diff(resource.data)
+        .affectedKeys().hasOnly(
+          // Allow all non-privileged fields. If a privileged field is in the
+          // affected keys, the rule below blocks it.
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(privilegedUserFields()) == false
+        );
+    }
+
+    // --- usuarios collection ---
+    // Users can read any profile (rankings, search). Users can create/update
+    // their own doc but CANNOT change rol, vip, banned, vipExpiry, bannedDate.
+    // Admins can update any user including privileged fields.
+    match /usuarios/{uid} {
+      allow read: if isSignedIn();
+
+      allow create: if isOwner(uid)
+        && request.resource.data.rol == 'jugador';
+
+      allow update: if isAdmin()
+        || (isOwner(uid)
+          && request.resource.data.rol == resource.data.rol
+          && request.resource.data.vip == resource.data.vip
+          && request.resource.data.banned == resource.data.banned
+          && !(request.resource.data.diff(resource.data)
+                .affectedKeys().hasAny(['rol', 'vip', 'vipExpiry', 'banned', 'bannedDate', 'bannedReason']))
+        );
+
+      allow delete: if false;
+    }
+
+    // --- canjes (pending review queue) ---
+    // Owner can create & read. Owner can delete only if still pending.
+    // Admin/operator can read all, update status, delete.
+    match /canjes/{canjeId} {
+      allow read: if isOwner(resource.data.userId) || isOperatorOrAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending_review';
+      allow update: if isOperatorOrAdmin();
+      allow delete: if (isOwner(resource.data.userId)
+          && (resource.data.status == 'pending_review' || resource.data.status == 'waiting_correction'))
+        || isOperatorOrAdmin();
+    }
+
+    // --- canjes_aprobadas (immutable history) ---
+    match /canjes_aprobadas/{canjeId} {
+      allow read: if isOwner(resource.data.userId) || isOperatorOrAdmin();
+      allow create: if isOperatorOrAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // --- canjes_rechazadas (immutable history) ---
+    match /canjes_rechazadas/{canjeId} {
+      allow read: if isOwner(resource.data.userId) || isOperatorOrAdmin();
+      allow create: if isOperatorOrAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // --- notificaciones ---
+    // Users read their own. Anyone signed in can create (system writes to
+    // other users). Users can update their own (mark as read).
+    match /notificaciones/{notifId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isSignedIn();
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // --- config (global app config) ---
+    // Only admin/operator can write. Anyone signed in can read.
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOperatorOrAdmin();
+    }
+
+    // --- admin_income (manual income records) ---
+    match /admin_income/{incomeId} {
+      allow read: if isOperatorOrAdmin();
+      allow create: if isOperatorOrAdmin();
+      allow update: if isOperatorOrAdmin();
+      allow delete: if isOperatorOrAdmin();
+    }
+
+    // --- logs_operadores (operator audit log) ---
+    match /logs_operadores/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // --- scores (public leaderboards) ---
+    // Authenticated users can create & read. No updates or deletes.
+    match /scores_space/{scoreId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /scores_zombies/{scoreId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+    match /scores_survival/{scoreId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // --- solicitudes_pendientes / confirmadas (operator prize queue) ---
+    match /solicitudes_pendientes/{reqId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isOperatorOrAdmin();
+      allow delete: if isOperatorOrAdmin();
+    }
+    match /solicitudes_confirmadas/{reqId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // --- Default deny ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
