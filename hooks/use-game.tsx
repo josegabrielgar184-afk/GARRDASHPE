@@ -2240,51 +2240,63 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return d;
       });
 
-      if (data.userId) {
-        await addDoc(collection(db, 'notificaciones'), {
-          userId: data.userId,
-          message: '¡Tus diamantes fueron canjeados! Ve a verlos',
-          createdAt: now,
-          read: false,
-        }).catch(() => {});
+      // Post-transaction: notifications + logging.
+      // These must never cause the approval to fail — the transaction already committed.
+      try {
+        if (data.userId) {
+          await addDoc(collection(db, 'notificaciones'), {
+            userId: data.userId,
+            message: '¡Tus diamantes fueron canjeados! Ve a verlos',
+            createdAt: now,
+            read: false,
+          }).catch(() => {});
 
-        try {
-          const userRef = doc(db, 'usuarios', data.userId);
-          const userDoc = await getDoc(userRef);
-          if (userDoc.exists()) {
-            const fcmToken = userDoc.data()?.fcmToken;
-            if (fcmToken) {
-              await fetch('https://fcm.googleapis.com/fcm/send', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `key=913250323167`,
-                },
-                body: JSON.stringify({
-                  to: fcmToken,
-                  notification: {
-                    title: '¡Canje Completado! 💎',
-                    body: 'Tus diamantes han sido canjeados, entra al juego y compruébalos. Gracias por confiar en nosotros.',
-                    icon: '/ic_launcher_foreground.webp',
-                    click_action: '/',
+          try {
+            const userRef = doc(db, 'usuarios', data.userId);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+              const fcmToken = userDoc.data()?.fcmToken;
+              if (fcmToken) {
+                await fetch('https://fcm.googleapis.com/fcm/send', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `key=913250323167`,
                   },
-                  data: {
-                    type: 'canje_approved',
-                    canjeId,
-                    userId: data.userId,
-                  },
-                }),
-              }).catch(() => {});
+                  body: JSON.stringify({
+                    to: fcmToken,
+                    notification: {
+                      title: '¡Canje Completado! 💎',
+                      body: 'Tus diamantes han sido canjeados, entra al juego y compruébalos. Gracias por confiar en nosotros.',
+                      icon: '/ic_launcher_foreground.webp',
+                      click_action: '/',
+                    },
+                    data: {
+                      type: 'canje_approved',
+                      canjeId,
+                      userId: data.userId,
+                    },
+                  }),
+                }).catch(() => {});
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
+        await refreshCanjes();
+        await logOperatorAction('aprobar_canje', `Canje: ${canjeId}, Recompensa: ${data.selectedReward ?? ''}`);
+      } catch {
+        // Post-transaction operations failed, but the canje was already approved.
       }
-      await refreshCanjes();
-      await logOperatorAction('aprobar_canje', `Canje: ${canjeId}, Recompensa: ${data.selectedReward ?? ''}`);
+
       return { ok: true };
     } catch (err: unknown) {
+      const firebaseErr = err as { code?: string };
+      const code = firebaseErr?.code ?? '';
       const msg = err instanceof Error ? err.message : 'Error al aprobar canje';
-      return { ok: false, error: msg };
+      if (code === 'resource-exhausted' || /quota/i.test(msg)) {
+        return { ok: false, error: `Cuota de Firestore agotada (plan Spark). La transaccion no se completo. Code: ${code || 'resource-exhausted'}` };
+      }
+      return { ok: false, error: `${msg}${code ? ` (Code: ${code})` : ''}` };
     }
   }, [userRole, refreshCanjes, logOperatorAction]);
 
