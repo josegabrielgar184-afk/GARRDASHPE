@@ -1,4 +1,13 @@
 let audioCtx: AudioContext | null = null;
+let sfxEnabled = true;
+
+export function setSfxEnabled(enabled: boolean) {
+  sfxEnabled = enabled;
+}
+
+export function isSfxEnabled() {
+  return sfxEnabled;
+}
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -32,6 +41,7 @@ export function resumeAudio() {
 }
 
 export function playShoot() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -48,6 +58,7 @@ export function playShoot() {
 }
 
 export function playShotgun() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -64,6 +75,7 @@ export function playShotgun() {
 }
 
 export function playExplosion() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const bufferSize = ctx.sampleRate * 0.4;
@@ -88,6 +100,7 @@ export function playExplosion() {
 }
 
 export function playBossAlert() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   for (let i = 0; i < 3; i++) {
@@ -107,6 +120,7 @@ export function playBossAlert() {
 }
 
 export function playPickup() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -123,6 +137,7 @@ export function playPickup() {
 }
 
 export function playCoin() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -139,6 +154,7 @@ export function playCoin() {
 }
 
 export function playHit() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -155,6 +171,7 @@ export function playHit() {
 }
 
 export function playBarrelHit() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   const osc = ctx.createOscillator();
@@ -171,6 +188,7 @@ export function playBarrelHit() {
 }
 
 export function playWeaponEquip() {
+  if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
   for (let i = 0; i < 3; i++) {

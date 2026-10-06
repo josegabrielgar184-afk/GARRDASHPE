@@ -7,7 +7,7 @@ import {
   updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment,
 } from 'firebase/firestore';
 import { db, auth, verificarYCrearUsuario } from '@/lib/firebase';
-import { pauseAudio, resumeAudio } from '@/lib/audio';
+import { pauseAudio, resumeAudio, stopActionMusic, setSfxEnabled } from '@/lib/audio';
 import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
 import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
 import {
@@ -204,6 +204,9 @@ interface GameState {
   lives: number;
   vip: boolean;
   muted: boolean;
+  musicEnabled: boolean;
+  sfxEnabled: boolean;
+  customColor: string;
   user: User | null;
   selectedCharacter: string;
   selectedShip: string;
@@ -232,6 +235,7 @@ interface GameState {
   orientationMode: OrientationMode;
   uiTheme: UITheme;
   setUITheme: (t: UITheme) => void;
+  setCustomColorState: (c: string) => void;
   lastInterstitialTime: number;
   setScreen: (s: Screen) => void;
   addCoins: (n: number) => void;
@@ -243,6 +247,8 @@ interface GameState {
   vipAvailable: boolean;
   vipExpiry: string | null;
   toggleMute: () => void;
+  toggleMusic: () => void;
+  toggleSfx: () => void;
   toggleBlood: () => void;
   setControlSize: (s: ControlSize) => void;
   setOrientationMode: (m: OrientationMode) => void;
@@ -379,6 +385,9 @@ interface SaveData {
   vip: boolean;
   vipExpiry?: string | null;
   muted: boolean;
+  musicEnabled: boolean;
+  sfxEnabled: boolean;
+  customColor: string;
   selectedCharacter: string;
   selectedShip: string;
   selectedZombie: string;
@@ -436,6 +445,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [lives, setLivesState] = useState(3);
   const [vip, setVip] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [customColor, setCustomColor] = useState('#8a9b50');
   const [selectedCharacter, setSelectedCharacter] = useState('alpha');
   const [selectedShip, setSelectedShip] = useState('alpha');
   const [selectedZombie, setSelectedZombie] = useState('soldier');
@@ -517,6 +529,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (s.vip !== undefined) setVip(s.vip);
     if (s.vipExpiry !== undefined) setVipExpiry(s.vipExpiry);
     if (s.muted !== undefined) setMuted(s.muted);
+    if (s.musicEnabled !== undefined) setMusicEnabled(s.musicEnabled);
+    if (s.sfxEnabled !== undefined) setSfxEnabled(s.sfxEnabled);
+    if (s.customColor !== undefined) setCustomColor(s.customColor);
     if (s.selectedCharacter !== undefined) setSelectedCharacter(s.selectedCharacter);
     if (s.selectedShip !== undefined) setSelectedShip(s.selectedShip);
     if (s.selectedZombie !== undefined) setSelectedZombie(s.selectedZombie);
@@ -760,12 +775,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!audioRef.current) return;
-    if (muted || screen === 'intro' || screen === 'login') {
+    if (muted || !musicEnabled || screen === 'intro' || screen === 'login') {
       audioRef.current.pause();
     } else {
       audioRef.current.play().catch(() => {});
     }
-  }, [muted, screen]);
+  }, [muted, musicEnabled, screen]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -775,7 +790,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = true;
       } else {
         (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = false;
-        if (audioRef.current && !muted && screen !== 'intro' && screen !== 'login') {
+        if (audioRef.current && !muted && musicEnabled && screen !== 'intro' && screen !== 'login') {
           audioRef.current.play().catch(() => {});
         }
         resumeAudio();
@@ -783,7 +798,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [muted, screen]);
+  }, [muted, musicEnabled, screen]);
 
   const setScreen = useCallback((s: Screen) => setScreenState(s), []);
 
@@ -958,6 +973,34 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const toggleMusic = useCallback(() => {
+    setMusicEnabled((prev) => {
+      const next = !prev;
+      saveData({ musicEnabled: next });
+      if (audioRef.current) {
+        if (!next || muted) {
+          audioRef.current.pause();
+        } else {
+          audioRef.current.play().catch(() => {});
+        }
+      }
+      if (!next) stopActionMusic();
+      return next;
+    });
+  }, [muted]);
+
+  const toggleSfx = useCallback(() => {
+    setSfxEnabled((prev) => {
+      const next = !prev;
+      saveData({ sfxEnabled: next });
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    setSfxEnabled(sfxEnabled);
+  }, [sfxEnabled]);
+
   const toggleBlood = useCallback(() => {
     setBloodEnabled((prev) => {
       const next = !prev;
@@ -979,6 +1022,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const setUITheme = useCallback((t: UITheme) => {
     setUIThemeState(t);
     saveData({ uiTheme: t });
+  }, []);
+
+  const setCustomColorState = useCallback((c: string) => {
+    setCustomColor(c);
+    saveData({ customColor: c });
   }, []);
 
   useEffect(() => {
@@ -2724,14 +2772,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [spaceRanking, zombieRanking, weeklyRanking, loggedIn, playerName]);
 
   const value: GameState = {
-    screen, coins, points, lives, vip, muted, user: currentUser, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
+    screen, coins, points, lives, vip, muted, musicEnabled, sfxEnabled, customColor, user: currentUser, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
     topPlayerName, topPlayerScore, topPlayerAvatar, absoluteRecord,
     lastRouletteDate, rouletteSpinsToday, suggestions, upgrades,
     spaceRanking, zombieRanking, weeklyRanking, isOnline, pendingCoins, bloodEnabled,
     controlSize, orientationMode, lastInterstitialTime: lastInterstitialTimeRef.current,
     setScreen, addCoins, spendCoins, addPoints, spendPoints, setLives,
-    buyVIP, vipAvailable: VIP_DISPONIBLE_PLAYSTORE, vipExpiry, toggleMute, toggleBlood, setControlSize, setOrientationMode,
-    uiTheme, setUITheme,
+    buyVIP, vipAvailable: VIP_DISPONIBLE_PLAYSTORE, vipExpiry, toggleMute, toggleMusic, toggleSfx, toggleBlood, setControlSize, setOrientationMode,
+    uiTheme, setUITheme, setCustomColorState,
     selectCharacter, selectShip, selectZombie, setLoggedIn, recordRouletteSpin,
     addSuggestion, getCharacter: getChar, getShip: getShipDef, getZombieCharacter: getZombieChar, buyUpgrade,
     refreshRanking, refreshWeeklyRanking, loadMoreRanking, hasMoreRanking,

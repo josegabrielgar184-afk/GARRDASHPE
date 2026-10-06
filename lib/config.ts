@@ -85,9 +85,15 @@ export const SPECIAL_LEVELS: Record<number, { theme: string; color: string; mess
 };
 
 export const TOTAL_CAMPAIGN_LEVELS = 999;
+
+// Centralized campaign coin reward control. Set to 0 to disable coin rewards.
+// Change this value to balance campaign economy without rewriting Campaign code.
+export const CAMPAIGN_COIN_REWARD_ENABLED = false;
+
 // Level 1: 2-3 coins. Level 30: 10-15 coins. Slow, grinding progression.
 // Beyond level 30, capped at 10-15 to keep resource acquisition very difficult.
 export function getCampaignCoinReward(level: number): { min: number; max: number } {
+  if (!CAMPAIGN_COIN_REWARD_ENABLED) return { min: 0, max: 0 };
   if (level <= 0) level = 1;
   if (level === 1) return { min: 5, max: 10 };
   if (level <= 5) return { min: 8, max: 18 };

@@ -20,6 +20,7 @@ import {
   clamp, dist, rand, lerp,
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
+import { getMaxStars } from '@/lib/performance';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
 import { getRewardedAdId } from '@/lib/config';
 
@@ -204,8 +205,8 @@ export function SpaceGameScreen() {
     bossRef.current = null;
     particlesRef.current = [];
     muzzleFlashesRef.current = [];
-    starsRef.current = makeStars(100, w, h);
-    starsFarRef.current = makeStars(60, w, h);
+    starsRef.current = makeStars(getMaxStars(), w, h);
+    starsFarRef.current = makeStars(Math.floor(getMaxStars() * 0.6), w, h);
     nebulaRef.current = [
       { x: w * 0.2, y: h * 0.3, size: 120, color: '#3b82f6', speed: 0.3 },
       { x: w * 0.8, y: h * 0.6, size: 150, color: '#8b5cf6', speed: 0.2 },
@@ -692,7 +693,7 @@ export function SpaceGameScreen() {
           if (pu.type === 'doubleShot') drawDoubleShotPowerup(ctx, pu.x, pu.y, now);
           else {
             ctx.save();
-            ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 15;
+            ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = fpsMon.shouldGlow ? 15 : 0;
             ctx.fillStyle = '#fbbf24';
             ctx.beginPath(); ctx.arc(pu.x, pu.y, 12, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#fff';
@@ -706,7 +707,7 @@ export function SpaceGameScreen() {
           ctx.save();
           ctx.translate(p.x, p.y);
           ctx.rotate(p.angle + Math.PI / 2);
-          ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 15;
+          ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = fpsMon.shouldGlow ? 15 : 0;
           ctx.fillStyle = `rgba(34,211,238,${thrustRef.current * 0.6})`;
           ctx.beginPath();
           ctx.moveTo(-6, 15); ctx.lineTo(0, 15 + 12 * thrustRef.current); ctx.lineTo(6, 15);
@@ -742,7 +743,7 @@ export function SpaceGameScreen() {
         ctx.translate(l.x, l.y);
         ctx.rotate(angle);
         ctx.shadowColor = l.color;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = fpsMon.shouldGlow ? 15 : 0;
         ctx.fillStyle = l.color;
         ctx.beginPath();
         ctx.ellipse(0, 0, 8, 3, 0, 0, Math.PI * 2);

@@ -21,6 +21,7 @@ export function MenuScreen() {
     coins, vip, vipAvailable, vipExpiry, setScreen, logOut,
     topPlayerName, topPlayerScore, topPlayerAvatar, isOnline, pendingCoins, muted, toggleMute,
     bloodEnabled, toggleBlood, uiTheme, setUITheme, offerwallConfig, userRole,
+    musicEnabled, toggleMusic, sfxEnabled, toggleSfx, customColor, setCustomColorState,
     influencerInfo, refreshInfluencerInfo,
     showWelcomeBonus, dismissWelcomeBonus, showReturnReward, dismissReturnReward,
     exchangeNotification, dismissExchangeNotification, campaignProgress,
@@ -29,10 +30,10 @@ export function MenuScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
-  const [customColor, setCustomColor] = useState('#8a9b50');
 
 
   const applyCustomColor = (hex: string) => {
+    setCustomColorState(hex);
     const root = document.documentElement;
     const hexToHsl = (h: string): string => {
       const r = parseInt(h.slice(1, 3), 16) / 255;
@@ -86,6 +87,12 @@ export function MenuScreen() {
     setPerfTierState(getPerformanceTier());
     refreshInfluencerInfo();
   }, [refreshInfluencerInfo]);
+
+  useEffect(() => {
+    if (uiTheme === ('custom' as UITheme) && customColor) {
+      applyCustomColor(customColor);
+    }
+  }, []);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -371,6 +378,26 @@ export function MenuScreen() {
             </div>
 
             <div className="space-y-4">
+              <button onClick={toggleMusic} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
+                <div className="flex items-center gap-3">
+                  {musicEnabled ? <Volume2 className="w-5 h-5 text-[#8a9b50]" /> : <VolumeX className="w-5 h-5 text-[#6b7280]" />}
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Musica</p><p className="text-[#6b7280] text-xs">{musicEnabled ? 'Activa' : 'Silenciada'}</p></div>
+                </div>
+                <div className={`w-12 h-6 rounded-full transition-colors ${musicEnabled ? 'bg-[#8a9b50]/40' : 'bg-white/10'}`}>
+                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${musicEnabled ? 'translate-x-6' : 'translate-x-0.5'} mt-0.5`} />
+                </div>
+              </button>
+
+              <button onClick={toggleSfx} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
+                <div className="flex items-center gap-3">
+                  {sfxEnabled ? <Volume2 className="w-5 h-5 text-[#8a9b50]" /> : <VolumeX className="w-5 h-5 text-[#6b7280]" />}
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Efectos de Sonido</p><p className="text-[#6b7280] text-xs">{sfxEnabled ? 'Activos' : 'Silenciados'}</p></div>
+                </div>
+                <div className={`w-12 h-6 rounded-full transition-colors ${sfxEnabled ? 'bg-[#8a9b50]/40' : 'bg-white/10'}`}>
+                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${sfxEnabled ? 'translate-x-6' : 'translate-x-0.5'} mt-0.5`} />
+                </div>
+              </button>
+
               <button onClick={toggleMute} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3">
                   {muted ? <VolumeX className="w-5 h-5 text-[#6b7280]" /> : <Volume2 className="w-5 h-5 text-[#8a9b50]" />}
@@ -422,7 +449,7 @@ export function MenuScreen() {
                     <input
                       type="color"
                       value={customColor}
-                      onChange={(e) => { setCustomColor(e.target.value); setUITheme('custom' as UITheme); applyCustomColor(e.target.value); }}
+                      onChange={(e) => { setUITheme('custom' as UITheme); applyCustomColor(e.target.value); }}
                       className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border border-[#8a9b50]/30"
                       style={{ padding: '2px' }}
                     />

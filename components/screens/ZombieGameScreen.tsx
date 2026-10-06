@@ -335,7 +335,8 @@ export function ZombieGameScreen() {
     muzzleFlashesRef.current = [];
     scoreRef.current = 0; killCountRef.current = 0;
     livesRef.current = 3;
-    barricadeHpRef.current = 150; barricadeMaxHpRef.current = 150;
+    const baseBarricadeHp = 150 + (char.maxHp > 100 ? (char.maxHp - 100) : 0);
+    barricadeHpRef.current = baseBarricadeHp; barricadeMaxHpRef.current = baseBarricadeHp;
     leftTowerHpRef.current = TOWER_MAX_HP;
     rightTowerHpRef.current = TOWER_MAX_HP;
     castleHpRef.current = CASTLE_MAX_HP;
@@ -365,7 +366,7 @@ export function ZombieGameScreen() {
     arenaThemeRef.current = specialTheme ? { ...getArenaTheme(cl), ...specialTheme } : getArenaTheme(cl);
     biomeRef.current = getBiome(cl);
     reviveShieldTimerRef.current = 0; setReviveShieldTimer(0);
-    setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(150); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false); setBossActive(false);
+    setScore(0); setZombiesKilled(0); setCoinsEarned(0); setBarricadeHp(baseBarricadeHp); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false); setBossActive(false);
     setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
     checkMilestone();
@@ -632,7 +633,7 @@ export function ZombieGameScreen() {
     ctx.save();
     ctx.scale(pulse, pulse);
     ctx.shadowColor = '#fbbf24';
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = fpsMonitorRef.current.shouldGlow ? 12 : 0;
     ctx.fillStyle = '#fbbf24';
     ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
@@ -649,7 +650,7 @@ export function ZombieGameScreen() {
     ctx.save();
     ctx.translate(0, -30);
     ctx.shadowColor = WEAPON_COLORS[br.weapon];
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = fpsMonitorRef.current.shouldGlow ? 8 : 0;
     ctx.fillStyle = WEAPON_COLORS[br.weapon];
     ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#fff';
@@ -691,7 +692,7 @@ export function ZombieGameScreen() {
       ctx.save();
       ctx.translate(x, y + breath);
       ctx.shadowColor = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
-      ctx.shadowBlur = 15;
+      ctx.shadowBlur = fpsMonitorRef.current.shouldGlow ? 15 : 0;
       ctx.fillStyle = WEAPON_COLORS[weaponRef.current] ?? '#fbbf24';
       ctx.fillRect(-s * 0.04, -s * 0.6, s * 0.08, s * 0.08);
       ctx.shadowBlur = 0;
