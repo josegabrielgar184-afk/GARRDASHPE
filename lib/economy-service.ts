@@ -172,7 +172,7 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
       await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 100 });
 
       // 2. Enviar notificación al usuario
-      await addDoc(collection(db, 'notifications'), {
+      await addDoc(collection(db, 'notificaciones'), {
         userId: userId,
         title: '🎯 ¡Sugerencia Aprobada!',
         body: 'Tu sugerencia fue calificada como coherente. ¡Has recibido 100 monedas de regalo!',
@@ -187,7 +187,7 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
       await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 5 });
 
       // 2. Enviar notificación al usuario
-      await addDoc(collection(db, 'notifications'), {
+      await addDoc(collection(db, 'notificaciones'), {
         userId: userId,
         title: '💬 ¡Sugerencia Recibida!',
         body: 'Gracias por colaborar con el juego. Has recibido 5 monedas de regalo.',
@@ -210,7 +210,7 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
 export async function sendWinBackPush(inactiveUsers: Array<{ uid: string }>): Promise<{ ok: boolean; count: number }> {
   try {
     for (const user of inactiveUsers) {
-      await addDoc(collection(db, 'notifications'), {
+      await addDoc(collection(db, 'notificaciones'), {
         userId: user.uid,
         title: '¡Te extrañan en GarrDash!',
         body: 'Entra hoy y reclama tu bono de 300 monedas',
@@ -227,7 +227,7 @@ export async function sendWinBackPush(inactiveUsers: Array<{ uid: string }>): Pr
 
 export async function sendPromoPush(title: string, body: string, duration: string): Promise<{ ok: boolean }> {
   try {
-    await addDoc(collection(db, 'notifications'), {
+    await addDoc(collection(db, 'notificaciones'), {
       title,
       body,
       type: 'promo',

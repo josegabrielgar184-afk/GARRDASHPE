@@ -8,7 +8,7 @@ import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown,
 
 export function RankingScreen() {
   const {
-    setScreen, spaceRanking, zombieRanking, weeklyRanking, refreshRanking, refreshWeeklyRanking,
+    setScreen, spaceRanking, zombieRanking, weeklyRanking, survivalRanking, refreshRanking, refreshWeeklyRanking,
     loadMoreRanking, hasMoreRanking, playerName, currentUserRank, currentUserScore,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -36,7 +36,7 @@ export function RankingScreen() {
     return () => el.removeEventListener('scroll', check);
   }, [loading, mainTab, gameTab]);
 
-  const ranking = mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (zombieRanking) : (gameTab === 'space' ? spaceRanking : zombieRanking);
+  const ranking = mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (survivalRanking) : (gameTab === 'space' ? spaceRanking : zombieRanking);
   const getMedalColor = (i: number) => i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-white/30';
 
   const handleLoadMore = async () => {
@@ -141,8 +141,8 @@ export function RankingScreen() {
                     {i === 0 && mainTab === 'weekly' && <p className="text-amber-300/60 text-[10px]">Reino semanal</p>}
                   </div>
                   <div className="text-right shrink-0">
-                    <p className={`font-bold text-sm ${mainTab === 'global' ? (gameTab === 'space' ? 'text-cyan-400' : 'text-red-400') : 'text-amber-400'}`}>{entry.score.toLocaleString()}</p>
-                    <p className="text-white/30 text-[10px]">{mainTab === 'global' ? (gameTab === 'space' ? 'puntos' : 'bajas') : 'puntos'}</p>
+                    <p className={`font-bold text-sm ${mainTab === 'global' ? (gameTab === 'space' ? 'text-cyan-400' : 'text-red-400') : mainTab === 'survival' ? 'text-red-400' : 'text-amber-400'}`}>{mainTab === 'survival' ? `${Math.floor(entry.score / 1000)}s` : entry.score.toLocaleString()}</p>
+                    <p className="text-white/30 text-[10px]">{mainTab === 'global' ? (gameTab === 'space' ? 'puntos' : 'bajas') : mainTab === 'survival' ? 'tiempo' : 'puntos'}</p>
                   </div>
                 </div>
               ))}

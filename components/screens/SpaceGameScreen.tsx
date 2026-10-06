@@ -230,7 +230,7 @@ export function SpaceGameScreen() {
     difficultyRef.current = 1; finalBossDefeatedRef.current = false;
     gameCoinsRef.current = 0; interstitialCheckedRef.current = false;
     hasDoubleShotRef.current = false; setHasDoubleShot(false); doubleShotTimerRef.current = 0;
-    hasCoinMagnetRef.current = false; setHasCoinMagnet(false); coinMagnetTimerRef.current = 0;
+    hasCoinMagnetRef.current = upgrades.coinMagnet > 0; setHasCoinMagnet(upgrades.coinMagnet > 0); coinMagnetTimerRef.current = 0;
     nuclearChargeRef.current = 0; setNuclearReady(false); nuclearActiveRef.current = false; nuclearTimerRef.current = 0;
     playTimeRef.current = 0; lastPlayTimeSyncRef.current = 0;
     comboRef.current = 0; comboTimerRef.current = 0; setComboDisplay(0);
@@ -476,7 +476,7 @@ export function SpaceGameScreen() {
         }
         if (hasCoinMagnetRef.current) {
           coinMagnetTimerRef.current -= dt;
-          if (coinMagnetTimerRef.current <= 0) { hasCoinMagnetRef.current = false; setHasCoinMagnet(false); }
+          if (coinMagnetTimerRef.current <= 0 && upgrades.coinMagnet === 0) { hasCoinMagnetRef.current = false; setHasCoinMagnet(false); }
         }
 
         if (comboTimerRef.current > 0) {
@@ -601,7 +601,7 @@ export function SpaceGameScreen() {
         }
 
         for (const pu of powerUpPoolRef.current.getActive()) {
-          if (hasCoinMagnetRef.current && pu.type === 'coinMagnet') {
+          if (hasCoinMagnetRef.current || upgrades.coinMagnet > 0) {
             const dx = p.x - pu.x;
             const dy = p.y - pu.y;
             const d = Math.hypot(dx, dy);

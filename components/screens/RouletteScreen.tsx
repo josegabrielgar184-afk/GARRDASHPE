@@ -35,7 +35,7 @@ const PROB_MEDIUM = 0.10;      // 10% para premios medianos
 const PROB_CONSOLATION = 0.898; // 89.8% para los de consolación
 
 export function RouletteScreen() {
-  const { addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin, canShowInterstitial, recordInterstitial } = useGame();
+  const { addCoins, setScreen, vip, userRole, getFreeSpinsRemaining, recordRouletteSpin } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
@@ -53,11 +53,7 @@ export function RouletteScreen() {
   const canSpin = freeSpinsRemaining > 0 || extraSpins > 0 || adSpins > 0;
   const isFreeSpin = freeSpinsRemaining > 0;
 
-  useEffect(() => {
-    if (canShowInterstitial() && !vip) {
-      recordInterstitial();
-    }
-  }, []);
+
 
   const spawnConfetti = () => {
     const colors = ['#fbbf24', '#22d3ee', '#ef4444', '#34d399', '#a855f7', '#f97316'];

@@ -244,6 +244,7 @@ interface GameState {
   spaceRanking: RankEntry[];
   zombieRanking: RankEntry[];
   weeklyRanking: RankEntry[];
+  survivalRanking: RankEntry[];
   isOnline: boolean;
   pendingCoins: number;
   bloodEnabled: boolean;
@@ -485,6 +486,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [campaignProgress, setCampaignProgress] = useState<CampaignProgress>({ currentLevel: 1, stars: {}, keys: 0, diamondsClaimed: false, lastLevelCompletedAt: null });
   const [towerLevels, setTowerLevels] = useState<TowerLevel>({ turret: 0, drone: 0, medic: 0, neonShield: 0 });
   const [survivalBestTime, setSurvivalBestTime] = useState(0);
+  const [survivalRanking, setSurvivalRanking] = useState<RankEntry[]>(EMPTY_RANKING);
   const [showWelcomeBonus, setShowWelcomeBonus] = useState(false);
   const [showReturnReward, setShowReturnReward] = useState(false);
   const [exchangeNotification, setExchangeNotification] = useState<string | null>(null);
@@ -1473,6 +1475,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setZombieRanking(fillWithBots(entries, 'zombie'));
       }, () => setZombieRanking(fillWithBots([], 'zombie'))));
 
+      const survivalQ = query(collection(db, 'scores_survival'), orderBy('timeMs', 'desc'), limit(RANKING_PAGE_SIZE));
+      unsubs.push(onSnapshot(survivalQ, (snap) => {
+        const entries: RankEntry[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          entries.push({ name: data.name || 'Jugador', score: data.timeMs ?? 0, uid: data.uid });
+        });
+        setSurvivalRanking(entries.slice(0, 15));
+      }, () => setSurvivalRanking([])));
+
       const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
       unsubs.push(onSnapshot(weeklyQ, (snap) => {
         const entries: RankEntry[] = [];
@@ -2014,6 +2026,52 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }).catch(() => {});
 
       await refreshCanjes();
+
+      // Notify admins/operators about the new canje request
+      try {
+        const adminSnap = await getDocs(query(
+          collection(db, 'usuarios'),
+          where('rol', 'in', ['admin', 'operador'])
+        ));
+        const adminPromises: Promise<unknown>[] = [];
+        adminSnap.forEach((d) => {
+          const adminData = d.data();
+          const fcmToken = adminData.fcmToken;
+          adminPromises.push(
+            addDoc(collection(db, 'notificaciones'), {
+              userId: d.id,
+              title: '💎 NUEVO CANJE — GARRDASH',
+              message: 'Hay una nueva solicitud de canje pendiente. Revísala en Comando.',
+              type: 'admin_canje_alert',
+              createdAt: now,
+              read: false,
+            }).catch(() => {})
+          );
+          if (fcmToken) {
+            adminPromises.push(
+              fetch('https://fcm.googleapis.com/fcm/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `key=913250323167`,
+                },
+                body: JSON.stringify({
+                  to: fcmToken,
+                  notification: {
+                    title: '💎 NUEVO CANJE — GARRDASH',
+                    body: 'Hay una nueva solicitud de canje pendiente. Revísala en Comando.',
+                    icon: '/ic_launcher_foreground.webp',
+                    click_action: '/',
+                  },
+                  data: { type: 'admin_canje_alert' },
+                }),
+              }).catch(() => {})
+            );
+          }
+        });
+        await Promise.all(adminPromises);
+      } catch {}
+
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al enviar canje';
@@ -2184,6 +2242,36 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             coins: (userData.coins ?? 0) + refundCoins,
             campaignKeys: (userData.campaignKeys ?? 0) + refundKeys,
           }).catch(() => {});
+
+          await addDoc(collection(db, 'notificaciones'), {
+            userId: data.userId,
+            title: '❌ Canje Rechazado',
+            message: `Tu solicitud de canje fue rechazada: ${reason}. Tus monedas y llaves fueron devueltas.`,
+            type: 'canje_rejected',
+            createdAt: now,
+            read: false,
+          }).catch(() => {});
+
+          const fcmToken = userData.fcmToken;
+          if (fcmToken) {
+            await fetch('https://fcm.googleapis.com/fcm/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `key=913250323167`,
+              },
+              body: JSON.stringify({
+                to: fcmToken,
+                notification: {
+                  title: '❌ Canje Rechazado',
+                  body: `Tu canje fue rechazado. Monedas y llaves devueltas. Motivo: ${reason}`,
+                  icon: '/ic_launcher_foreground.webp',
+                  click_action: '/',
+                },
+                data: { type: 'canje_rejected', canjeId },
+              }),
+            }).catch(() => {});
+          }
         }
       }
       await setDoc(doc(db, 'canjes_rechazadas', canjeId), {
@@ -2906,7 +2994,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     screen, coins, points, lives, vip, muted, musicEnabled, sfxEnabled, customColor, user: currentUser, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
     topPlayerName, topPlayerScore, topPlayerAvatar, absoluteRecord,
     lastRouletteDate, rouletteSpinsToday, suggestions, upgrades,
-    spaceRanking, zombieRanking, weeklyRanking, isOnline, pendingCoins, bloodEnabled,
+    spaceRanking, zombieRanking, weeklyRanking, survivalRanking, isOnline, pendingCoins, bloodEnabled,
     controlSize, orientationMode, lastInterstitialTime: lastInterstitialTimeRef.current,
     setScreen, addCoins, spendCoins, addPoints, spendPoints, setLives,
     buyVIP, vipAvailable: VIP_DISPONIBLE_PLAYSTORE, vipExpiry, toggleMute, toggleMusic, toggleSfx, toggleBlood, setControlSize, setOrientationMode,

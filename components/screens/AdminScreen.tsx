@@ -1617,6 +1617,20 @@ function AdminCanjesTab({
 
   return (
     <div className="space-y-4">
+      {/* Prominent pending banner */}
+      {adminCanjesList.length > 0 && (
+        <div className={`rounded-2xl border p-4 text-center ${adminCanjesList.length >= 3 ? 'bg-red-950/30 border-red-500/50' : 'bg-amber-950/20 border-amber-500/40'}`}>
+          <p className={`font-black text-xl tracking-wider ${adminCanjesList.length >= 3 ? 'text-red-400' : 'text-amber-400'}`}>
+            CANJES PENDIENTES ({adminCanjesList.length})
+          </p>
+          {adminCanjesList.length > 0 && (() => {
+            const oldest = adminCanjesList[0];
+            const elapsed = now - oldest.createdAt;
+            return <p className="text-white/50 text-xs mt-1">El más antiguo pendiente hace {formatElapsed(elapsed)}</p>;
+          })()}
+        </div>
+      )}
+
       {/* Status counters */}
       <div className="grid grid-cols-4 gap-2">
         <div className="rounded-xl bg-card border border-white/10 p-3 text-center">

@@ -187,6 +187,7 @@ export function ZombieGameScreen() {
   const scoreMultRef = useRef(1);
   const damageMultRef = useRef(1);
   const speedMultRef = useRef(1);
+  const fireRateMultRef = useRef(1);
   const comboRef = useRef(0);
   const comboTimerRef = useRef(0);
   const shieldRef = useRef(false);
@@ -224,6 +225,7 @@ export function ZombieGameScreen() {
     speedMultRef.current = char.speedMult;
     scoreMultRef.current = char.scoreMult;
     damageMultRef.current = char.damageMult;
+    fireRateMultRef.current = char.fireRateMult;
     fireRateLevelRef.current = upgrades.fireRate;
     damageLevelRef.current = upgrades.damage;
   }, [char, upgrades]);
@@ -262,12 +264,14 @@ export function ZombieGameScreen() {
   const getFireRate = () => {
     const base = WEAPON_FIRE_RATES[weaponRef.current] ?? 14;
     let rate = Math.max(3, base - fireRateLevelRef.current);
+    rate /= fireRateMultRef.current;
     if (overdriveRef.current) rate *= 0.5;
     return rate;
   };
   const getDamage = () => {
     const base = (WEAPON_DAMAGES[weaponRef.current] ?? 30) + damageLevelRef.current * 12;
-    return base * damageMultRef.current * (nuclearActiveRef.current ? 2.5 : 1);
+    const shotgunMult = weaponRef.current === 'shotgun' ? char.shotgunDmgMult : 1;
+    return base * damageMultRef.current * shotgunMult * (nuclearActiveRef.current ? 2.5 : 1);
   };
   const getScoreMult = () => scoreMultRef.current * (scoreBoostRef.current ? 2 : 1) * (overdriveRef.current ? 1.5 : 1);
 
@@ -362,7 +366,8 @@ export function ZombieGameScreen() {
     overdriveRef.current = false; setOverdriveActive(false); overdriveTimerRef.current = 0;
     killStreakRef.current = 0; setKillStreak(0);
     doubleShotRef.current = false; setDoubleShotActive(false); doubleShotTimerRef.current = 0;
-    coinMagnetRef.current = false; setCoinMagnetActive(false); coinMagnetTimerRef.current = 0;
+    coinMagnetRef.current = upgrades.coinMagnet > 0; setCoinMagnetActive(upgrades.coinMagnet > 0); coinMagnetTimerRef.current = 0;
+    shieldRef.current = char.shieldFirstHit || upgrades.superShield > 0; setShieldActive(shieldRef.current); shieldTimerRef.current = 0;
     weaponRef.current = 'pistol'; setCurrentWeapon('pistol'); weaponTimerRef.current = 0; setWeaponTimer(0);
     themeIndexRef.current = 0; themeTimerRef.current = 0; setThemeName(COLOR_THEMES[0].name);
     const cl = getCurrentCampaignLevel();
@@ -468,7 +473,7 @@ export function ZombieGameScreen() {
     const z = zombiePoolRef.current.acquire();
     z.x = sw / 2; z.y = -30;
     z.vx = lane === 0 ? -1.5 : 1.5;
-    z.vy = vy * speedMultRef.current; z.walkCycle = Math.random() * 10;
+    z.vy = vy; z.walkCycle = Math.random() * 10;
     z.hp = zHp; z.maxHp = zHp; z.size = size; z.color = color; z.type = type; z.hitFlash = 0;
   }, []);
 
@@ -782,7 +787,7 @@ export function ZombieGameScreen() {
 
         // Touch-only horizontal movement (no auto-aim)
         if (touchTargetRef.current.active) {
-          turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.25 * dt);
+          turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.25 * speedMultRef.current * dt);
         }
         turretXRef.current = clamp(turretXRef.current, 30, w - 30);
 
@@ -894,7 +899,7 @@ export function ZombieGameScreen() {
         if (shieldRef.current) { shieldTimerRef.current -= dt; if (shieldTimerRef.current <= 0) { shieldRef.current = false; setShieldActive(false); } }
         if (scoreBoostRef.current) { scoreBoostTimerRef.current -= dt; if (scoreBoostTimerRef.current <= 0) { scoreBoostRef.current = false; setScoreBoostActive(false); } }
         if (doubleShotRef.current) { doubleShotTimerRef.current -= dt; if (doubleShotTimerRef.current <= 0) { doubleShotRef.current = false; setDoubleShotActive(false); } }
-        if (coinMagnetRef.current) { coinMagnetTimerRef.current -= dt; if (coinMagnetTimerRef.current <= 0) { coinMagnetRef.current = false; setCoinMagnetActive(false); } }
+        if (coinMagnetRef.current) { coinMagnetTimerRef.current -= dt; if (coinMagnetTimerRef.current <= 0 && upgrades.coinMagnet === 0) { coinMagnetRef.current = false; setCoinMagnetActive(false); } }
         if (overdriveRef.current) { overdriveTimerRef.current -= dt; if (overdriveTimerRef.current <= 0) { overdriveRef.current = false; setOverdriveActive(false); } }
 
         for (const z of zombiePoolRef.current.getActive()) {
@@ -1008,7 +1013,7 @@ export function ZombieGameScreen() {
         }
 
         for (const pu of powerUpPoolRef.current.getActive()) {
-          if (coinMagnetRef.current || char.magnetMeds) {
+          if (coinMagnetRef.current || char.magnetMeds || upgrades.coinMagnet > 0) {
             const dx = turretXRef.current - pu.x;
             const dy = turretY - pu.y;
             const d = Math.hypot(dx, dy);
@@ -1552,7 +1557,7 @@ export function ZombieGameScreen() {
           hapticPattern([50, 30, 100]);
         }}
         title="Revivir"
-        rewardText="¡Has revivido! Barricada reparada, vidas restauradas y 3 monedas extra."
+        rewardText="¡Has revivido! Barricada reparada, vidas restauradas y 1 moneda extra."
         adId={getRewardedAdId('revivir')}
       />
       <MuteButton />
