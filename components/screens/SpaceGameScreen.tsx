@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { MuteButton } from '@/components/game/MuteButton';
+import { ControlEditorModal } from '@/components/screens/MenuScreen';
+import { Move } from 'lucide-react';
 import { ArrowLeft, Heart, Coins, Video, Pause, Play, Radiation, Shield, Baby, Magnet } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
@@ -48,7 +50,7 @@ const MILESTONES: Record<number, { title: string; coins?: number; shield?: boole
 };
 
 export function SpaceGameScreen() {
-  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, userRole, addPlayTime, startGameBatch, endGameBatch, absoluteRecord } = useGame();
+  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, userRole, addPlayTime, flushPlayTime, startGameBatch, endGameBatch, absoluteRecord } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -67,6 +69,7 @@ export function SpaceGameScreen() {
   const [hasCoinMagnet, setHasCoinMagnet] = useState(false);
   const [nuclearReady, setNuclearReady] = useState(false);
   const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().space.nuclear);
+  const [showControlEditor, setShowControlEditor] = useState(false);
   const [milestoneBanner, setMilestoneBanner] = useState<string | null>(null);
   const [comboDisplay, setComboDisplay] = useState(0);
   const [shieldActive, setShieldActive] = useState(false);
@@ -379,6 +382,7 @@ export function SpaceGameScreen() {
       endGameBatch();
       submitSpaceScore(Math.floor(scoreRef.current));
       playGameOver();
+      flushPlayTime();
       hapticPattern([100, 50, 200]);
       if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }
@@ -493,7 +497,7 @@ export function SpaceGameScreen() {
         }
 
         playTimeRef.current += dt * 16.67;
-        if (playTimeRef.current - lastPlayTimeSyncRef.current >= 5000) {
+        if (playTimeRef.current - lastPlayTimeSyncRef.current >= 60000) {
           if (isOnline) addPlayTime(playTimeRef.current - lastPlayTimeSyncRef.current);
           lastPlayTimeSyncRef.current = playTimeRef.current;
         }
@@ -947,6 +951,20 @@ export function SpaceGameScreen() {
       )}
       <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); hasRevivedRef.current = true; setHasRevived(true); safeAddCoins(3); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 3 monedas extra!" userRole={userRole} vip={vip} adId={getRewardedAdId('revivir')} />
       <MuteButton />
+      <button
+        onClick={() => setShowControlEditor(true)}
+        className="fixed top-4 right-24 z-40 w-10 h-10 rounded-lg bg-black/50 backdrop-blur flex items-center justify-center text-cyan-400 hover:text-cyan-300 transition-colors"
+      >
+        <Move className="w-5 h-5" />
+      </button>
+      {showControlEditor && (
+        <ControlEditorModal
+          screenId="space"
+          onClose={() => setShowControlEditor(false)}
+          onSave={() => { setShowControlEditor(false); setNuclearBtnLayout(loadControlLayouts().space.nuclear); }}
+          onReset={() => { setNuclearBtnLayout(loadControlLayouts().space.nuclear); }}
+        />
+      )}
     </div>
   );
 }

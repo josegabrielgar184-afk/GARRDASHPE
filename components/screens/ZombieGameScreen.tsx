@@ -5,6 +5,8 @@ import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { MuteButton } from '@/components/game/MuteButton';
+import { ControlEditorModal } from '@/components/screens/MenuScreen';
+import { Move } from 'lucide-react';
 import { ArrowLeft, Heart, Coins, Video, Radiation, Shield, Baby, Sparkles, Magnet, Zap, Pause, Play, RotateCcw, Home, Trophy } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
@@ -89,7 +91,7 @@ const SPECIAL_LEVEL_THEMES: Record<number, Partial<ArenaTheme>> = {
 
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel, absoluteRecord} = useGame();
+  const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, flushPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel, absoluteRecord} = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -129,6 +131,7 @@ export function ZombieGameScreen() {
   const [themeName, setThemeName] = useState(COLOR_THEMES[0].name);
   const [campaignLevel, setCampaignLevel] = useState(1);
   const [reviveShieldTimer, setReviveShieldTimer] = useState(0);
+  const [showControlEditor, setShowControlEditor] = useState(false);
 
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 30));
   const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 80));
@@ -546,6 +549,7 @@ export function ZombieGameScreen() {
     if (gameOver && !interstitialCheckedRef.current) {
       interstitialCheckedRef.current = true;
       endGameBatch();
+      flushPlayTime();
       submitZombieScore(killCountRef.current);
       stopActionMusic();
       playGameOver();
@@ -1174,7 +1178,7 @@ export function ZombieGameScreen() {
         if (nuclearActiveRef.current) { nuclearTimerRef.current -= dt; if (nuclearTimerRef.current <= 0) nuclearActiveRef.current = false; }
 
         playTimeRef.current += dt * 16.67;
-        if (playTimeRef.current - lastPlayTimeSyncRef.current >= 5000) {
+        if (playTimeRef.current - lastPlayTimeSyncRef.current >= 60000) {
           if (isOnline) addPlayTime(playTimeRef.current - lastPlayTimeSyncRef.current);
           lastPlayTimeSyncRef.current = playTimeRef.current;
         }
@@ -1547,6 +1551,20 @@ export function ZombieGameScreen() {
         adId={getRewardedAdId('revivir')}
       />
       <MuteButton />
+      <button
+        onClick={() => setShowControlEditor(true)}
+        className="fixed top-4 right-24 z-40 w-10 h-10 rounded-lg bg-black/50 backdrop-blur flex items-center justify-center text-cyan-400 hover:text-cyan-300 transition-colors"
+      >
+        <Move className="w-5 h-5" />
+      </button>
+      {showControlEditor && (
+        <ControlEditorModal
+          screenId="campaign"
+          onClose={() => setShowControlEditor(false)}
+          onSave={() => { setShowControlEditor(false); setNuclearBtnLayout(loadControlLayouts().campaign.nuclear); }}
+          onReset={() => { setNuclearBtnLayout(loadControlLayouts().campaign.nuclear); }}
+        />
+      )}
 
       {/* Pause Modal */}
       {showPauseModal && (

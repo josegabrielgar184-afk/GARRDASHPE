@@ -28,6 +28,11 @@ import {
   OPERATOR_LUNCH_BREAK_HOURS, RANKING_PAGE_SIZE, VIP_DURATION_DAYS, VIP_DISPONIBLE_PLAYSTORE,
 } from '@/lib/config';
 
+async function getDocsCount(q: ReturnType<typeof query>): Promise<number> {
+  const snap = await getDocs(q);
+  return snap.size;
+}
+
 export type Screen =
   | 'intro'
   | 'login'
@@ -187,6 +192,9 @@ export interface AdminStats {
   nearClaimUsers: AdminUserInfo[];
   activeUsers: number;
   inactiveUsers: number;
+  activeUsers1h: number;
+  activeUsers24h: number;
+  activeUsers30d: number;
   returnedUsers: AdminUserInfo[];
   nearClaimSummary: NearClaimSummary;
   totalExchanges: number;
@@ -345,6 +353,7 @@ interface GameState {
   observerMode: boolean;
   toggleObserverMode: () => void;
   addPlayTime: (ms: number) => void;
+  flushPlayTime: () => void;
   startGameBatch: () => void;
   endGameBatch: () => void;
   showWelcomeBonus: boolean;
@@ -490,8 +499,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const canjesPageSize = 100;
   const [adminUserStats, setAdminUserStats] = useState<AdminStats>({
     totalUsers: 0, totalCoins: 0, activeCoins: 0, inactiveCoins: 0,
-    reservedAmount: 0, availableAmount: 0, nearClaimUsers: [], activeUsers: 0, inactiveUsers: 0, returnedUsers: [],
-    nearClaimSummary: { totalEstimatedCost: 0, totalEstimatedRevenue: 0, totalNet: 0, count: 0 },
+    reservedAmount: 0, availableAmount: 0, nearClaimUsers: [], activeUsers: 0, inactiveUsers: 0,
+    activeUsers1h: 0, activeUsers24h: 0, activeUsers30d: 0,
+    returnedUsers: [], nearClaimSummary: { totalEstimatedCost: 0, totalEstimatedRevenue: 0, totalNet: 0, count: 0 },
     totalExchanges: 0,
   });
   const [userSearchResults, setUserSearchResults] = useState<AdminUserInfo[]>([]);
@@ -950,12 +960,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       playTimeBufferRef.current = 0;
       try {
         const userDocRef = doc(db, 'usuarios', user.uid);
-        const snap = await getDoc(userDocRef);
-        const current = snap.exists() ? (snap.data().tiempo_jugado_min ?? 0) : 0;
-        const newMin = current + addMs / 60000;
-        await updateDoc(userDocRef, { tiempo_jugado_min: newMin });
+        await updateDoc(userDocRef, { tiempo_jugado_min: increment(addMs / 60000) });
       } catch {}
-    }, 8000);
+    }, 120000);
+  }, []);
+
+  const flushPlayTime = useCallback(() => {
+    if (playTimeSyncTimerRef.current) clearTimeout(playTimeSyncTimerRef.current);
+    const user = auth.currentUser;
+    if (!user || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+    const addMs = playTimeBufferRef.current;
+    if (addMs <= 0) return;
+    playTimeBufferRef.current = 0;
+    try {
+      const userDocRef = doc(db, 'usuarios', user.uid);
+      updateDoc(userDocRef, { tiempo_jugado_min: increment(addMs / 60000) }).catch(() => {});
+    } catch {}
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -1457,8 +1477,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (userRole !== 'admin' && userRole !== 'operador') return;
-    try {
-      const unsub = onSnapshot(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(50)), (snap) => {
+    let cancelled = false;
+    const loadFirstPage = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(50)));
+        if (cancelled) return;
         const users: Array<{
           uid: string; nombre: string; email: string; coins: number;
           puntos: number; vip: boolean; playerID: string; nickname: string;
@@ -1484,11 +1507,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             currentRequest: data.currentRequest ?? '',
           });
         });
-        users.sort((a, b) => b.coins - a.coins);
         setAllUsersList(users);
-      }, () => {});
-      return () => unsub();
-    } catch { return; }
+        setHasMoreUsers(snap.size === 50);
+        userSearchCursorRef.current = 50;
+      } catch {}
+    };
+    loadFirstPage();
+    return () => { cancelled = true; };
   }, [userRole]);
 
   const getFreeSpinsRemaining = useCallback((): number => {
@@ -2288,82 +2313,61 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    try {
-      const unsub = onSnapshot(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(100)), (snap) => {
-        let totalCoins = 0;
-        let totalUsers = 0;
-        let activeCoins = 0;
-        let inactiveCoins = 0;
-        let activeUsers = 0;
-        let inactiveUsers = 0;
+    if (userRole !== 'admin' && userRole !== 'operador') return;
+    const fetchGlobalStats = async () => {
+      try {
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        const totalSnap = await getDocsCount(collection(db, 'usuarios'));
+        const active1h = await getDocsCount(query(collection(db, 'usuarios'), where('lastActive', '>=', oneHourAgo)));
+        const active24h = await getDocsCount(query(collection(db, 'usuarios'), where('lastActive', '>=', oneDayAgo)));
+        const active7d = await getDocsCount(query(collection(db, 'usuarios'), where('lastActive', '>=', sevenDaysAgo)));
+        const active30d = await getDocsCount(query(collection(db, 'usuarios'), where('lastActive', '>=', thirtyDaysAgo)));
+        const inactive7d = totalSnap - active7d;
+
+        const coinSnap = await getDocs(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(100)));
+        let totalCoins = 0, activeCoins = 0, inactiveCoins = 0;
         const nearClaim: AdminUserInfo[] = [];
         const returnedUsers: AdminUserInfo[] = [];
-        const sevenDaysAgo = getDaysAgo(INACTIVITY_THRESHOLD_DAYS);
-        const fifteenDaysAgo = getDaysAgo(RETURNED_USER_INACTIVE_DAYS);
-
-        snap.forEach((d) => {
+        const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+        coinSnap.forEach((d) => {
           const data = d.data();
           const userCoins = data.coins ?? 0;
           totalCoins += userCoins;
-          totalUsers++;
           const lastLoginRaw = data.lastLogin ?? data.lastActive;
           let lastLoginDate: Date;
-          if (lastLoginRaw && typeof lastLoginRaw.toDate === 'function') {
-            lastLoginDate = lastLoginRaw.toDate();
-          } else if (lastLoginRaw) {
-            lastLoginDate = new Date(lastLoginRaw);
-          } else {
-            lastLoginDate = new Date(0);
-          }
+          if (lastLoginRaw && typeof lastLoginRaw.toDate === 'function') lastLoginDate = lastLoginRaw.toDate();
+          else if (lastLoginRaw) lastLoginDate = new Date(lastLoginRaw);
+          else lastLoginDate = new Date(0);
           const isInactive = lastLoginDate < sevenDaysAgo;
-          if (isInactive) {
-            inactiveCoins += userCoins;
-            inactiveUsers++;
-          } else {
-            activeCoins += userCoins;
-            activeUsers++;
-          }
+          if (isInactive) inactiveCoins += userCoins; else activeCoins += userCoins;
           if (userCoins >= NEAR_CLAIM_THRESHOLD) {
             nearClaim.push({
-              uid: d.id,
-              nombre: data.nombre ?? data.email ?? 'Unknown',
-              email: data.email ?? '',
-              coins: userCoins,
-              lastLogin: lastLoginDate.toISOString(),
-              inactive: isInactive,
-              totalRuns: data.totalRuns ?? 0,
-              bestScore: data.bestScore ?? 0,
-              rol: data.rol ?? 'user',
-              puntos: data.puntos ?? 0,
-              puntos_semanales: data.puntos_semanales ?? 0,
-              puntos_espacio: data.puntos_espacio ?? 0,
-              puntos_zombies: data.puntos_zombies ?? 0,
-              tiempo_jugado_min: data.tiempo_jugado_min ?? 0,
-              vip: data.vip ?? false,
-              diamondHistory: data.diamondHistory ?? 0,
-              createdAt: data.createdAt ?? null,
-              adsWatched: data.adsWatched ?? 0,
-              bitlabsEarnings: data.bitlabsEarnings ?? 0,
+              uid: d.id, nombre: data.nombre ?? data.email ?? 'Unknown', email: data.email ?? '',
+              coins: userCoins, lastLogin: lastLoginDate.toISOString(), inactive: isInactive,
+              totalRuns: data.totalRuns ?? 0, bestScore: data.bestScore ?? 0, rol: data.rol ?? 'user',
+              puntos: data.puntos ?? 0, puntos_semanales: data.puntos_semanales ?? 0,
+              puntos_espacio: data.puntos_espacio ?? 0, puntos_zombies: data.puntos_zombies ?? 0,
+              tiempo_jugado_min: data.tiempo_jugado_min ?? 0, vip: data.vip ?? false,
+              diamondHistory: data.diamondHistory ?? 0, createdAt: data.createdAt ?? null,
+              adsWatched: data.adsWatched ?? 0, bitlabsEarnings: data.bitlabsEarnings ?? 0,
             });
           }
           if (lastLoginDate < fifteenDaysAgo && (data.totalRuns ?? 0) < RETURNED_USER_MIN_GAMES) {
             returnedUsers.push({
-              uid: d.id,
-              nombre: data.nombre ?? data.email ?? 'Unknown',
-              email: data.email ?? '',
-              coins: userCoins,
-              lastLogin: lastLoginDate.toISOString(),
-              inactive: true,
-              totalRuns: data.totalRuns ?? 0,
-              bestScore: data.bestScore ?? 0,
-              rol: data.rol ?? 'user',
+              uid: d.id, nombre: data.nombre ?? data.email ?? 'Unknown', email: data.email ?? '',
+              coins: userCoins, lastLogin: lastLoginDate.toISOString(), inactive: true,
+              totalRuns: data.totalRuns ?? 0, bestScore: data.bestScore ?? 0, rol: data.rol ?? 'user',
             });
           }
         });
         nearClaim.sort((a, b) => b.coins - a.coins);
         const reservedAmount = (activeCoins / COINS_PER_USD) * SOLES_PER_USD;
         const availableAmount = (inactiveCoins / COINS_PER_USD) * SOLES_PER_USD;
-
         const nearClaimSummary: NearClaimSummary = {
           count: nearClaim.length,
           totalEstimatedCost: nearClaim.reduce((sum, u) => sum + (u.coins / COINS_PER_USD) * SOLES_PER_USD, 0),
@@ -2371,12 +2375,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           totalNet: 0,
         };
         nearClaimSummary.totalNet = nearClaimSummary.totalEstimatedRevenue - nearClaimSummary.totalEstimatedCost;
-
         setAdminUserStats({
-          totalUsers, totalCoins, activeCoins, inactiveCoins,
+          totalUsers: totalSnap, totalCoins, activeCoins, inactiveCoins,
           reservedAmount, availableAmount, nearClaimUsers: nearClaim,
-          activeUsers, inactiveUsers, returnedUsers, nearClaimSummary,
-          totalExchanges: 0,
+          activeUsers: active7d, inactiveUsers: inactive7d,
+          activeUsers1h: active1h, activeUsers24h: active24h, activeUsers30d: active30d,
+          returnedUsers, nearClaimSummary, totalExchanges: 0,
         });
         if (reservedAmount > 0) {
           const ratio = activeCoins / (totalCoins || 1);
@@ -2384,10 +2388,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           else if (ratio > 0.5) setTransactionLight('yellow');
           else setTransactionLight('red');
         }
-      }, () => {});
-      return () => unsub();
-    } catch { return; }
-  }, []);
+      } catch {}
+    };
+    fetchGlobalStats();
+    const interval = setInterval(fetchGlobalStats, 60000);
+    return () => clearInterval(interval);
+  }, [userRole]);
 
   const searchUsers = useCallback(async (searchQuery: string) => {
     try {
@@ -2470,7 +2476,39 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadMoreUsers = useCallback(async () => {
-    return Promise.resolve();
+    try {
+      const cursor = userSearchCursorRef.current;
+      if (cursor === 0) return;
+      const snap = await getDocs(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(50 + cursor)));
+      const newUsers: Array<{
+        uid: string; nombre: string; email: string; coins: number;
+        puntos: number; vip: boolean; playerID: string; nickname: string;
+        tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
+        lastActive: unknown; banned: boolean; currentRequest: string;
+      }> = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        newUsers.push({
+          uid: d.id,
+          nombre: data.nombre ?? data.email?.split('@')[0] ?? 'Jugador',
+          email: data.email ?? '',
+          coins: data.coins ?? 0,
+          puntos: (data.puntos_espacio ?? 0) + (data.puntos_zombies ?? 0) + (data.puntos_semanales ?? 0),
+          vip: data.vip ?? false,
+          playerID: data.playerID ?? '',
+          nickname: data.nickname ?? data.nombre ?? '',
+          tiempo_jugado_min: data.tiempo_jugado_min ?? 0,
+          tiempo_app_min: data.tiempo_app_min ?? 0,
+          createdAt: data.createdAt ?? null,
+          lastActive: data.lastActive ?? null,
+          banned: data.banned ?? false,
+          currentRequest: data.currentRequest ?? '',
+        });
+      });
+      setAllUsersList(newUsers);
+      setHasMoreUsers(snap.size === 50 + cursor);
+      userSearchCursorRef.current = 50 + cursor;
+    } catch {}
   }, []);
 
   const clearUserSearch = useCallback(() => {
@@ -2803,6 +2841,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     transactionLight, currentUserRank, currentUserScore, allUsersList,
     observerMode, toggleObserverMode,
     addPlayTime,
+    flushPlayTime,
     startGameBatch, endGameBatch,
     campaignProgress, towerLevels, survivalBestTime,
     completeLevel, getCurrentCampaignLevel, exchangeDiamonds, buyTower, getTowerLevel,

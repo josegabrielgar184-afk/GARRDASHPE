@@ -478,15 +478,6 @@ export function MenuScreen() {
                   {perfTier === 'low' ? 'Sin partículas ni efectos de brillo. Ideal para celulares lentos.' : perfTier === 'medium' ? 'Partículas limitadas. Balance entre calidad y rendimiento.' : 'Maxima calidad visual con todos los efectos activos.'}
                 </p>
               </div>
-
-              {/* Control customization button */}
-              <button onClick={() => { setShowSettings(false); setShowControlEditor(true); }} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Move className="w-5 h-5 text-[#8a9b50]" />
-                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Personalizar Controles</p><p className="text-[#6b7280] text-xs">Mueve y ajusta los botones</p></div>
-                </div>
-                <ChevronDown className="w-4 h-4 text-[#6b7280] rotate-[-90deg]" />
-              </button>
             </div>
 
             <p className="mt-6 text-center text-[#6b7280] text-xs">&copy; 2026</p>
@@ -496,6 +487,7 @@ export function MenuScreen() {
 
       {showControlEditor && (
         <ControlEditorModal
+          screenId="campaign"
           onClose={() => setShowControlEditor(false)}
           onSave={() => { setShowControlEditor(false); showToast('Controles guardados'); }}
           onReset={() => { showToast('Controles restablecidos'); }}
@@ -505,19 +497,16 @@ export function MenuScreen() {
   );
 }
 
-function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void; onSave: () => void; onReset: () => void; }) {
+export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { screenId: ControlScreenId; onClose: () => void; onSave: () => void; onReset: () => void; }) {
   const [layouts, setLayouts] = useState(() => loadControlLayouts());
-  const [selectedScreen, setSelectedScreen] = useState<ControlScreenId>('campaign');
   const [selectedControl, setSelectedControl] = useState<string>('nuclear');
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
 
-  const screenLabels = SCREEN_LABELS;
-
-  const currentControls = Object.keys(layouts[selectedScreen]);
-  const currentLayout = layouts[selectedScreen][selectedControl] ?? layouts[selectedScreen]['nuclear'];
+  const currentControls = Object.keys(layouts[screenId]);
+  const currentLayout = layouts[screenId][selectedControl] ?? layouts[screenId]['nuclear'];
 
   const handleDragStart = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -544,7 +533,7 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
     const clamped = clampLayout({ ...currentLayout, x: newX, y: newY }, currentLayout.size);
     setLayouts((prev) => ({
       ...prev,
-      [selectedScreen]: { ...prev[selectedScreen], [selectedControl]: clamped },
+      [screenId]: { ...prev[screenId], [selectedControl]: clamped },
     }));
     dirtyRef.current = true;
   };
@@ -558,9 +547,9 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
   const handleSizeChange = (delta: number) => {
     setLayouts((prev) => ({
       ...prev,
-      [selectedScreen]: {
-        ...prev[selectedScreen],
-        [selectedControl]: clampLayout({ ...prev[selectedScreen][selectedControl], size: prev[selectedScreen][selectedControl].size + delta }, prev[selectedScreen][selectedControl].size + delta),
+      [screenId]: {
+        ...prev[screenId],
+        [selectedControl]: clampLayout({ ...prev[screenId][selectedControl], size: prev[screenId][selectedControl].size + delta }, prev[screenId][selectedControl].size + delta),
       },
     }));
     dirtyRef.current = true;
@@ -569,9 +558,9 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
   const handleOpacityChange = (delta: number) => {
     setLayouts((prev) => ({
       ...prev,
-      [selectedScreen]: {
-        ...prev[selectedScreen],
-        [selectedControl]: { ...prev[selectedScreen][selectedControl], opacity: Math.max(0.3, Math.min(1, prev[selectedScreen][selectedControl].opacity + delta)) },
+      [screenId]: {
+        ...prev[screenId],
+        [selectedControl]: { ...prev[screenId][selectedControl], opacity: Math.max(0.3, Math.min(1, prev[screenId][selectedControl].opacity + delta)) },
       },
     }));
     dirtyRef.current = true;
@@ -596,36 +585,7 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
           <button onClick={onClose} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
         </div>
 
-        {/* Screen selector */}
-        <div className="flex gap-2 mb-4">
-          {(Object.keys(screenLabels) as ControlScreenId[]).map((id) => (
-            <button
-              key={id}
-              onClick={() => setSelectedScreen(id)}
-              className={`flex-1 py-2 rounded-lg font-bold text-[10px] transition-colors ${selectedScreen === id ? 'bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40' : 'tac-btn text-[#6b7280]'}`}
-            >
-              {screenLabels[id]}
-            </button>
-          ))}
-        </div>
-
-        {/* Control selector within selected screen */}
-        {currentControls.length > 1 && (
-          <div className="flex gap-2 mb-3">
-            {currentControls.map((ctrlId) => (
-              <button
-                key={ctrlId}
-                onClick={() => setSelectedControl(ctrlId)}
-                className={`flex-1 py-1.5 rounded-lg font-bold text-[9px] transition-colors ${selectedControl === ctrlId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'tac-btn text-[#6b7280]'}`}
-              >
-                {CONTROL_LABELS[selectedScreen][ctrlId] ?? ctrlId}
-              </button>
-            ))}
-          </div>
-        )}
-        {currentControls.length === 1 && (
-          <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{CONTROL_LABELS[selectedScreen][selectedControl] ?? 'Control'}</p>
-        )}
+        <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{SCREEN_LABELS[screenId]} - {CONTROL_LABELS[screenId][selectedControl] ?? 'Control'}</p>
 
         {/* Preview area */}
         <div className="relative w-full aspect-[9/16] rounded-xl bg-black/60 border border-[#8a9b50]/20 overflow-hidden mb-4">
