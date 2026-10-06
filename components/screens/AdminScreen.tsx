@@ -10,7 +10,7 @@ import { COINS_PER_USD, SOLES_PER_USD, NEAR_CLAIM_THRESHOLD, INACTIVITY_THRESHOL
 import {
   ArrowLeft, DollarSign, Users, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
-  Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, Eye, EyeOff,
+  Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff,
   RefreshCw, AlertCircle, XCircle, Loader2, Key, List, Mail, Gamepad2, Timer, IdCard,
   MessageSquare, Send, Megaphone, Radio,
 } from 'lucide-react';
@@ -36,7 +36,6 @@ export function AdminScreen() {
   } = useGame();
   const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
-  const [manualIncome, setManualIncome] = useState('');
   const [exchangeLimit, setExchangeLimit] = useState('');
   const [banUid, setBanUid] = useState('');
   const [showSimulator, setShowSimulator] = useState(false);
@@ -81,35 +80,41 @@ export function AdminScreen() {
   };
 
   const [incomeAmount, setIncomeAmount] = useState('');
-  const [incomeCurrency, setIncomeCurrency] = useState<'PEN' | 'USD'>('PEN');
-  const [incomeSource, setIncomeSource] = useState('admob');
   const [incomeDate, setIncomeDate] = useState(new Date().toISOString().slice(0, 10));
   const [incomeNote, setIncomeNote] = useState('');
-  const [incomeRate, setIncomeRate] = useState('');
   const [incomeSaving, setIncomeSaving] = useState(false);
   const [incomeError, setIncomeError] = useState<string | null>(null);
+  const [selYear, setSelYear] = useState(new Date().getFullYear());
+  const [selMonth, setSelMonth] = useState(new Date().getMonth());
 
   useEffect(() => {
-    refreshAdminIncomeRecords();
-  }, [refreshAdminIncomeRecords]);
+    if (tab === 'balance') refreshAdminIncomeRecords(selYear, selMonth);
+  }, [tab, selYear, selMonth, refreshAdminIncomeRecords]);
+
+  const monthName = new Date(selYear, selMonth, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  const prevMonth = () => {
+    if (selMonth === 0) { setSelMonth(11); setSelYear(selYear - 1); }
+    else setSelMonth(selMonth - 1);
+  };
+  const nextMonth = () => {
+    if (selMonth === 11) { setSelMonth(0); setSelYear(selYear + 1); }
+    else setSelMonth(selMonth + 1);
+  };
 
   const handleRegisterIncome = async () => {
     const amount = parseFloat(incomeAmount);
     if (isNaN(amount) || amount <= 0) { setIncomeError('Monto invalido'); return; }
     setIncomeSaving(true);
     setIncomeError(null);
-    const rate = incomeCurrency === 'USD' ? (parseFloat(incomeRate) || undefined) : undefined;
     const result = await adminManualIncome({
       amount,
-      currency: incomeCurrency,
-      source: incomeSource,
       date: incomeDate,
       note: incomeNote.trim() || undefined,
-      rate,
     });
     setIncomeSaving(false);
     if (!result.ok) { setIncomeError(result.error ?? 'Error'); return; }
-    setIncomeAmount(''); setIncomeNote(''); setIncomeRate('');
+    setIncomeAmount(''); setIncomeNote('');
+    refreshAdminIncomeRecords(selYear, selMonth);
   };
 
   const handleDeleteIncome = async (id: string) => {
@@ -117,16 +122,21 @@ export function AdminScreen() {
     await adminDeleteIncome(id);
   };
 
+  // Income for selected month
   const totalIncomePEN = adminIncomeRecords.reduce((sum, r) => sum + r.amountPEN, 0);
-  const totalGastosPEN = adminApprovedList.reduce((sum, c) => sum + c.estimatedUsdValue * SOLES_PER_USD, 0);
+
+  // Approved canjes for selected month (approvedAt is epoch ms)
+  const monthStart = new Date(selYear, selMonth, 1).getTime();
+  const monthEnd = new Date(selYear, selMonth + 1, 1).getTime();
+  const monthApproved = adminApprovedList.filter((c) => c.approvedAt && c.approvedAt >= monthStart && c.approvedAt < monthEnd);
+  const totalGastosPEN = monthApproved.reduce((sum, c) => sum + c.estimatedUsdValue * SOLES_PER_USD, 0);
   const utilidadNeta = totalIncomePEN - totalGastosPEN;
 
-  const handleManualIncome = async () => {
-    const amount = parseFloat(manualIncome);
-    if (isNaN(amount) || amount <= 0) return;
-    await adminManualIncome({ amount, currency: 'PEN', source: 'otro', date: new Date().toISOString().slice(0, 10) });
-    setManualIncome('');
-  };
+  // Combined history: incomes + approved canjes
+  const monthMovements: Array<{ id: string; type: 'income' | 'gasto'; amount: number; date: string; note: string }> = [
+    ...adminIncomeRecords.map((r) => ({ id: r.id, type: 'income' as const, amount: r.amountPEN, date: r.date, note: r.note || 'Ingreso' })),
+    ...monthApproved.map((c) => ({ id: c.id, type: 'gasto' as const, amount: c.estimatedUsdValue * SOLES_PER_USD, date: new Date(c.approvedAt!).toISOString(), note: `Canje: ${c.nickname} - ${c.selectedReward}` })),
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const handleSetLimit = async () => {
     const limit = parseInt(exchangeLimit, 10);
@@ -322,101 +332,97 @@ export function AdminScreen() {
             </div>
           )}
 
-          {/* Balance Tab - Net Balance Module */}
+          {/* Balance Tab - Balanza simplificada */}
           {tab === 'balance' && (
             <div className="space-y-4">
-              {/* A) RESULTADO REAL */}
+              {/* Selector de mes */}
+              <div className="flex items-center justify-between rounded-2xl bg-card border border-border p-3 shadow-lg">
+                <button onClick={prevMonth} className="px-3 py-2 rounded-xl bg-card border border-border text-white/60 text-sm hover:text-white flex items-center gap-1">
+                  <ChevronLeft className="w-4 h-4" /> Ant
+                </button>
+                <span className="text-white font-bold text-sm capitalize">{monthName}</span>
+                <button onClick={nextMonth} className="px-3 py-2 rounded-xl bg-card border border-border text-white/60 text-sm hover:text-white flex items-center gap-1">
+                  Sig <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Resumen del mes */}
               <div className="rounded-2xl bg-gradient-to-br from-amber-900/30 to-card border-2 border-amber-500/40 p-5 shadow-lg shadow-amber-500/20">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
                     <DollarSign className="w-6 h-6 text-amber-400" />
                   </div>
                   <div>
-                    <h2 className="text-white font-bold">Balanza de Caja Real</h2>
-                    <p className="text-white/40 text-xs">Ingresos registrados vs Gastos realizados</p>
+                    <h2 className="text-white font-bold capitalize">{monthName}</h2>
+                    <p className="text-white/40 text-xs">Resumen real del mes</p>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-xl bg-green-500/10 border border-green-500/30 p-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-green-400 text-sm font-bold flex items-center gap-1"><TrendingUp className="w-4 h-4" /> Dinero Total Ingresado</span>
+                      <span className="text-green-400 text-sm font-bold flex items-center gap-1"><TrendingUp className="w-4 h-4" /> Dinero Ingresado</span>
                       <span className="text-green-400 font-black text-lg">S/. {totalIncomePEN.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-[10px] mt-1">Suma de ingresos manuales registrados</p>
+                    <p className="text-white/30 text-[10px] mt-1">Suma de ingresos manuales registrados este mes</p>
                   </div>
                   <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-red-400 text-sm font-bold flex items-center gap-1"><Wallet className="w-4 h-4" /> Gastos Totales</span>
+                      <span className="text-red-400 text-sm font-bold flex items-center gap-1"><Wallet className="w-4 h-4" /> Gastos Reales en Canjes</span>
                       <span className="text-red-400 font-black text-lg">S/. {totalGastosPEN.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-[10px] mt-1">Canjes aprobados (USD * S/. {SOLES_PER_USD.toFixed(2)})</p>
+                    <p className="text-white/30 text-[10px] mt-1">Canjes aprobados/pagados este mes ({monthApproved.length})</p>
                   </div>
                   <div className="rounded-xl bg-amber-500/10 border-2 border-amber-500/40 p-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-amber-400 text-base font-black flex items-center gap-1"><DollarSign className="w-5 h-5" /> Utilidad Neta Real</span>
+                      <span className="text-amber-400 text-base font-black flex items-center gap-1"><DollarSign className="w-5 h-5" /> Dinero que me queda</span>
                       <span className={'font-black text-2xl ' + (utilidadNeta >= 0 ? 'text-green-400' : 'text-red-400')}>S/. {utilidadNeta.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-[10px] mt-1">Ingresos registrados - Gastos realizados</p>
+                    <p className="text-white/30 text-[10px] mt-1">Ingresos del mes - Gastos reales del mes</p>
                   </div>
                 </div>
               </div>
 
-              {/* Registrar Ingreso */}
+              {/* Registrar Dinero */}
               <div className="rounded-2xl bg-card border border-green-500/30 p-4 shadow-lg">
-                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-green-400" />Registrar Ingreso</p>
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-green-400" />Registrar Dinero</p>
                 <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input type="number" value={incomeAmount} onChange={(e) => setIncomeAmount(e.target.value)} placeholder="Monto" className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-                    <select value={incomeCurrency} onChange={(e) => setIncomeCurrency(e.target.value as 'PEN' | 'USD')} className="px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none">
-                      <option value="PEN">PEN (S/.)</option>
-                      <option value="USD">USD ($)</option>
-                    </select>
+                  <div className="flex gap-2 items-center">
+                    <span className="text-white/50 text-sm shrink-0">S/.</span>
+                    <input type="number" step="0.01" value={incomeAmount} onChange={(e) => setIncomeAmount(e.target.value)} placeholder="Monto recibido" className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                   </div>
-                  <div className="flex gap-2">
-                    <select value={incomeSource} onChange={(e) => setIncomeSource(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none">
-                      <option value="admob">AdMob</option>
-                      <option value="offerwall">Offerwall</option>
-                      <option value="otro">Otro</option>
-                    </select>
-                    <input type="date" value={incomeDate} onChange={(e) => setIncomeDate(e.target.value)} className="px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none" />
-                  </div>
-                  {incomeCurrency === 'USD' && (
-                    <input type="number" value={incomeRate} onChange={(e) => setIncomeRate(e.target.value)} placeholder={`Tipo de cambio (default: ${SOLES_PER_USD})`} className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-                  )}
+                  <input type="date" value={incomeDate} onChange={(e) => setIncomeDate(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none" />
                   <input type="text" value={incomeNote} onChange={(e) => setIncomeNote(e.target.value)} placeholder="Nota (opcional)" className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none" />
                   {incomeError && <p className="text-red-400 text-xs">{incomeError}</p>}
                   <button onClick={handleRegisterIncome} disabled={incomeSaving} className="w-full py-2.5 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-400 disabled:opacity-50 flex items-center justify-center gap-2">
-                    {incomeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><TrendingUp className="w-4 h-4" /> REGISTRAR INGRESO</>}
+                    {incomeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><TrendingUp className="w-4 h-4" /> REGISTRAR DINERO</>}
                   </button>
                 </div>
               </div>
 
-              {/* Historial de Ingresos */}
+              {/* Historial de movimientos del mes */}
               <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
-                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><ScrollText className="w-4 h-4 text-green-400" />Historial de Ingresos</p>
-                {adminIncomeRecords.length === 0 ? (
-                  <p className="text-white/30 text-xs text-center py-4">Sin ingresos registrados</p>
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><ScrollText className="w-4 h-4 text-cyan-400" />Historial de Movimientos</p>
+                {monthMovements.length === 0 ? (
+                  <p className="text-white/30 text-xs text-center py-4">Sin movimientos este mes</p>
                 ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
-                    {adminIncomeRecords.map((r) => (
-                      <div key={r.id} className="rounded-xl bg-background/40 border border-border p-3 flex items-center justify-between">
+                  <div className="space-y-2 max-h-72 overflow-y-auto no-scrollbar">
+                    {monthMovements.map((m) => (
+                      <div key={m.id} className="rounded-xl bg-background/40 border border-border p-3 flex items-center justify-between">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-white font-bold text-xs">{r.source === 'admob' ? 'AdMob' : r.source === 'offerwall' ? 'Offerwall' : 'Otro'}</span>
-                            <span className="text-white/30 text-[10px]">{new Date(r.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                          </div>
-                          <p className="text-white/60 text-[10px] truncate mt-0.5">
-                            {r.currency === 'USD' ? `${r.amount.toFixed(2)}` : `S/. ${r.amount.toFixed(2)}`}
-                            {r.currency === 'USD' && r.rate ? ` (T/C: ${r.rate})` : ''}
-                            {r.note ? ` - ${r.note}` : ''}
+                          <p className="text-white text-xs font-bold truncate">
+                            {m.type === 'income' ? '+ Ingreso' : '- Canje pagado'}
                           </p>
-                          <p className="text-green-400 text-[10px] font-bold">Equiv. PEN: S/. {r.amountPEN.toFixed(2)}</p>
+                          <p className="text-white/40 text-[10px] truncate">{new Date(m.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })} {m.note}</p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 ml-2">
-                          <span className="text-green-400 font-bold text-sm">S/. {r.amountPEN.toFixed(2)}</span>
-                          <button onClick={() => handleDeleteIncome(r.id)} className="text-white/30 hover:text-red-400">
-                            <XCircle className="w-4 h-4" />
-                          </button>
+                          <span className={m.type === 'income' ? 'text-green-400 font-bold text-sm' : 'text-red-400 font-bold text-sm'}>
+                            {m.type === 'income' ? '+' : '-'}S/. {m.amount.toFixed(2)}
+                          </span>
+                          {m.type === 'income' && (
+                            <button onClick={() => handleDeleteIncome(m.id)} className="text-white/30 hover:text-red-400">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -424,34 +430,14 @@ export function AdminScreen() {
                 )}
               </div>
 
-              {/* B) RESERVA RECOMENDADA */}
+              {/* Reserva recomendada (aparte) */}
               <div className="rounded-2xl bg-gradient-to-br from-amber-900/20 to-card border border-amber-500/30 p-4 shadow-lg">
-                <p className="text-amber-400 font-bold text-sm mb-2 flex items-center gap-2"><Wallet className="w-4 h-4" /> B) Reserva Recomendada</p>
-                <p className="text-white/40 text-xs mb-2">Dinero que conviene tener disponible por posibles canjes futuros. NO es un gasto pagado.</p>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between"><span className="text-white/50">Reserva recomendada:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.reservedAmount.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-white/50">Fondo liberado (inactivos):</span><span className="text-green-400 font-bold">S/. {adminUserStats.availableAmount.toFixed(2)}</span></div>
+                <p className="text-amber-400 font-bold text-sm mb-1 flex items-center gap-2"><Wallet className="w-4 h-4" />Reserva Recomendada</p>
+                <p className="text-white/40 text-xs mb-2">Dinero recomendado para futuros canjes. No ha sido gastado.</p>
+                <div className="flex justify-between text-xs">
+                  <span className="text-white/50">Reserva:</span>
+                  <span className="text-amber-400 font-bold">S/. {adminUserStats.reservedAmount.toFixed(2)}</span>
                 </div>
-              </div>
-
-              {/* C) EXPOSICION / RIESGO */}
-              <div className="rounded-2xl bg-gradient-to-br from-red-900/20 to-card border border-red-500/30 p-4 shadow-lg">
-                <p className="text-red-400 font-bold text-sm mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> C) Exposicion / Riesgo</p>
-                <p className="text-white/40 text-xs mb-2">Jugadores que podrian acercarse a un canje. NO es deuda pagada.</p>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between"><span className="text-white/50">Usuarios cercanos al canje:</span><span className="text-white font-bold">{adminUserStats.nearClaimSummary.count}</span></div>
-                  <div className="flex justify-between"><span className="text-white/50">Costo potencial estimado:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.nearClaimSummary.totalEstimatedCost.toFixed(2)}</span></div>
-                </div>
-                {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).map((u) => (
-                      <div key={u.uid} className="flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/40 p-2">
-                        <span className="text-red-400 text-xs font-bold">{u.nombre}</span>
-                        <span className="text-red-400 text-xs">{u.coins.toLocaleString()} monedas</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">

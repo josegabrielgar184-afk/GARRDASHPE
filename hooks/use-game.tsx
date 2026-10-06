@@ -208,10 +208,6 @@ export interface CampaignLevelStat {
 
 export interface IncomeRecord {
   id: string;
-  amount: number;
-  currency: 'PEN' | 'USD';
-  source: string;
-  rate: number | null;
   amountPEN: number;
   note: string;
   date: string;
@@ -349,10 +345,10 @@ interface GameState {
   influencerInfo: InfluencerInfo | null;
   refreshInfluencerInfo: () => Promise<void>;
   requestInfluencerWithdraw: (amount: number) => Promise<{ ok: boolean; error?: string }>;
-  adminManualIncome: (params: { amount: number; currency: 'PEN' | 'USD'; source: string; date: string; note?: string; rate?: number }) => Promise<{ ok: boolean; error?: string }>;
+  adminManualIncome: (params: { amount: number; date: string; note?: string }) => Promise<{ ok: boolean; error?: string }>;
   adminDeleteIncome: (id: string) => Promise<{ ok: boolean; error?: string }>;
   adminIncomeRecords: IncomeRecord[];
-  refreshAdminIncomeRecords: () => Promise<void>;
+  refreshAdminIncomeRecords: (year: number, month: number) => Promise<void>;
   adminSetExchangeLimit: (limit: number) => Promise<{ ok: boolean; error?: string }>;
   adminBanUser: (uid: string) => Promise<{ ok: boolean; error?: string }>;
   adminPanicButton: () => Promise<{ ok: boolean; error?: string }>;
@@ -2724,72 +2720,93 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const [adminIncomeRecords, setAdminIncomeRecords] = useState<IncomeRecord[]>([]);
 
-  const refreshAdminIncomeRecords = useCallback(async () => {
+  const refreshAdminIncomeRecords = useCallback(async (year: number, month: number) => {
     try {
-      const snap = await getDocs(query(collection(db, 'admin_income'), orderBy('date', 'desc'), limit(200)));
+      const start = new Date(year, month, 1);
+      const end = new Date(year, month + 1, 1);
+      const snap = await getDocs(query(
+        collection(db, 'admin_income'),
+        where('date', '>=', start),
+        where('date', '<', end),
+        orderBy('date', 'desc'),
+      ));
       const records: IncomeRecord[] = [];
       snap.forEach((d) => {
         const data = d.data();
         const rawDate = data.date;
         let dateStr = '';
         if (rawDate && typeof rawDate.toDate === 'function') dateStr = rawDate.toDate().toISOString();
+        else if (rawDate instanceof Date) dateStr = rawDate.toISOString();
         else if (rawDate) dateStr = new Date(rawDate).toISOString();
+        else if (data.createdAt && typeof data.createdAt.toDate === 'function') dateStr = data.createdAt.toDate().toISOString();
         else dateStr = new Date().toISOString();
+        // Support old records that only have amount (no amountPEN)
+        const amountPEN = data.amountPEN ?? (typeof data.amount === 'number' ? data.amount : 0);
         records.push({
           id: d.id,
-          amount: data.amount ?? 0,
-          currency: data.currency ?? 'PEN',
-          source: data.source ?? 'admob',
-          rate: data.rate ?? null,
-          amountPEN: data.amountPEN ?? 0,
+          amountPEN,
           note: data.note ?? '',
           date: dateStr,
         });
       });
       setAdminIncomeRecords(records);
-    } catch {}
+    } catch {
+      // Fallback: query without date filter (in case index is missing)
+      try {
+        const snap = await getDocs(query(collection(db, 'admin_income'), orderBy('date', 'desc'), limit(200)));
+        const records: IncomeRecord[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          const rawDate = data.date;
+          let dateStr = '';
+          if (rawDate && typeof rawDate.toDate === 'function') dateStr = rawDate.toDate().toISOString();
+          else if (rawDate instanceof Date) dateStr = rawDate.toISOString();
+          else if (rawDate) dateStr = new Date(rawDate).toISOString();
+          else if (data.createdAt && typeof data.createdAt.toDate === 'function') dateStr = data.createdAt.toDate().toISOString();
+          else dateStr = new Date().toISOString();
+          const recordDate = new Date(dateStr);
+          if (recordDate.getFullYear() === year && recordDate.getMonth() === month) {
+            const amountPEN = data.amountPEN ?? (typeof data.amount === 'number' ? data.amount : 0);
+            records.push({ id: d.id, amountPEN, note: data.note ?? '', date: dateStr });
+          }
+        });
+        setAdminIncomeRecords(records);
+      } catch {}
+    }
   }, []);
 
   const adminManualIncome = useCallback(async (params: {
     amount: number;
-    currency: 'PEN' | 'USD';
-    source: string;
     date: string;
     note?: string;
-    rate?: number;
   }): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const rateUsed = params.currency === 'USD' ? (params.rate ?? SOLES_PER_USD) : 1;
-      const amountPEN = params.currency === 'USD' ? params.amount * rateUsed : params.amount;
       await addDoc(collection(db, 'admin_income'), {
         amount: params.amount,
-        currency: params.currency,
-        source: params.source,
-        rate: params.currency === 'USD' ? rateUsed : null,
-        amountPEN,
+        amountPEN: params.amount,
+        currency: 'PEN',
         note: params.note ?? '',
-        date: new Date(params.date) || serverTimestamp(),
+        date: Timestamp.fromDate(new Date(params.date)),
         type: 'manual',
         createdAt: serverTimestamp(),
       });
-      await refreshAdminIncomeRecords();
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al registrar ingreso';
       return { ok: false, error: msg };
     }
-  }, [refreshAdminIncomeRecords]);
+  }, []);
 
   const adminDeleteIncome = useCallback(async (id: string): Promise<{ ok: boolean; error?: string }> => {
     try {
       await deleteDoc(doc(db, 'admin_income', id));
-      await refreshAdminIncomeRecords();
+      setAdminIncomeRecords((prev) => prev.filter((r) => r.id !== id));
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al eliminar ingreso';
       return { ok: false, error: msg };
     }
-  }, [refreshAdminIncomeRecords]);
+  }, []);
 
   const adminSetExchangeLimit = useCallback(async (limit: number): Promise<{ ok: boolean; error?: string }> => {
     try {
