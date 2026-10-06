@@ -3254,17 +3254,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           referredByCode: code,
         });
 
-        // Create referral record
+        // Create referral record — save baseline play time to count from referral moment
         tx.set(referralRef, {
           id: referralRef.id,
           code,
           creatorUid: codeData.uid,
+          creatorCodeDocId: codeDoc.id,
           referredUid: user.uid,
           status: 'pendingQualification',
           playerRewardPaid: true,
           creatorRewardPaid: false,
           qualifiedAt: null,
           createdAt: now,
+          playTimeAtReferral: freshUserData.tiempo_jugado_min ?? 0,
           playTimeMin: 0,
           activeDays: [],
         });
@@ -3309,10 +3311,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const refData = refDoc.data();
       if (refData.creatorRewardPaid) return; // Already paid
 
-      const totalMin = userData.tiempo_jugado_min ?? 0;
-      if (totalMin < QUALIFY_MIN_MINUTES) return;
+      // Calculate play time AFTER the referral was applied
+      const baseline = refData.playTimeAtReferral ?? 0;
+      const playTimeAfterReferral = (userData.tiempo_jugado_min ?? 0) - baseline;
+      if (playTimeAfterReferral < QUALIFY_MIN_MINUTES) return;
 
-      // Get active days from the referral record
+      // activeDays only contains days after the referral was created (starts empty)
       const activeDays: string[] = refData.activeDays ?? [];
       const todayKey = getDayKey();
       let daysChanged = false;
@@ -3329,7 +3333,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Qualified! Pay creator in a transaction
-      const creatorCodeRef = doc(db, 'creator_codes', code);
+      // Query for the creator code document by code string (document ID is not the code)
+      const creatorCodeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('code', '==', code),
+        limit(1)
+      ));
+      if (creatorCodeSnap.empty) return;
+      const creatorCodeRef = creatorCodeSnap.docs[0].ref;
       const creatorRef = doc(db, 'usuarios', refData.creatorUid);
       const now = Date.now();
 

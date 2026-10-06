@@ -171,24 +171,55 @@ service cloud.firestore {
     }
 
     // creator_codes: anyone signed in can read (needed to validate code entry).
-    // Only admin can create (via approval flow), update (suspend/reactivate), or delete.
+    // Admin can create (via approval flow) and update (suspend/reactivate).
+    //
+    // CONTRADICTION: applyReferralCode and checkAndQualifyReferral run from
+    // the client and update counters (totalReferrals, pendingQualification,
+    // qualified, coinsEarned, qualifiedThisMonth) via Firestore transactions.
+    // These transaction writes come from the referred user's client, not admin.
+    // If rules say "allow update: if isAdmin()", the qualification flow BREAKS.
+    //
+    // OPTIONS:
+    //   A) allow update for any signed-in user → works but any user can modify
+    //      counters (CLIENT-TRUST on counter integrity)
+    //   B) allow update only for admin → secure counters but breaks qualification
+    //   C) Move qualification to a Cloud Function → not available now
+    //
+    // Current choice: A) with documented CLIENT-TRUST on counter integrity.
+    // The transaction prevents double-paying creators, but does NOT prevent
+    // a malicious user from inflating their own creator counters.
+    // The coinsEarned field is display-only — actual coin credits go to
+    // usuarios/{creatorUid}.coins via the same transaction, and that field
+    // is protected by usuarios rules.
     match /creator_codes/{codeId} {
       allow read: if isSignedIn();
       allow create: if isAdmin();
-      allow update: if isAdmin();
+      allow update: if isSignedIn();
       allow delete: if false;
     }
 
     // creator_referrals: owner (referred user) and creator can read.
-    // System creates on code application. Update for qualification is client-side
-    // but transaction-guarded. Admin can read all.
+    // System creates on code application. Update restricted to activeDays only
+    // (day-tracking array). All economic fields are client-trust — see report.
+    // The transaction in checkAndQualifyReferral writes creatorRewardPaid, status,
+    // qualifiedAt, and creator_codes counters from the client. Firestore Rules
+    // cannot distinguish a transaction write from a regular write, so restricting
+    // update to only activeDays would BREAK the qualification flow.
+    //
+    // TRADE-OFF: allow update for the referred user (needed for qualification
+    // transaction to work), but restrict to ONLY the referred user — not any
+    // authenticated user.
     match /creator_referrals/{refId} {
       allow read: if isOwner(resource.data.referredUid)
         || (isSignedIn() && get(/databases/$(database)/documents/creator_referrals/$(refId)).data.creatorUid == request.auth.uid)
         || isAdmin();
       allow create: if isSignedIn()
         && request.resource.data.referredUid == request.auth.uid;
-      allow update: if isSignedIn();
+      // Only the referred user can update their own referral record.
+      // The creator cannot modify it. Other users cannot access it.
+      // This is necessary because the qualification transaction runs from
+      // the referred user's client. Economic field protection is CLIENT-TRUST.
+      allow update: if isOwner(resource.data.referredUid);
       allow delete: if false;
     }
 
