@@ -20,12 +20,13 @@ import {
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { getPerformanceTier } from '@/lib/performance';
 import { getCampaignCoinReward, getRewardedAdId } from '@/lib/config';
+import { loadControlLayouts, type ControlLayout } from '@/lib/control-layout';
 
 function randomCoinCap(level: number): number {
   const { min, max } = getCampaignCoinReward(level);
   return Math.floor(rand(min, max + 1));
 }
-import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
+import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, playVictory, playGameOver, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'minigun' | 'laser';
@@ -87,7 +88,7 @@ const SPECIAL_LEVEL_THEMES: Record<number, Partial<ArenaTheme>> = {
 
 
 export function ZombieGameScreen() {
-  const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel} = useGame();
+  const { setScreen, addCoins, spendCoins, getZombieCharacter, lives, setLives, upgrades, submitZombieScore, isOnline, bloodEnabled, canShowInterstitial, recordInterstitial, vip, addPlayTime, startGameBatch, endGameBatch, campaignProgress, completeLevel, getCurrentCampaignLevel, towerLevels, getTowerLevel, absoluteRecord} = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -179,6 +180,7 @@ export function ZombieGameScreen() {
   const nuclearTimerRef = useRef(0);
   const nuclearUsesRef = useRef(0);
   const [nuclearUsesLeft, setNuclearUsesLeft] = useState(2);
+  const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().zombie.move);
   const hasRevivedRef = useRef(false);
   const scoreMultRef = useRef(1);
   const damageMultRef = useRef(1);
@@ -545,6 +547,7 @@ export function ZombieGameScreen() {
       endGameBatch();
       submitZombieScore(killCountRef.current);
       stopActionMusic();
+      playGameOver();
       hapticPattern([100, 50, 200]);
       if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }
@@ -1062,7 +1065,7 @@ export function ZombieGameScreen() {
                     finalBossDefeatedRef.current = true;
                     victoryTriggeredRef.current = true;
                     for (const zz of zombiePoolRef.current.getActive()) zombiePoolRef.current.release(zz);
-                    setTimeout(() => { if (victoryTriggeredRef.current) { victoryTriggeredRef.current = false; setVictory(true); stopActionMusic(); } }, 1500);
+                    setTimeout(() => { if (victoryTriggeredRef.current) { victoryTriggeredRef.current = false; setVictory(true); stopActionMusic(); playVictory(); } }, 1500);
                   }
                 } else if (z.type === 'tank') {
                   killCountRef.current++; setZombiesKilled(killCountRef.current);
@@ -1451,7 +1454,7 @@ export function ZombieGameScreen() {
         </div>
       )}
       {!gameOver && (
-        <div className="absolute bottom-24 right-6 z-10 flex flex-col items-center gap-1">
+        <div className="absolute z-10 flex flex-col items-center gap-1" style={{ left: `${nuclearBtnLayout.x * 100}%`, top: `${nuclearBtnLayout.y * 100}%`, transform: 'translate(-50%, -50%)', opacity: nuclearBtnLayout.opacity }}>
           <button onClick={activateNuclear} disabled={!nuclearReady} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}>
             <Radiation className={`w-7 h-7 ${nuclearReady ? 'text-amber-400' : 'text-white/30'}`} />
           </button>
@@ -1467,6 +1470,11 @@ export function ZombieGameScreen() {
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-xs mx-4 rounded-2xl bg-card/90 border border-red-500/30 p-6 text-center animate-scale-in shadow-2xl shadow-red-500/20">
             <h2 className="text-red-400 font-bold text-2xl mb-2" style={{ textShadow: '0 0 20px rgba(239,68,68,0.5)' }}>Game Over</h2>
+            {killCountRef.current > absoluteRecord && killCountRef.current > 0 && (
+              <div className="mb-3 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-400/50 animate-pulse">
+                <p className="text-amber-400 font-black text-sm" style={{ textShadow: '0 0 15px rgba(251,191,36,0.8)' }}>NUEVO RECORD</p>
+              </div>
+            )}
             <p className="text-white/60 text-sm mb-1">Zombies eliminados: {zombiesKilled}</p>
             <p className="text-white/60 text-sm mb-1">Puntuacion: {score}</p>
             <p className="text-amber-400 text-sm mb-6">Monedas ganadas: {coinsEarned}</p>

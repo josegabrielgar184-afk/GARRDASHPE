@@ -9,12 +9,17 @@ import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
   Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell,
+  Move, RotateCcw, Save, Sliders,
 } from 'lucide-react';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
 } from '@/lib/config';
 import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/lib/performance';
 import { UI_THEMES, type UITheme } from '@/hooks/use-game';
+import {
+  loadControlLayouts, saveControlLayouts, resetControlLayouts, clampLayout,
+  DEFAULT_LAYOUTS, type ControlLayout, type ControlScreenId,
+} from '@/lib/control-layout';
 
 export function MenuScreen() {
   const {
@@ -28,6 +33,7 @@ export function MenuScreen() {
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showControlEditor, setShowControlEditor] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
 
@@ -398,16 +404,6 @@ export function MenuScreen() {
                 </div>
               </button>
 
-              <button onClick={toggleMute} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
-                <div className="flex items-center gap-3">
-                  {muted ? <VolumeX className="w-5 h-5 text-[#6b7280]" /> : <Volume2 className="w-5 h-5 text-[#8a9b50]" />}
-                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Sonido</p><p className="text-[#6b7280] text-xs">{muted ? 'Silenciado' : 'Activo'}</p></div>
-                </div>
-                <div className={`w-12 h-6 rounded-full transition-colors ${muted ? 'bg-white/10' : 'bg-[#8a9b50]/40'}`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${muted ? 'translate-x-0.5' : 'translate-x-6'} mt-0.5`} />
-                </div>
-              </button>
-
               <button onClick={toggleBlood} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3">
                   <Droplet className={`w-5 h-5 ${bloodEnabled ? 'text-[#ef4444]' : 'text-[#6b7280]'}`} />
@@ -481,12 +477,203 @@ export function MenuScreen() {
                   {perfTier === 'low' ? 'Sin partículas ni efectos de brillo. Ideal para celulares lentos.' : perfTier === 'medium' ? 'Partículas limitadas. Balance entre calidad y rendimiento.' : 'Maxima calidad visual con todos los efectos activos.'}
                 </p>
               </div>
+
+              {/* Control customization button */}
+              <button onClick={() => { setShowSettings(false); setShowControlEditor(true); }} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Move className="w-5 h-5 text-[#8a9b50]" />
+                  <div className="text-left"><p className="text-[#d4d8b8] font-bold text-sm">Personalizar Controles</p><p className="text-[#6b7280] text-xs">Mueve y ajusta los botones</p></div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-[#6b7280] rotate-[-90deg]" />
+              </button>
             </div>
 
             <p className="mt-6 text-center text-[#6b7280] text-xs">&copy; 2026</p>
           </div>
         </div>
       )}
+
+      {showControlEditor && (
+        <ControlEditorModal
+          onClose={() => setShowControlEditor(false)}
+          onSave={() => { setShowControlEditor(false); showToast('Controles guardados'); }}
+          onReset={() => { showToast('Controles restablecidos'); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void; onSave: () => void; onReset: () => void; }) {
+  const [layouts, setLayouts] = useState(() => loadControlLayouts());
+  const [selectedScreen, setSelectedScreen] = useState<ControlScreenId>('zombie');
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const dirtyRef = useRef(false);
+
+  const screenLabels: Record<ControlScreenId, string> = {
+    zombie: 'Zombies (Campana)',
+    space: 'Espacio (GarrFly)',
+    survival: 'Supervivencia',
+  };
+
+  const currentLayout = layouts[selectedScreen].move;
+
+  const handleDragStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const preview = previewRef.current;
+    if (!preview) return;
+    const rect = preview.getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: rect.left + rect.width / 2,
+      origY: rect.top + rect.height / 2,
+    };
+    setDragging(true);
+    preview.setPointerCapture(e.pointerId);
+  };
+
+  const handleDragMove = (e: React.PointerEvent) => {
+    if (!dragging || !dragRef.current || !previewRef.current) return;
+    const parent = previewRef.current.parentElement;
+    if (!parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    const newX = (e.clientX - parentRect.left) / parentRect.width;
+    const newY = (e.clientY - parentRect.top) / parentRect.height;
+    const clamped = clampLayout({ ...currentLayout, x: newX, y: newY }, currentLayout.size);
+    setLayouts((prev) => ({
+      ...prev,
+      [selectedScreen]: { ...prev[selectedScreen], move: clamped },
+    }));
+    dirtyRef.current = true;
+  };
+
+  const handleDragEnd = (e: React.PointerEvent) => {
+    setDragging(false);
+    dragRef.current = null;
+    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+  };
+
+  const handleSizeChange = (delta: number) => {
+    setLayouts((prev) => ({
+      ...prev,
+      [selectedScreen]: {
+        ...prev[selectedScreen],
+        move: clampLayout({ ...prev[selectedScreen].move, size: prev[selectedScreen].move.size + delta }, prev[selectedScreen].move.size + delta),
+      },
+    }));
+    dirtyRef.current = true;
+  };
+
+  const handleOpacityChange = (delta: number) => {
+    setLayouts((prev) => ({
+      ...prev,
+      [selectedScreen]: {
+        ...prev[selectedScreen],
+        move: { ...prev[selectedScreen].move, opacity: Math.max(0.3, Math.min(1, prev[selectedScreen].move.opacity + delta)) },
+      },
+    }));
+    dirtyRef.current = true;
+  };
+
+  const handleSave = () => {
+    saveControlLayouts(layouts);
+    onSave();
+  };
+
+  const handleReset = () => {
+    resetControlLayouts();
+    setLayouts({ ...DEFAULT_LAYOUTS });
+    onReset();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in">
+      <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-5 animate-scale-in">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[#d4d8b8] font-bold text-lg flex items-center gap-2"><Move className="w-5 h-5 text-[#8a9b50]" /> Personalizar Controles</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Screen selector */}
+        <div className="flex gap-2 mb-4">
+          {(Object.keys(screenLabels) as ControlScreenId[]).map((id) => (
+            <button
+              key={id}
+              onClick={() => setSelectedScreen(id)}
+              className={`flex-1 py-2 rounded-lg font-bold text-[10px] transition-colors ${selectedScreen === id ? 'bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40' : 'tac-btn text-[#6b7280]'}`}
+            >
+              {screenLabels[id]}
+            </button>
+          ))}
+        </div>
+
+        {/* Preview area */}
+        <div className="relative w-full aspect-[9/16] rounded-xl bg-black/60 border border-[#8a9b50]/20 overflow-hidden mb-4">
+          <div className="absolute inset-0 flex items-center justify-center text-[#6b7280]/30 text-xs pointer-events-none">
+            Vista previa
+          </div>
+          <div
+            ref={previewRef}
+            onPointerDown={handleDragStart}
+            onPointerMove={handleDragMove}
+            onPointerUp={handleDragEnd}
+            className="absolute rounded-full border-2 border-cyan-400/40 flex items-center justify-center cursor-grab touch-none select-none"
+            style={{
+              width: currentLayout.size,
+              height: currentLayout.size,
+              left: `${currentLayout.x * 100}%`,
+              top: `${currentLayout.y * 100}%`,
+              transform: 'translate(-50%, -50%)',
+              opacity: currentLayout.opacity,
+              background: 'rgba(34,211,238,0.15)',
+              boxShadow: '0 0 12px rgba(34,211,238,0.3)',
+              transition: dragging ? 'none' : 'width 0.15s, height 0.15s',
+            }}
+          >
+            <div className="rounded-full bg-cyan-400/60 border border-white/40" style={{ width: currentLayout.size * 0.4, height: currentLayout.size * 0.4 }} />
+          </div>
+        </div>
+
+        {/* Size controls */}
+        <div className="space-y-3 mb-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[#d4d8b8] text-xs font-bold flex items-center gap-1"><Sliders className="w-3.5 h-3.5" /> Tamano</span>
+            <div className="flex gap-2">
+              <button onClick={() => handleSizeChange(-10)} className="w-8 h-8 rounded-lg tac-btn text-[#d4d8b8] font-bold">-</button>
+              <span className="text-[#d4d8b8] text-xs font-mono w-10 text-center self-center">{currentLayout.size}</span>
+              <button onClick={() => handleSizeChange(10)} className="w-8 h-8 rounded-lg tac-btn text-[#d4d8b8] font-bold">+</button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[#d4d8b8] text-xs font-bold">Opacidad</span>
+            <div className="flex gap-2">
+              <button onClick={() => handleOpacityChange(-0.1)} className="w-8 h-8 rounded-lg tac-btn text-[#d4d8b8] font-bold">-</button>
+              <span className="text-[#d4d8b8] text-xs font-mono w-10 text-center self-center">{Math.round(currentLayout.opacity * 100)}%</span>
+              <button onClick={() => handleOpacityChange(0.1)} className="w-8 h-8 rounded-lg tac-btn text-[#d4d8b8] font-bold">+</button>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-[#6b7280] text-[10px] text-center mb-4">Arrastra el boton para reposicionarlo. No puede salirse de la pantalla.</p>
+
+        {/* Action buttons */}
+        <div className="space-y-2">
+          <button onClick={handleSave} className="w-full py-3 rounded-xl bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40 font-bold text-sm hover:bg-[#8a9b50]/30 flex items-center justify-center gap-2">
+            <Save className="w-4 h-4" /> Guardar
+          </button>
+          <div className="flex gap-2">
+            <button onClick={handleReset} className="flex-1 py-2.5 rounded-xl tac-btn text-[#6b7280] font-bold text-xs hover:text-[#d4d8b8] flex items-center justify-center gap-2">
+              <RotateCcw className="w-3.5 h-3.5" /> Restablecer
+            </button>
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl tac-btn text-[#6b7280] font-bold text-xs hover:text-[#d4d8b8]">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

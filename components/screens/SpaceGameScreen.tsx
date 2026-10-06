@@ -21,7 +21,8 @@ import {
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { getMaxStars } from '@/lib/performance';
-import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, initAudio } from '@/lib/audio';
+import { loadControlLayouts, type ControlLayout } from '@/lib/control-layout';
+import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playGameOver, initAudio } from '@/lib/audio';
 import { getRewardedAdId } from '@/lib/config';
 
 interface Meteor { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotVel: number; hp: number; maxHp: number; active: boolean; reset(): void; }
@@ -47,7 +48,7 @@ const MILESTONES: Record<number, { title: string; coins?: number; shield?: boole
 };
 
 export function SpaceGameScreen() {
-  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, userRole, addPlayTime, startGameBatch, endGameBatch } = useGame();
+  const { setScreen, addCoins, getShip, lives, setLives, upgrades, submitSpaceScore, isOnline, canShowInterstitial, recordInterstitial, vip, userRole, addPlayTime, startGameBatch, endGameBatch, absoluteRecord } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [score, setScore] = useState(0);
@@ -65,6 +66,7 @@ export function SpaceGameScreen() {
   const [hasDoubleShot, setHasDoubleShot] = useState(false);
   const [hasCoinMagnet, setHasCoinMagnet] = useState(false);
   const [nuclearReady, setNuclearReady] = useState(false);
+  const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().space.move);
   const [milestoneBanner, setMilestoneBanner] = useState<string | null>(null);
   const [comboDisplay, setComboDisplay] = useState(0);
   const [shieldActive, setShieldActive] = useState(false);
@@ -115,6 +117,7 @@ export function SpaceGameScreen() {
   const coinMagnetTimerRef = useRef(0);
   const nuclearChargeRef = useRef(0);
   const nuclearActiveRef = useRef(false);
+  const damageFlashRef = useRef(0);
   const nuclearTimerRef = useRef(0);
   const playTimeRef = useRef(0);
   const lastPlayTimeSyncRef = useRef(0);
@@ -375,6 +378,7 @@ export function SpaceGameScreen() {
       interstitialCheckedRef.current = true;
       endGameBatch();
       submitSpaceScore(Math.floor(scoreRef.current));
+      playGameOver();
       hapticPattern([100, 50, 200]);
       if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }
@@ -518,6 +522,7 @@ export function SpaceGameScreen() {
             hapticFeedback(30);
             if (shieldRef.current || milestoneShieldRef.current) { shieldRef.current = false; addFloatText('¡Escudo!', w / 2, h / 2, '#34d399'); continue; }
             livesRef.current--; setLives(livesRef.current);
+            damageFlashRef.current = 1;
             addFloatText('¡Impacto!', w / 2, h / 2, '#ef4444');
             if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
           }
@@ -540,6 +545,7 @@ export function SpaceGameScreen() {
             enemyPoolRef.current.release(e);
             if (shieldRef.current || milestoneShieldRef.current) { shieldRef.current = false; continue; }
             livesRef.current--; setLives(livesRef.current); playHit();
+            damageFlashRef.current = 1;
             screenShakeRef.current.trigger(4, 12);
             hapticFeedback(30);
             if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
@@ -582,7 +588,7 @@ export function SpaceGameScreen() {
           setBossHp(b.hp);
           if (dist(b.x, b.y, p.x, p.y) < b.size + 20) {
             if (shieldRef.current || milestoneShieldRef.current) { shieldRef.current = false; }
-            else { livesRef.current--; setLives(livesRef.current); playHit(); screenShakeRef.current.trigger(6, 15); hapticFeedback(40); if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); } }
+            else { livesRef.current--; setLives(livesRef.current); playHit(); damageFlashRef.current = 1; screenShakeRef.current.trigger(6, 15); hapticFeedback(40); if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); } }
           }
         }
 
@@ -679,6 +685,7 @@ export function SpaceGameScreen() {
               laserPoolRef.current.release(l);
               if (shieldRef.current || milestoneShieldRef.current) { shieldRef.current = false; addFloatText('¡Escudo!', w / 2, h / 2, '#34d399'); continue; }
               livesRef.current--; setLives(livesRef.current); playHit();
+              damageFlashRef.current = 1;
               screenShakeRef.current.trigger(4, 12);
               hapticFeedback(30);
               if (livesRef.current <= 0) { gameOverRef.current = true; setGameOver(true); }
@@ -731,6 +738,15 @@ export function SpaceGameScreen() {
           ctx.fillStyle = '#fbbf24';
           ctx.fillRect(-20, -20, w + 40, h + 40);
           ctx.restore();
+        }
+
+        if (damageFlashRef.current > 0) {
+          ctx.save();
+          ctx.globalAlpha = damageFlashRef.current * 0.3;
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(-20, -20, w + 40, h + 40);
+          ctx.restore();
+          damageFlashRef.current = Math.max(0, damageFlashRef.current - dt * 0.05);
         }
       }
 
@@ -875,7 +891,8 @@ export function SpaceGameScreen() {
           <button
             onClick={activateNuclear}
             disabled={!nuclearReady}
-            className={`absolute bottom-24 right-6 z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}
+            className={`absolute z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all ${nuclearReady ? 'bg-amber-500/30 border-2 border-amber-400 animate-pulse shadow-lg shadow-amber-500/30' : 'bg-black/50 border border-white/10 opacity-40'}`}
+            style={{ left: `${nuclearBtnLayout.x * 100}%`, top: `${nuclearBtnLayout.y * 100}%`, transform: 'translate(-50%, -50%)', opacity: nuclearBtnLayout.opacity }}
           >
             <Radiation className={`w-7 h-7 ${nuclearReady ? 'text-amber-400' : 'text-white/30'}`} />
           </button>
@@ -896,6 +913,11 @@ export function SpaceGameScreen() {
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-xs mx-4 rounded-2xl bg-card/90 border border-red-500/30 p-6 text-center animate-scale-in shadow-2xl shadow-red-500/20">
             <h2 className="text-red-400 font-bold text-2xl mb-2" style={{ textShadow: '0 0 20px rgba(239,68,68,0.5)' }}>Game Over</h2>
+            {score > absoluteRecord && score > 0 && (
+              <div className="mb-3 px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-400/50 animate-pulse">
+                <p className="text-amber-400 font-black text-sm" style={{ textShadow: '0 0 15px rgba(251,191,36,0.8)' }}>NUEVO RECORD</p>
+              </div>
+            )}
             <p className="text-white/60 text-sm mb-1">Puntuacion: {score}</p>
             <p className="text-amber-400 text-sm mb-6">Monedas ganadas: {coinsEarned}</p>
             {!hasRevived && isOnline && (

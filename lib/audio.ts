@@ -293,3 +293,39 @@ export function stopActionMusic() {
 export function isMusicPlaying() {
   return musicPlaying;
 }
+
+export function playVictory() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const notes = [523, 659, 784, 1047];
+  for (let i = 0; i < notes.length; i++) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(notes[i], ctx.currentTime + i * 0.1);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.2);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + i * 0.1);
+    osc.stop(ctx.currentTime + i * 0.1 + 0.25);
+  }
+}
+
+export function playGameOver() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  const notes = [440, 392, 349, 262];
+  for (let i = 0; i < notes.length; i++) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(notes[i], ctx.currentTime + i * 0.12);
+    gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.25);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime + i * 0.12);
+    osc.stop(ctx.currentTime + i * 0.12 + 0.3);
+  }
+}
