@@ -18,7 +18,7 @@ import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/
 import { UI_THEMES, type UITheme } from '@/hooks/use-game';
 import {
   loadControlLayouts, saveControlLayouts, resetControlLayouts, clampLayout,
-  DEFAULT_LAYOUTS, CONTROL_LABELS, CONTROL_ICONS, SCREEN_LABELS,
+  DEFAULT_LAYOUTS, CONTROL_LABELS, CONTROL_ICONS, SCREEN_LABELS, getFirstControlId,
   type ControlLayout, type ControlScreenId,
 } from '@/lib/control-layout';
 
@@ -499,14 +499,15 @@ export function MenuScreen() {
 
 export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { screenId: ControlScreenId; onClose: () => void; onSave: () => void; onReset: () => void; }) {
   const [layouts, setLayouts] = useState(() => loadControlLayouts());
-  const [selectedControl, setSelectedControl] = useState<string>('nuclear');
+  const [selectedControl, setSelectedControl] = useState<string>(() => getFirstControlId(screenId));
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
 
-  const currentControls = Object.keys(layouts[screenId]);
-  const currentLayout = layouts[screenId][selectedControl] ?? layouts[screenId]['nuclear'];
+  const currentControls = Object.keys(layouts[screenId] ?? DEFAULT_LAYOUTS[screenId] ?? {});
+  const screenLayouts = layouts[screenId] ?? DEFAULT_LAYOUTS[screenId];
+  const currentLayout: ControlLayout = screenLayouts[selectedControl] ?? screenLayouts[currentControls[0]] ?? DEFAULT_LAYOUTS[screenId][currentControls[0]] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
 
   const handleDragStart = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -545,24 +546,32 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
   };
 
   const handleSizeChange = (delta: number) => {
-    setLayouts((prev) => ({
-      ...prev,
-      [screenId]: {
-        ...prev[screenId],
-        [selectedControl]: clampLayout({ ...prev[screenId][selectedControl], size: prev[screenId][selectedControl].size + delta }, prev[screenId][selectedControl].size + delta),
-      },
-    }));
+    setLayouts((prev) => {
+      const sl = prev[screenId] ?? DEFAULT_LAYOUTS[screenId];
+      const cur = sl[selectedControl] ?? sl[Object.keys(sl)[0]] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
+      return {
+        ...prev,
+        [screenId]: {
+          ...sl,
+          [selectedControl]: clampLayout({ ...cur, size: cur.size + delta }, cur.size + delta),
+        },
+      };
+    });
     dirtyRef.current = true;
   };
 
   const handleOpacityChange = (delta: number) => {
-    setLayouts((prev) => ({
-      ...prev,
-      [screenId]: {
-        ...prev[screenId],
-        [selectedControl]: { ...prev[screenId][selectedControl], opacity: Math.max(0.3, Math.min(1, prev[screenId][selectedControl].opacity + delta)) },
-      },
-    }));
+    setLayouts((prev) => {
+      const sl = prev[screenId] ?? DEFAULT_LAYOUTS[screenId];
+      const cur = sl[selectedControl] ?? sl[Object.keys(sl)[0]] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
+      return {
+        ...prev,
+        [screenId]: {
+          ...sl,
+          [selectedControl]: { ...cur, opacity: Math.max(0.3, Math.min(1, cur.opacity + delta)) },
+        },
+      };
+    });
     dirtyRef.current = true;
   };
 
