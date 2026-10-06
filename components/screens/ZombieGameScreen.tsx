@@ -27,6 +27,7 @@ function randomCoinCap(level: number): number {
   return Math.floor(rand(min, max + 1));
 }
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, playVictory, playGameOver, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'minigun' | 'laser';
@@ -254,6 +255,7 @@ export function ZombieGameScreen() {
       gameCoinsRef.current = 0;
       setCoinsEarned(0);
     }
+    abandonSession();
     setScreen('menu');
   }, [spendCoins, setScreen]);
 
@@ -373,6 +375,7 @@ export function ZombieGameScreen() {
     setNuclearReady(false); setScoreColor('#ffffff');
     startGameBatch();
     checkMilestone();
+    initSessionStats('campaign', campaignLevelRef.current);
   }, [upgrades, startGameBatch, checkMilestone]);
 
   useEffect(() => { initGame(); }, [initGame]);
@@ -548,6 +551,8 @@ export function ZombieGameScreen() {
       endGameBatch();
       flushPlayTime();
       submitZombieScore(killCountRef.current);
+      addCoinsToSession(gameCoinsRef.current, 0);
+      finishGameSession(killCountRef.current, true, campaignLevelRef.current);
       stopActionMusic();
       playGameOver();
       hapticPattern([100, 50, 200]);
@@ -1511,7 +1516,10 @@ export function ZombieGameScreen() {
             <button
               onClick={() => {
                 endGameBatch();
+                flushPlayTime();
                 submitZombieScore(killCountRef.current);
+                addCoinsToSession(gameCoinsRef.current, 0);
+                finishGameSession(killCountRef.current, true, campaignLevel);
                 const lvlCoins = randomCoinCap(campaignLevel);
                 completeLevel(campaignLevel, campaignLevel * 6, lvlCoins);
                 setVictory(false);

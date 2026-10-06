@@ -8,6 +8,7 @@ import { ControlEditorModal } from '@/components/screens/MenuScreen';
 import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 const W = 360;
 const H = 540;
@@ -97,6 +98,7 @@ export function ZRunner() {
     setCoinsEarned(0);
     setGameOver(false);
     setGameStarted(false);
+    initSessionStats('zrunner');
   }, []);
 
   useEffect(() => {
@@ -182,6 +184,8 @@ export function ZRunner() {
         baseCoinsAddedRef.current = true;
         addCoins(coinsRef.current);
       }
+      addCoinsToSession(coinsRef.current, 0);
+      finishGameSession(scoreRef.current, true);
     }
   };
 

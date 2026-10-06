@@ -26,6 +26,7 @@ import { getMaxStars } from '@/lib/performance';
 import { loadControlLayouts, type ControlLayout } from '@/lib/control-layout';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playGameOver, initAudio } from '@/lib/audio';
 import { getRewardedAdId } from '@/lib/config';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 interface Meteor { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotVel: number; hp: number; maxHp: number; active: boolean; reset(): void; }
 interface EnemyShip { x: number; y: number; vx: number; vy: number; angle: number; hp: number; maxHp: number; size: number; shootTimer: number; oscillation: number; active: boolean; reset(): void; }
@@ -240,6 +241,7 @@ export function SpaceGameScreen() {
     setScore(0); setCoinsEarned(0); setGameOver(false); setBossActive(false); setPaused(false);
     startGameBatch();
     checkMilestone();
+    initSessionStats('space');
   }, [ship, upgrades, startGameBatch, checkMilestone]);
 
   useEffect(() => { initGame(); }, [initGame]);
@@ -383,6 +385,8 @@ export function SpaceGameScreen() {
       submitSpaceScore(Math.floor(scoreRef.current));
       playGameOver();
       flushPlayTime();
+      addCoinsToSession(gameCoinsRef.current, 0);
+      finishGameSession(Math.floor(scoreRef.current), true);
       hapticPattern([100, 50, 200]);
       if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }

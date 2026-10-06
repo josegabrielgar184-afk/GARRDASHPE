@@ -67,7 +67,7 @@ export function addCoinsToSession(gameplay: number, ads: number) {
 export function finishGameSession(score: number, completed: boolean, campaignLevelCompleted = 0) {
   const current = loadLocalSession();
   if (!current) return;
-  current.gamesFinished += 1;
+  if (completed) current.gamesFinished += 1;
   current.score = score;
   current.durationMs = Date.now() - current.sessionStartMs;
   if (campaignLevelCompleted > 0) current.campaignLevelCompleted = campaignLevelCompleted;
@@ -75,7 +75,16 @@ export function finishGameSession(score: number, completed: boolean, campaignLev
   syncSessionToFirestore(current);
 }
 
-export async function syncSessionToFirestore(stats: SessionStats) {
+export function abandonSession() {
+  const current = loadLocalSession();
+  if (!current) return;
+  if (current.gamesFinished > 0) return;
+  current.durationMs = Date.now() - current.sessionStartMs;
+  saveLocal(current);
+  syncSessionToFirestore(current);
+}
+
+async function syncSessionToFirestore(stats: SessionStats) {
   try {
     const uid = (await import('firebase/auth')).getAuth()?.currentUser?.uid;
     if (!uid) return;

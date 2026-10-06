@@ -17,6 +17,7 @@ import {
 } from '@/lib/engine2d';
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playExplosion, playCoin, playHit, playBarrelHit, playPickup, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 type ZombieType = 'normal' | 'fast' | 'tank';
 
@@ -103,6 +104,7 @@ export function SurvivalScreen() {
     setSurvivalTime(0); setCoinsEarned(0); setBarricadeHp(100); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false);
     startTimeRef.current = performance.now();
     startGameBatch();
+    initSessionStats('survival');
   }, [startGameBatch]);
 
   useEffect(() => { initGame(); }, [initGame]);
@@ -177,6 +179,8 @@ export function SurvivalScreen() {
     if (gameOver) {
       endGameBatch();
       submitSurvivalScore(survivalTimeRef.current);
+      addCoinsToSession(coinsEarnedRef.current, 0);
+      finishGameSession(Math.floor(survivalTimeRef.current / 1000), true);
       stopActionMusic();
       hapticPattern([100, 50, 200]);
     }

@@ -8,6 +8,7 @@ import { ControlEditorModal } from '@/components/screens/MenuScreen';
 import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 const COLS = 15;
 const ROWS = 21;
@@ -110,6 +111,7 @@ export function NeonMazeSurvival() {
     setGameOver(false);
     setOvercharge(false);
     startTimeRef.current = Date.now();
+    initSessionStats('neon-maze');
   }, []);
 
   useEffect(() => { initGame(); }, [initGame]);
@@ -133,6 +135,8 @@ export function NeonMazeSurvival() {
         baseCoinsAddedRef.current = true;
         addCoins(coinsRef.current);
       }
+      addCoinsToSession(coinsRef.current, 0);
+      finishGameSession(scoreRef.current, true);
     }
   };
 

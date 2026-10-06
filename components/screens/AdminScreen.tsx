@@ -18,8 +18,9 @@ import {
   fetchSuggestions, handleSuggestion, fetchInactiveUsers, fetchActiveUsersNow,
   sendWinBackPush, sendPromoPush,
 } from '@/lib/economy-service';
+import { fetchAnalytics, getModeLabel, formatDuration, type AnalyticsPeriod, type AnalyticsData } from '@/lib/analytics';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'suggestions' | 'telemetry' | 'winback' | 'promos';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos';
 
 export function AdminScreen() {
   const {
@@ -53,6 +54,22 @@ export function AdminScreen() {
   useEffect(() => {
     if (tab === 'levels') refreshCampaignLevelStats();
   }, [tab, refreshCampaignLevelStats]);
+
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<AnalyticsPeriod>('7d');
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'analytics') {
+      setAnalyticsLoading(true);
+      fetchAnalytics(analyticsPeriod).then((d) => { setAnalyticsData(d); setAnalyticsLoading(false); });
+    }
+  }, [tab, analyticsPeriod]);
+
+  const refreshAnalytics = () => {
+    setAnalyticsLoading(true);
+    fetchAnalytics(analyticsPeriod).then((d) => { setAnalyticsData(d); setAnalyticsLoading(false); });
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,6 +221,7 @@ export function AdminScreen() {
     { id: 'stats', label: 'Estadisticas', icon: BarChart3, group: 'Sistema' },
     { id: 'levels', label: 'Niveles', icon: BarChart3, group: 'Sistema' },
     { id: 'suggestions', label: 'Sugerencias', icon: MessageSquare, group: 'Gestion' },
+    { id: 'analytics', label: 'Analitica', icon: Activity, group: 'Sistema' },
     { id: 'telemetry', label: 'Telemetria', icon: Radio, group: 'Sistema' },
     { id: 'winback', label: 'Win-Back', icon: UserX, group: 'Sistema' },
     { id: 'promos', label: 'Promos', icon: Megaphone, group: 'Sistema' },
@@ -329,6 +347,167 @@ export function AdminScreen() {
                   <p className="text-white/40 text-xs mt-1">Niveles alcanzados: <span className="text-white font-bold">{campaignLevelStats.length}</span></p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Analytics Tab */}
+          {tab === 'analytics' && (
+            <div className="space-y-4">
+              {/* Period selector */}
+              <div className="flex gap-2 rounded-2xl bg-card border border-border p-3 shadow-lg">
+                {(['today', '7d', '30d'] as AnalyticsPeriod[]).map((p) => (
+                  <button key={p} onClick={() => setAnalyticsPeriod(p)} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-all ${analyticsPeriod === p ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-card border border-border text-white/50 hover:text-white/70'}`}>
+                    {p === 'today' ? 'Hoy' : p === '7d' ? '7 Días' : '30 Días'}
+                  </button>
+                ))}
+              </div>
+
+              <button onClick={refreshAnalytics} disabled={analyticsLoading} className="w-full py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-bold text-xs hover:bg-cyan-500/30 flex items-center justify-center gap-2 disabled:opacity-50">
+                {analyticsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4" /> Actualizar</>}
+              </button>
+
+              {analyticsLoading && !analyticsData ? (
+                <p className="text-white/30 text-xs text-center py-8">Cargando analítica...</p>
+              ) : analyticsData ? (
+                <>
+                  {/* Resumen general */}
+                  <div className="rounded-2xl bg-gradient-to-br from-cyan-900/30 to-card border border-cyan-500/30 p-5 shadow-lg">
+                    <h2 className="text-white font-bold mb-3 flex items-center gap-2"><Activity className="w-5 h-5 text-cyan-400" /> Resumen General</h2>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-card border border-border p-3 text-center">
+                        <p className="text-cyan-400 font-black text-2xl">{analyticsData.uniquePlayers}</p>
+                        <p className="text-white/40 text-[10px]">Jugadores únicos</p>
+                      </div>
+                      <div className="rounded-xl bg-card border border-border p-3 text-center">
+                        <p className="text-white font-black text-2xl">{analyticsData.totalStarted}</p>
+                        <p className="text-white/40 text-[10px]">Partidas iniciadas</p>
+                      </div>
+                      <div className="rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-center">
+                        <p className="text-green-400 font-black text-2xl">{analyticsData.totalFinished}</p>
+                        <p className="text-white/40 text-[10px]">Terminadas</p>
+                      </div>
+                      <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3 text-center">
+                        <p className="text-red-400 font-black text-2xl">{analyticsData.totalNotFinished}</p>
+                        <p className="text-white/40 text-[10px]">No terminadas</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="flex justify-between"><span className="text-white/40">% Finalización:</span><span className="text-cyan-400 font-bold">{analyticsData.finishRate}%</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Tiempo promedio:</span><span className="text-white font-bold">{formatDuration(analyticsData.avgDurationMs)}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Tiempo total jugado:</span><span className="text-white font-bold">{formatDuration(analyticsData.totalDurationMs)}</span></div>
+                    </div>
+                  </div>
+
+                  {/* Rendimiento por modo */}
+                  <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-cyan-400" /> Rendimiento por Modo</h2>
+                    {analyticsData.byMode.length === 0 ? (
+                      <p className="text-white/30 text-xs text-center py-4">Sin sesiones registradas</p>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                        {analyticsData.byMode.map((m) => (
+                          <div key={m.mode} className="rounded-xl bg-background/40 border border-border p-3">
+                            <p className="text-white font-bold text-xs mb-2">{getModeLabel(m.mode)}</p>
+                            <div className="grid grid-cols-3 gap-2 text-[10px]">
+                              <div className="text-center"><p className="text-cyan-400 font-bold text-sm">{m.uniquePlayers}</p><p className="text-white/40">Jugadores</p></div>
+                              <div className="text-center"><p className="text-white font-bold text-sm">{m.totalSessions}</p><p className="text-white/40">Partidas</p></div>
+                              <div className="text-center"><p className="text-white font-bold text-sm">{formatDuration(m.avgDurationMs)}</p><p className="text-white/40">Promedio</p></div>
+                              <div className="text-center"><p className={m.finishRate >= 70 ? 'text-green-400 font-bold text-sm' : m.finishRate >= 40 ? 'text-amber-400 font-bold text-sm' : 'text-red-400 font-bold text-sm'}>{m.finishRate}%</p><p className="text-white/40">Finalizó</p></div>
+                              <div className="text-center"><p className="text-red-400 font-bold text-sm">{m.notFinished}</p><p className="text-white/40">No terminó</p></div>
+                              <div className="text-center"><p className="text-amber-400 font-bold text-sm">{m.coinsTotal}</p><p className="text-white/40">Monedas</p></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Campaña */}
+                  <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-amber-400" /> Campaña</h2>
+                    {analyticsData.campaignLevels.level > 0 ? (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span className="text-white/40">Nivel con más inicios:</span><span className="text-white font-bold">Nivel {analyticsData.campaignLevels.level}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Inicios en ese nivel:</span><span className="text-cyan-400 font-bold">{analyticsData.campaignLevels.started}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Completados:</span><span className="text-green-400 font-bold">{analyticsData.campaignLevels.completed}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">No terminados:</span><span className="text-red-400 font-bold">{analyticsData.campaignLevels.notFinished}</span></div>
+                      </div>
+                    ) : (
+                      <p className="text-white/30 text-xs">Sin datos de niveles de campaña en este periodo.</p>
+                    )}
+                  </div>
+
+                  {/* Economía */}
+                  <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Coins className="w-4 h-4 text-amber-400" /> Economía por Modo</h2>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between"><span className="text-white/40">Monedas por gameplay:</span><span className="text-amber-400 font-bold">{analyticsData.coinsGameplay}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Monedas por anuncios:</span><span className="text-amber-400 font-bold">{analyticsData.coinsAds}</span></div>
+                      <div className="flex justify-between border-t border-border pt-2"><span className="text-white/50 font-bold">Total monedas:</span><span className="text-amber-400 font-bold text-lg">{analyticsData.coinsTotal}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Monedas por hora:</span><span className="text-cyan-400 font-bold text-lg">{analyticsData.coinsPerHour}</span></div>
+                    </div>
+                    {analyticsData.byMode.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        {analyticsData.byMode.filter((m) => m.coinsTotal > 0).map((m) => {
+                          const hrs = m.totalDurationMs / (1000 * 60 * 60);
+                          const perHr = hrs > 0 ? Math.round((m.coinsTotal / hrs) * 100) / 100 : 0;
+                          return (
+                            <div key={m.mode} className="flex justify-between text-[10px]">
+                              <span className="text-white/40">{getModeLabel(m.mode)}:</span>
+                              <span className="text-amber-400 font-bold">{m.coinsTotal} monedas ({perHr}/h)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Retención */}
+                  <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-green-400" /> Retención</h2>
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <div className="rounded-xl bg-card border border-border p-3 text-center">
+                        <p className={`font-black text-2xl ${analyticsData.retentionD1 !== null ? 'text-green-400' : 'text-white/30'}`}>{analyticsData.retentionD1 !== null ? `${analyticsData.retentionD1}%` : 'N/D'}</p>
+                        <p className="text-white/40 text-[10px]">Retención D1</p>
+                      </div>
+                      <div className="rounded-xl bg-card border border-border p-3 text-center">
+                        <p className={`font-black text-2xl ${analyticsData.retentionD7 !== null ? 'text-green-400' : 'text-white/30'}`}>{analyticsData.retentionD7 !== null ? `${analyticsData.retentionD7}%` : 'N/D'}</p>
+                        <p className="text-white/40 text-[10px]">Retención D7</p>
+                      </div>
+                    </div>
+                    <p className="text-white/30 text-[10px]">{analyticsData.retentionNote}</p>
+                  </div>
+
+                  {/* Por qué se van - datos objetivos */}
+                  <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                    <h2 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400" /> Iniciadas No Terminadas</h2>
+                    {analyticsData.totalNotFinished === 0 ? (
+                      <p className="text-white/30 text-xs text-center py-4">No hay partidas sin terminar en este periodo.</p>
+                    ) : (
+                      <>
+                        <p className="text-white/40 text-xs mb-2">Datos objetivos de partidas iniciadas que no llegaron a un final normal:</p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+                          {analyticsData.sessions.filter((s) => s.gamesFinished === 0).slice(0, 20).map((s) => (
+                            <div key={s.id} className="rounded-xl bg-background/40 border border-border p-2 text-[10px]">
+                              <div className="flex justify-between">
+                                <span className="text-white font-bold">{getModeLabel(s.mode)}</span>
+                                <span className="text-red-400">{formatDuration(s.durationMs)}</span>
+                              </div>
+                              <div className="flex justify-between text-white/30 mt-1">
+                                <span>{s.campaignLevelStarted > 0 ? `Nivel ${s.campaignLevelStarted}` : 'N/A'}</span>
+                                <span>{new Date(s.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {analyticsData.totalNotFinished > 20 && <p className="text-white/30 text-[10px] mt-2 text-center">Mostrando 20 de {analyticsData.totalNotFinished}</p>}
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="text-white/30 text-xs text-center py-8">No hay datos disponibles</p>
+              )}
             </div>
           )}
 

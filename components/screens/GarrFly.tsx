@@ -8,6 +8,7 @@ import { ControlEditorModal } from '@/components/screens/MenuScreen';
 import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 const GRID_SIZE = 18;
 const COLS = 18;
@@ -94,6 +95,7 @@ export function GarrFly() {
     setGameOver(false);
     setGameStarted(false);
     spawnCoin(initialSnake);
+    initSessionStats('garrfly');
   }, [spawnCoin]);
 
   useEffect(() => {
@@ -170,6 +172,8 @@ export function GarrFly() {
         baseCoinsAddedRef.current = true;
         addCoins(coinsRef.current);
       }
+      addCoinsToSession(coinsRef.current, 0);
+      finishGameSession(scoreRef.current, true);
     }
   };
 

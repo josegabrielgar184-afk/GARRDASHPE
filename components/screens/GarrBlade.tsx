@@ -8,6 +8,7 @@ import { ControlEditorModal } from '@/components/screens/MenuScreen';
 import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
+import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
 
 const W = 360;
 const H = 540;
@@ -134,6 +135,7 @@ export function GarrBlade() {
     setScore(0);
     setCoinsEarned(0);
     setGameOver(false);
+    initSessionStats('garrblade');
   }, []);
 
   useEffect(() => {
@@ -182,6 +184,8 @@ export function GarrBlade() {
         baseCoinsAddedRef.current = true;
         addCoins(coinsEarnedRef.current);
       }
+      addCoinsToSession(coinsEarnedRef.current, 0);
+      finishGameSession(scoreRef.current, true);
     }
   };
 
