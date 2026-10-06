@@ -11,6 +11,12 @@ import { pauseAudio, resumeAudio, stopActionMusic, setSfxEnabled } from '@/lib/a
 import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
 import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
 import {
+  type CreatorApplication, type CreatorCode, type ReferralRecord, type CreatorStatus, type Platform,
+  normalizeCode, isValidCode, isValidUrl, getMonthKey, getDayKey,
+  CODE_MIN_LENGTH, CODE_MAX_LENGTH, PLAYER_REFERRAL_REWARD, CREATOR_REFERRAL_REWARD,
+  QUALIFY_MIN_MINUTES, QUALIFY_MIN_DAYS,
+} from '@/lib/creators';
+import {
    onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   type User,
 } from 'firebase/auth';
@@ -55,7 +61,8 @@ export type Screen =
   | 'neon-maze'
   | 'garrfly'
   | 'zrunner'
-  | 'garrblade';
+  | 'garrblade'
+  | 'creator';
 
 export interface UpgradeState {
   fireRate: number;
@@ -380,6 +387,25 @@ interface GameState {
   logOperatorAction: (action: string, details?: string) => Promise<void>;
   operatorLogs: OperatorLogEntry[];
   refreshOperatorLogs: () => Promise<void>;
+  // Creator Program
+  creatorApplication: CreatorApplication | null;
+  creatorCode: CreatorCode | null;
+  creatorReferralCode: string | null;
+  submitCreatorApplication: (channelName: string, platform: Platform, profileUrl: string, videoUrl: string, requestedCode: string) => Promise<{ ok: boolean; error?: string }>;
+  refreshCreatorApplication: () => Promise<void>;
+  applyReferralCode: (code: string) => Promise<{ ok: boolean; error?: string }>;
+  refreshCreatorReferralCode: () => Promise<void>;
+  creatorStats: { total: number; pending: number; qualified: number; coinsEarned: number } | null;
+  refreshCreatorStats: () => Promise<void>;
+  creatorRanking: Array<{ code: string; channelName: string; qualified: number; platform: Platform }>;
+  refreshCreatorRanking: () => Promise<void>;
+  adminCreatorApplications: CreatorApplication[];
+  adminCreatorCodes: CreatorCode[];
+  refreshAdminCreators: () => Promise<void>;
+  adminApproveCreator: (appId: string) => Promise<{ ok: boolean; error?: string }>;
+  adminRejectCreator: (appId: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
+  adminSuspendCreator: (code: string) => Promise<{ ok: boolean; error?: string }>;
+  adminReactivateCreator: (code: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface SignUpData {
@@ -538,6 +564,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [vipExpiry, setVipExpiry] = useState<string | null>(null);
   const [observerMode, setObserverMode] = useState(false);
   const [operatorLogs, setOperatorLogs] = useState<OperatorLogEntry[]>([]);
+  // Creator Program state
+  const [creatorApplication, setCreatorApplication] = useState<CreatorApplication | null>(null);
+  const [creatorCode, setCreatorCode] = useState<CreatorCode | null>(null);
+  const [creatorReferralCode, setCreatorReferralCode] = useState<string | null>(null);
+  const [creatorStats, setCreatorStats] = useState<{ total: number; pending: number; qualified: number; coinsEarned: number } | null>(null);
+  const [creatorRanking, setCreatorRanking] = useState<Array<{ code: string; channelName: string; qualified: number; platform: Platform }>>([]);
+  const [adminCreatorApplications, setAdminCreatorApplications] = useState<CreatorApplication[]>([]);
+  const [adminCreatorCodes, setAdminCreatorCodes] = useState<CreatorCode[]>([]);
 
   const lastInterstitialTimeRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -966,6 +1000,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const playTimeBufferRef = useRef<number>(0);
   const playTimeSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkAndQualifyRefRef = useRef<(() => Promise<void>) | null>(null);
 
   const addPlayTime = useCallback((ms: number) => {
     playTimeBufferRef.current += ms;
@@ -993,6 +1028,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const userDocRef = doc(db, 'usuarios', user.uid);
       updateDoc(userDocRef, { tiempo_jugado_min: increment(addMs / 60000) }).catch(() => {});
+      // Check creator referral qualification after play time flush
+      if (checkAndQualifyRefRef.current) checkAndQualifyRefRef.current();
     } catch {}
   }, []);
 
@@ -3065,6 +3102,543 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     computeDynamicRank();
   }, [spaceRanking, zombieRanking, weeklyRanking, loggedIn, playerName]);
 
+  // ============================================================
+  // CREATOR PROGRAM
+  // ============================================================
+
+  const refreshCreatorApplication = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const snap = await getDocs(query(
+        collection(db, 'creator_applications'),
+        where('uid', '==', user.uid),
+        limit(1)
+      ));
+      if (snap.empty) { setCreatorApplication(null); return; }
+      const d = snap.docs[0];
+      const data = d.data();
+      setCreatorApplication({
+        id: d.id,
+        uid: data.uid ?? '',
+        channelName: data.channelName ?? '',
+        platform: data.platform ?? 'tiktok',
+        profileUrl: data.profileUrl ?? '',
+        videoUrl: data.videoUrl ?? '',
+        requestedCode: data.requestedCode ?? '',
+        status: data.status ?? 'pending',
+        createdAt: data.createdAt ?? 0,
+        reviewedAt: data.reviewedAt ?? null,
+        reviewedBy: data.reviewedBy ?? null,
+        rejectReason: data.rejectReason ?? '',
+      });
+    } catch {}
+  }, []);
+
+  const refreshCreatorReferralCode = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+      if (userDoc.exists()) {
+        const code = userDoc.data()?.referredByCode ?? null;
+        setCreatorReferralCode(code);
+      }
+    } catch {}
+  }, []);
+
+  const submitCreatorApplication = useCallback(async (
+    channelName: string,
+    platform: Platform,
+    profileUrl: string,
+    videoUrl: string,
+    requestedCode: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      if (channelName.trim().length < 2) return { ok: false, error: 'Nombre demasiado corto' };
+      if (!isValidUrl(profileUrl)) return { ok: false, error: 'URL de perfil invalida' };
+      if (!isValidUrl(videoUrl)) return { ok: false, error: 'URL de video invalida' };
+      const codeCheck = isValidCode(requestedCode);
+      if (!codeCheck.ok) return { ok: false, error: codeCheck.error };
+      const code = normalizeCode(requestedCode);
+
+      // Check for existing application
+      const existingSnap = await getDocs(query(
+        collection(db, 'creator_applications'),
+        where('uid', '==', user.uid),
+        limit(1)
+      ));
+      if (!existingSnap.empty) {
+        const existing = existingSnap.docs[0].data();
+        if (existing.status === 'pending' || existing.status === 'approved') {
+          return { ok: false, error: 'Ya tienes una solicitud activa' };
+        }
+      }
+
+      // Check code uniqueness across active codes and pending applications
+      const codeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('code', '==', code),
+        limit(1)
+      ));
+      if (!codeSnap.empty) return { ok: false, error: 'Codigo no disponible' };
+
+      const pendingCodeSnap = await getDocs(query(
+        collection(db, 'creator_applications'),
+        where('requestedCode', '==', code),
+        where('status', '==', 'pending'),
+        limit(1)
+      ));
+      if (!pendingCodeSnap.empty) return { ok: false, error: 'Codigo no disponible' };
+
+      const newRef = doc(collection(db, 'creator_applications'));
+      await setDoc(newRef, {
+        id: newRef.id,
+        uid: user.uid,
+        channelName: channelName.trim(),
+        platform,
+        profileUrl: profileUrl.trim(),
+        videoUrl: videoUrl.trim(),
+        requestedCode: code,
+        status: 'pending',
+        createdAt: Date.now(),
+      });
+      await refreshCreatorApplication();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al solicitar';
+      return { ok: false, error: msg };
+    }
+  }, [refreshCreatorApplication]);
+
+  const applyReferralCode = useCallback(async (rawCode: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { ok: false, error: 'No autenticado' };
+      const code = normalizeCode(rawCode);
+      if (code.length < CODE_MIN_LENGTH) return { ok: false, error: 'Codigo demasiado corto' };
+
+      const userRef = doc(db, 'usuarios', user.uid);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) return { ok: false, error: 'Usuario no encontrado' };
+      const userData = userDoc.data();
+      if (userData.referredByCode) return { ok: false, error: 'Ya apoyas a un creador' };
+      if (userData.banned) return { ok: false, error: 'Cuenta suspendida' };
+
+      // Find the creator code
+      const codeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('code', '==', code),
+        limit(1)
+      ));
+      if (codeSnap.empty) return { ok: false, error: 'Codigo no encontrado' };
+      const codeDoc = codeSnap.docs[0];
+      const codeData = codeDoc.data();
+      if (codeData.status !== 'active') return { ok: false, error: 'Codigo no activo' };
+      if (codeData.uid === user.uid) return { ok: false, error: 'No puedes usar tu propio codigo' };
+
+      const referralRef = doc(collection(db, 'creator_referrals'));
+      const now = Date.now();
+
+      await runTransaction(db, async (tx) => {
+        const freshUserDoc = await tx.get(userRef);
+        if (!freshUserDoc.exists()) throw new Error('Usuario no encontrado');
+        const freshUserData = freshUserDoc.data();
+        if (freshUserData.referredByCode) throw new Error('Ya apoyas a un creador');
+
+        // Credit player 50 coins
+        tx.update(userRef, {
+          coins: (freshUserData.coins ?? 0) + PLAYER_REFERRAL_REWARD,
+          referredByCode: code,
+        });
+
+        // Create referral record
+        tx.set(referralRef, {
+          id: referralRef.id,
+          code,
+          creatorUid: codeData.uid,
+          referredUid: user.uid,
+          status: 'pendingQualification',
+          playerRewardPaid: true,
+          creatorRewardPaid: false,
+          qualifiedAt: null,
+          createdAt: now,
+          playTimeMin: 0,
+          activeDays: [],
+        });
+
+        // Increment creator code counters
+        const creatorCodeRef = doc(db, 'creator_codes', codeDoc.id);
+        tx.update(creatorCodeRef, {
+          totalReferrals: (codeData.totalReferrals ?? 0) + 1,
+          pendingQualification: (codeData.pendingQualification ?? 0) + 1,
+        });
+      });
+
+      setCoins((prev) => prev + PLAYER_REFERRAL_REWARD);
+      setCreatorReferralCode(code);
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al aplicar codigo';
+      return { ok: false, error: msg };
+    }
+  }, []);
+
+  const checkAndQualifyReferral = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const userRef = doc(db, 'usuarios', user.uid);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) return;
+      const userData = userDoc.data();
+      if (userData.banned) return;
+      const code = userData.referredByCode;
+      if (!code) return;
+
+      // Find the referral record for this user
+      const refSnap = await getDocs(query(
+        collection(db, 'creator_referrals'),
+        where('referredUid', '==', user.uid),
+        limit(1)
+      ));
+      if (refSnap.empty) return;
+      const refDoc = refSnap.docs[0];
+      const refData = refDoc.data();
+      if (refData.creatorRewardPaid) return; // Already paid
+
+      const totalMin = userData.tiempo_jugado_min ?? 0;
+      if (totalMin < QUALIFY_MIN_MINUTES) return;
+
+      // Get active days from the referral record
+      const activeDays: string[] = refData.activeDays ?? [];
+      const todayKey = getDayKey();
+      let daysChanged = false;
+      if (!activeDays.includes(todayKey)) {
+        activeDays.push(todayKey);
+        daysChanged = true;
+      }
+      if (activeDays.length < QUALIFY_MIN_DAYS) {
+        // Just update days if needed
+        if (daysChanged) {
+          await updateDoc(refDoc.ref, { activeDays });
+        }
+        return;
+      }
+
+      // Qualified! Pay creator in a transaction
+      const creatorCodeRef = doc(db, 'creator_codes', code);
+      const creatorRef = doc(db, 'usuarios', refData.creatorUid);
+      const now = Date.now();
+
+      await runTransaction(db, async (tx) => {
+        const freshRefDoc = await tx.get(refDoc.ref);
+        if (!freshRefDoc.exists()) return;
+        const freshRefData = freshRefDoc.data();
+        if (freshRefData.creatorRewardPaid) return; // Double-check
+
+        const freshCodeDoc = await tx.get(creatorCodeRef);
+        if (!freshCodeDoc.exists()) return;
+        const freshCodeData = freshCodeDoc.data();
+
+        const freshCreatorDoc = await tx.get(creatorRef);
+        if (!freshCreatorDoc.exists()) return;
+        const freshCreatorData = freshCreatorDoc.data();
+
+        // Pay creator
+        tx.update(creatorRef, {
+          coins: (freshCreatorData.coins ?? 0) + CREATOR_REFERRAL_REWARD,
+        });
+
+        // Update referral record
+        tx.update(refDoc.ref, {
+          status: 'qualified',
+          creatorRewardPaid: true,
+          qualifiedAt: now,
+          activeDays,
+        });
+
+        // Update creator code counters
+        const monthKey = getMonthKey(now);
+        const qualifiedThisMonth = (freshCodeData.qualifiedThisMonth ?? 0) + 1;
+        tx.update(creatorCodeRef, {
+          qualified: (freshCodeData.qualified ?? 0) + 1,
+          pendingQualification: Math.max(0, (freshCodeData.pendingQualification ?? 1) - 1),
+          coinsEarned: (freshCodeData.coinsEarned ?? 0) + CREATOR_REFERRAL_REWARD,
+          qualifiedThisMonth,
+          [`qualifiedByMonth.${monthKey}`]: qualifiedThisMonth,
+        });
+      });
+
+      // Notify creator
+      try {
+        await addDoc(collection(db, 'notificaciones'), {
+          userId: refData.creatorUid,
+          title: '🔥 ¡Nuevo jugador calificado!',
+          message: `Ganaste ${CREATOR_REFERRAL_REWARD} monedas gracias a tu codigo ${code}.`,
+          type: 'creator_referral_qualified',
+          createdAt: now,
+          read: false,
+        }).catch(() => {});
+      } catch {}
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    checkAndQualifyRefRef.current = checkAndQualifyReferral;
+  }, [checkAndQualifyReferral]);
+
+  const refreshCreatorStats = useCallback(async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const codeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('uid', '==', user.uid),
+        limit(1)
+      ));
+      if (codeSnap.empty) { setCreatorStats(null); return; }
+      const data = codeSnap.docs[0].data();
+      setCreatorStats({
+        total: data.totalReferrals ?? 0,
+        pending: data.pendingQualification ?? 0,
+        qualified: data.qualified ?? 0,
+        coinsEarned: data.coinsEarned ?? 0,
+      });
+    } catch {}
+  }, []);
+
+  const refreshCreatorRanking = useCallback(async () => {
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('status', '==', 'active'),
+        orderBy('qualifiedThisMonth', 'desc'),
+        limit(10)
+      ));
+      const list: Array<{ code: string; channelName: string; qualified: number; platform: Platform }> = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        list.push({
+          code: data.code ?? '',
+          channelName: data.channelName ?? '',
+          qualified: data.qualifiedThisMonth ?? 0,
+          platform: data.platform ?? 'tiktok',
+        });
+      });
+      setCreatorRanking(list);
+    } catch {
+      // Fallback without orderBy if index missing
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'creator_codes'),
+          where('status', '==', 'active'),
+          limit(10)
+        ));
+        const list: Array<{ code: string; channelName: string; qualified: number; platform: Platform }> = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          list.push({
+            code: data.code ?? '',
+            channelName: data.channelName ?? '',
+            qualified: data.qualifiedThisMonth ?? 0,
+            platform: data.platform ?? 'tiktok',
+          });
+        });
+        list.sort((a, b) => b.qualified - a.qualified);
+        setCreatorRanking(list);
+      } catch {}
+    }
+  }, []);
+
+  // --- Admin creator functions ---
+
+  const refreshAdminCreators = useCallback(async () => {
+    try {
+      const [pendingSnap, codesSnap] = await Promise.all([
+        getDocs(query(
+          collection(db, 'creator_applications'),
+          where('status', '==', 'pending')
+        )),
+        getDocs(collection(db, 'creator_codes')),
+      ]);
+      const apps: CreatorApplication[] = [];
+      pendingSnap.forEach((d) => {
+        const data = d.data();
+        apps.push({
+          id: d.id,
+          uid: data.uid ?? '',
+          channelName: data.channelName ?? '',
+          platform: data.platform ?? 'tiktok',
+          profileUrl: data.profileUrl ?? '',
+          videoUrl: data.videoUrl ?? '',
+          requestedCode: data.requestedCode ?? '',
+          status: data.status ?? 'pending',
+          createdAt: data.createdAt ?? 0,
+        });
+      });
+      apps.sort((a, b) => a.createdAt - b.createdAt);
+      setAdminCreatorApplications(apps);
+
+      const codes: CreatorCode[] = [];
+      codesSnap.forEach((d) => {
+        const data = d.data();
+        codes.push({
+          code: data.code ?? '',
+          uid: data.uid ?? '',
+          channelName: data.channelName ?? '',
+          platform: data.platform ?? 'tiktok',
+          status: data.status ?? 'active',
+          createdAt: data.createdAt ?? 0,
+          approvedAt: data.approvedAt ?? 0,
+          totalReferrals: data.totalReferrals ?? 0,
+          pendingQualification: data.pendingQualification ?? 0,
+          qualified: data.qualified ?? 0,
+          qualifiedThisMonth: data.qualifiedThisMonth ?? 0,
+          coinsEarned: data.coinsEarned ?? 0,
+        });
+      });
+      codes.sort((a, b) => b.qualified - a.qualified);
+      setAdminCreatorCodes(codes);
+    } catch {}
+  }, []);
+
+  const adminApproveCreator = useCallback(async (appId: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (userRole !== 'admin') return { ok: false, error: 'Solo admin' };
+      const appRef = doc(db, 'creator_applications', appId);
+      const appDoc = await getDoc(appRef);
+      if (!appDoc.exists()) return { ok: false, error: 'Solicitud no encontrada' };
+      const appData = appDoc.data();
+      if (appData.status !== 'pending') return { ok: false, error: 'Ya procesada' };
+      const code = appData.requestedCode ?? '';
+
+      // Re-check code uniqueness
+      const codeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('code', '==', code),
+        limit(1)
+      ));
+      if (!codeSnap.empty) return { ok: false, error: 'Codigo ya existe' };
+
+      const user = auth.currentUser;
+      const now = Date.now();
+      const newCodeRef = doc(collection(db, 'creator_codes'));
+      await setDoc(newCodeRef, {
+        code,
+        uid: appData.uid,
+        channelName: appData.channelName,
+        platform: appData.platform,
+        status: 'active',
+        createdAt: now,
+        approvedAt: now,
+        totalReferrals: 0,
+        pendingQualification: 0,
+        qualified: 0,
+        qualifiedThisMonth: 0,
+        coinsEarned: 0,
+      });
+      await updateDoc(appRef, {
+        status: 'approved',
+        reviewedAt: now,
+        reviewedBy: user?.uid ?? '',
+      });
+
+      // Notify creator
+      try {
+        await addDoc(collection(db, 'notificaciones'), {
+          userId: appData.uid,
+          title: `🎉 ¡Ya eres creador GarrDash!`,
+          message: `Tu codigo ${code} esta activo.`,
+          type: 'creator_approved',
+          createdAt: now,
+          read: false,
+        }).catch(() => {});
+      } catch {}
+
+      await refreshAdminCreators();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al aprobar';
+      return { ok: false, error: msg };
+    }
+  }, [userRole, refreshAdminCreators]);
+
+  const adminRejectCreator = useCallback(async (appId: string, reason: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (userRole !== 'admin') return { ok: false, error: 'Solo admin' };
+      const appRef = doc(db, 'creator_applications', appId);
+      const appDoc = await getDoc(appRef);
+      if (!appDoc.exists()) return { ok: false, error: 'Solicitud no encontrada' };
+      const appData = appDoc.data();
+      if (appData.status !== 'pending') return { ok: false, error: 'Ya procesada' };
+      const user = auth.currentUser;
+      const now = Date.now();
+      await updateDoc(appRef, {
+        status: 'rejected',
+        reviewedAt: now,
+        reviewedBy: user?.uid ?? '',
+        rejectReason: reason,
+      });
+
+      // Notify
+      try {
+        await addDoc(collection(db, 'notificaciones'), {
+          userId: appData.uid,
+          title: 'Solicitud de creador revisada',
+          message: 'Tu solicitud de creador fue revisada. Entra a GarrDash para ver el estado.',
+          type: 'creator_rejected',
+          createdAt: now,
+          read: false,
+        }).catch(() => {});
+      } catch {}
+
+      await refreshAdminCreators();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al rechazar';
+      return { ok: false, error: msg };
+    }
+  }, [userRole, refreshAdminCreators]);
+
+  const adminSuspendCreator = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (userRole !== 'admin') return { ok: false, error: 'Solo admin' };
+      const codeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('code', '==', code),
+        limit(1)
+      ));
+      if (codeSnap.empty) return { ok: false, error: 'Codigo no encontrado' };
+      await updateDoc(codeSnap.docs[0].ref, { status: 'suspended' });
+      await refreshAdminCreators();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al suspender';
+      return { ok: false, error: msg };
+    }
+  }, [userRole, refreshAdminCreators]);
+
+  const adminReactivateCreator = useCallback(async (code: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (userRole !== 'admin') return { ok: false, error: 'Solo admin' };
+      const codeSnap = await getDocs(query(
+        collection(db, 'creator_codes'),
+        where('code', '==', code),
+        limit(1)
+      ));
+      if (codeSnap.empty) return { ok: false, error: 'Codigo no encontrado' };
+      await updateDoc(codeSnap.docs[0].ref, { status: 'active' });
+      await refreshAdminCreators();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al reactivar';
+      return { ok: false, error: msg };
+    }
+  }, [userRole, refreshAdminCreators]);
+
   const value: GameState = {
     screen, coins, points, lives, vip, muted, musicEnabled, sfxEnabled, customColor, user: currentUser, selectedCharacter, selectedShip, selectedZombie, loggedIn, email, playerName,
     topPlayerName, topPlayerScore, topPlayerAvatar, absoluteRecord,
@@ -3110,6 +3684,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     exchangeNotification, dismissExchangeNotification,
     campaignLevelStats, refreshCampaignLevelStats,
     logOperatorAction, operatorLogs, refreshOperatorLogs,
+    creatorApplication, creatorCode, creatorReferralCode,
+    submitCreatorApplication, refreshCreatorApplication,
+    applyReferralCode, refreshCreatorReferralCode,
+    creatorStats, refreshCreatorStats,
+    creatorRanking, refreshCreatorRanking,
+    adminCreatorApplications, adminCreatorCodes, refreshAdminCreators,
+    adminApproveCreator, adminRejectCreator, adminSuspendCreator, adminReactivateCreator,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

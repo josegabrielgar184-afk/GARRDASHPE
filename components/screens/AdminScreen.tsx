@@ -12,7 +12,7 @@ import {
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff,
   RefreshCw, AlertCircle, XCircle, Loader2, Key, List, Mail, Gamepad2, Timer, IdCard,
-  MessageSquare, Send, Megaphone, Radio,
+  MessageSquare, Send, Megaphone, Radio, Check, X,
 } from 'lucide-react';
 import {
   fetchSuggestions, handleSuggestion, fetchInactiveUsers, fetchActiveUsersNow,
@@ -20,7 +20,7 @@ import {
 } from '@/lib/economy-service';
 import { fetchAnalytics, getModeLabel, formatDuration, type AnalyticsPeriod, type AnalyticsData } from '@/lib/analytics';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores';
 
 export function AdminScreen() {
   const {
@@ -34,6 +34,8 @@ export function AdminScreen() {
     adminApproveCanje, adminMarkCorrection, adminRejectCanje,
     campaignLevelStats, refreshCampaignLevelStats,
     allUsersList,
+    adminCreatorApplications, adminCreatorCodes, refreshAdminCreators,
+    adminApproveCreator, adminRejectCreator, adminSuspendCreator, adminReactivateCreator,
   } = useGame();
   const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -49,7 +51,8 @@ export function AdminScreen() {
     refreshPendingRequests();
     refreshAdminStats();
     refreshAdminCanjes();
-  }, [refreshPendingRequests, refreshAdminStats, refreshAdminCanjes]);
+    refreshAdminCreators();
+  }, [refreshPendingRequests, refreshAdminStats, refreshAdminCanjes, refreshAdminCreators]);
 
   useEffect(() => {
     if (tab === 'levels') refreshCampaignLevelStats();
@@ -221,6 +224,7 @@ export function AdminScreen() {
     { id: 'stats', label: 'Estadisticas', icon: BarChart3, group: 'Sistema' },
     { id: 'levels', label: 'Niveles', icon: BarChart3, group: 'Sistema' },
     { id: 'suggestions', label: 'Sugerencias', icon: MessageSquare, group: 'Gestion' },
+    { id: 'creadores', label: 'Creadores', icon: Users, group: 'Gestion' },
     { id: 'analytics', label: 'Analitica', icon: Activity, group: 'Sistema' },
     { id: 'telemetry', label: 'Telemetria', icon: Radio, group: 'Sistema' },
     { id: 'winback', label: 'Win-Back', icon: UserX, group: 'Sistema' },
@@ -1212,6 +1216,18 @@ export function AdminScreen() {
 
           {/* Promos Tab */}
           {tab === 'promos' && <AdminPromosTab />}
+
+          {tab === 'creadores' && (
+            <AdminCreatorsTab
+              applications={adminCreatorApplications}
+              codes={adminCreatorCodes}
+              onApprove={adminApproveCreator}
+              onReject={adminRejectCreator}
+              onSuspend={adminSuspendCreator}
+              onReactivate={adminReactivateCreator}
+              onRefresh={refreshAdminCreators}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -1982,6 +1998,160 @@ function AdminStatsTab({
                     <XCircle className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminCreatorsTab({
+  applications, codes, onApprove, onReject, onSuspend, onReactivate, onRefresh,
+}: {
+  applications: Array<{ id: string; channelName: string; platform: string; profileUrl: string; videoUrl: string; requestedCode: string; createdAt: number; uid: string }>;
+  codes: Array<{ code: string; channelName: string; platform: string; status: string; totalReferrals: number; pendingQualification: number; qualified: number; qualifiedThisMonth: number; coinsEarned: number }>;
+  onApprove: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  onReject: (id: string, reason: string) => Promise<{ ok: boolean; error?: string }>;
+  onSuspend: (code: string) => Promise<{ ok: boolean; error?: string }>;
+  onReactivate: (code: string) => Promise<{ ok: boolean; error?: string }>;
+  onRefresh: () => Promise<void>;
+}) {
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const handleApprove = async (id: string) => {
+    setActionLoading(id);
+    await onApprove(id);
+    setActionLoading(null);
+    await onRefresh();
+  };
+
+  const handleReject = async () => {
+    if (!rejectId) return;
+    setActionLoading(rejectId);
+    await onReject(rejectId, rejectReason.trim() || 'No cumple requisitos');
+    setActionLoading(null);
+    setRejectId(null);
+    setRejectReason('');
+    await onRefresh();
+  };
+
+  const handleSuspend = async (code: string) => {
+    if (!confirm(`¿Suspender codigo ${code}?`)) return;
+    setActionLoading(code);
+    await onSuspend(code);
+    setActionLoading(null);
+    await onRefresh();
+  };
+
+  const handleReactivate = async (code: string) => {
+    setActionLoading(code);
+    await onReactivate(code);
+    setActionLoading(null);
+    await onRefresh();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-amber-400" />
+            <h3 className="text-white font-bold text-sm">Solicitudes Pendientes ({applications.length})</h3>
+          </div>
+          <button onClick={onRefresh} className="text-white/50 hover:text-white text-xs flex items-center gap-1">
+            <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+          </button>
+        </div>
+
+        {applications.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">No hay solicitudes pendientes</p>
+        ) : (
+          <div className="space-y-2">
+            {applications.map((app) => (
+              <div key={app.id} className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white font-bold text-sm">{app.channelName}</span>
+                  <span className="text-amber-400 font-black text-xs tracking-wider">{app.requestedCode}</span>
+                </div>
+                <div className="flex gap-3 text-[10px] text-white/40 mb-2">
+                  <span className="capitalize">{app.platform}</span>
+                  <span>{new Date(app.createdAt).toLocaleDateString('es-ES')}</span>
+                </div>
+                <div className="flex gap-2 mb-3">
+                  <a href={app.profileUrl} target="_blank" rel="noopener" className="text-cyan-400 text-xs underline">Perfil</a>
+                  <a href={app.videoUrl} target="_blank" rel="noopener" className="text-cyan-400 text-xs underline">Video</a>
+                </div>
+                {rejectId === app.id ? (
+                  <div className="space-y-2">
+                    <input
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Motivo de rechazo"
+                      className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={handleReject} disabled={actionLoading === app.id} className="flex-1 py-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/40 font-bold text-xs hover:bg-red-500/30 disabled:opacity-50">
+                        {actionLoading === app.id ? <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto" /> : 'Confirmar rechazo'}
+                      </button>
+                      <button onClick={() => { setRejectId(null); setRejectReason(''); }} className="px-3 py-2 rounded-xl bg-card border border-border text-white/50 text-xs">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => handleApprove(app.id)} disabled={actionLoading === app.id} className="flex-1 py-2 rounded-xl bg-green-500/20 text-green-400 border border-green-500/40 font-bold text-xs hover:bg-green-500/30 disabled:opacity-50 flex items-center justify-center gap-1">
+                      {actionLoading === app.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      Aprobar
+                    </button>
+                    <button onClick={() => setRejectId(app.id)} className="flex-1 py-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 font-bold text-xs hover:bg-red-500/20 flex items-center justify-center gap-1">
+                      <X className="w-3.5 h-3.5" /> Rechazar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-white font-bold text-sm mb-2">Codigos Activos ({codes.length})</h3>
+        {codes.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">No hay codigos activos</p>
+        ) : (
+          <div className="space-y-2">
+            {codes.map((c) => (
+              <div key={c.code} className="rounded-xl bg-card border border-border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <span className="text-white font-bold text-sm">{c.code}</span>
+                    <span className="text-white/40 text-xs ml-2">{c.channelName}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${c.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-orange-700/20 text-orange-400'}`}>
+                    {c.status === 'active' ? 'Activo' : 'Suspendido'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 text-center mb-2">
+                  <div><p className="text-white/30 text-[9px]">Ref</p><p className="text-white font-bold text-xs">{c.totalReferrals}</p></div>
+                  <div><p className="text-white/30 text-[9px]">Pend</p><p className="text-white font-bold text-xs">{c.pendingQualification}</p></div>
+                  <div><p className="text-white/30 text-[9px]">Calif</p><p className="text-white font-bold text-xs">{c.qualified}</p></div>
+                  <div><p className="text-white/30 text-[9px]">Monedas</p><p className="text-white font-bold text-xs">{c.coinsEarned}</p></div>
+                </div>
+                <div className="text-center mb-2">
+                  <p className="text-amber-400 text-xs font-bold">Calificados este mes: {c.qualifiedThisMonth}</p>
+                </div>
+                {c.status === 'active' ? (
+                  <button onClick={() => handleSuspend(c.code)} disabled={actionLoading === c.code} className="w-full py-1.5 rounded-lg bg-orange-700/10 text-orange-400 border border-orange-700/30 font-bold text-[10px] hover:bg-orange-700/20 disabled:opacity-50">
+                    {actionLoading === c.code ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Suspender'}
+                  </button>
+                ) : (
+                  <button onClick={() => handleReactivate(c.code)} disabled={actionLoading === c.code} className="w-full py-1.5 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 font-bold text-[10px] hover:bg-green-500/20 disabled:opacity-50">
+                    {actionLoading === c.code ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Reactivar'}
+                  </button>
+                )}
               </div>
             ))}
           </div>

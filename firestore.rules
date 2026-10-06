@@ -159,6 +159,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- Creator Program ---
+    // creator_applications: owner can read own & create. Admin can read all, update status.
+    match /creator_applications/{appId} {
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // creator_codes: anyone signed in can read (needed to validate code entry).
+    // Only admin can create (via approval flow), update (suspend/reactivate), or delete.
+    match /creator_codes/{codeId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // creator_referrals: owner (referred user) and creator can read.
+    // System creates on code application. Update for qualification is client-side
+    // but transaction-guarded. Admin can read all.
+    match /creator_referrals/{refId} {
+      allow read: if isOwner(resource.data.referredUid)
+        || (isSignedIn() && get(/databases/$(database)/documents/creator_referrals/$(refId)).data.creatorUid == request.auth.uid)
+        || isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.referredUid == request.auth.uid;
+      allow update: if isSignedIn();
+      allow delete: if false;
+    }
+
     // --- Default deny ---
     match /{document=**} {
       allow read, write: if false;

@@ -8,7 +8,7 @@ import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
-  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell,
+  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell, Users,
   Move, RotateCcw, Save, Sliders, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
 } from 'lucide-react';
 import {
@@ -288,6 +288,17 @@ export function MenuScreen() {
             <button onClick={handleOfferwall} className="tac-btn tac-stencil aspect-square rounded-lg flex flex-col items-center justify-center gap-2">
               <Gift className="w-8 h-8 text-[#d4d8b8]" />
               <span className="text-[#d4d8b8] font-bold text-sm tracking-wider">SUMINISTROS</span>
+            </button>
+          </div>
+
+          {/* Creadores button */}
+          <div className="mt-3">
+            <button
+              onClick={() => setScreen('creator')}
+              className="w-full tac-btn tac-stencil rounded-lg py-2.5 flex items-center justify-center gap-2 font-bold text-xs text-[#d4d8b8]"
+            >
+              <Users className="w-4 h-4" />
+              CREADORES
             </button>
           </div>
 
