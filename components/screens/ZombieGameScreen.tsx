@@ -63,7 +63,8 @@ const WEAPON_DAMAGES: Record<WeaponType, number> = {
   pistol: 40, rifle: 30, shotgun: 60, minigun: 20, laser: 50,
 };
 const MAX_ACTIVE_ZOMBIES_BASE = 5;
-const MAX_ACTIVE_ZOMBIES_PER_LEVEL = 0.5;
+const MAX_ACTIVE_ZOMBIES_CAP = 12;
+const MAX_ACTIVE_ZOMBIES_PER_LEVEL = 0.25;
 
 const COLOR_THEMES = [
   { name: 'Verde Ácido', road: '#2a2a22', fog: 'rgba(100,200,50,0.12)', border: '#84cc16', dash: 'rgba(255,255,255,0.6)' },
@@ -180,7 +181,7 @@ export function ZombieGameScreen() {
   const nuclearTimerRef = useRef(0);
   const nuclearUsesRef = useRef(0);
   const [nuclearUsesLeft, setNuclearUsesLeft] = useState(2);
-  const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().zombie.move);
+  const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().campaign.nuclear);
   const hasRevivedRef = useRef(false);
   const scoreMultRef = useRef(1);
   const damageMultRef = useRef(1);
@@ -344,7 +345,7 @@ export function ZombieGameScreen() {
     castleHpRef.current = CASTLE_MAX_HP;
     gameOverRef.current = false;
     spawnTimerRef.current = 0; barrelTimerRef.current = 0;
-    difficultyRef.current = Math.max(0.3, 0.3 + (campaignLevelRef.current - 1) * 0.05); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
+    difficultyRef.current = Math.max(0.3, 0.3 + (campaignLevelRef.current - 1) * 0.03); miniBossThresholdRef.current = 500; finalBossThresholdRef.current = 1500;
     finalBossDefeatedRef.current = false; victoryTriggeredRef.current = false; setVictory(false); scrollYRef.current = 0;
     // Multiple bosses: more bosses at higher levels (1 boss per 10 levels, min 1, max 4)
     bossWavesTotalRef.current = Math.min(4, Math.max(1, Math.floor(campaignLevelRef.current / 10) + 1));
@@ -451,14 +452,14 @@ export function ZombieGameScreen() {
     const lane = Math.floor(Math.random() * LANE_COUNT);
     const r = Math.random();
     let type: ZombieType = 'normal';
-    if (difficultyRef.current > 1.5 && r < 0.15) type = 'fast';
-    else if (difficultyRef.current > 2 && r < 0.22) type = 'tank';
+    if (difficultyRef.current > 2 && r < 0.12) type = 'fast';
+    else if (difficultyRef.current > 3 && r < 0.18) type = 'tank';
 
-    const levelScale = 0.5 + (campaignLevelRef.current - 1) * 0.08;
+    const levelScale = 0.5 + (campaignLevelRef.current - 1) * 0.04;
     let zHp: number, size: number, color: string, vy: number;
-    if (type === 'fast') { zHp = Math.floor(20 * levelScale); size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = (0.7 + difficultyRef.current * 0.15) * Math.min(2, levelScale); }
-    else if (type === 'tank') { zHp = Math.floor(100 * levelScale); size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = (0.3 + difficultyRef.current * 0.08) * Math.min(1.5, levelScale); }
-    else { zHp = Math.floor(30 * levelScale); size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = (0.45 + difficultyRef.current * 0.1) * Math.min(2, levelScale); }
+    if (type === 'fast') { zHp = Math.floor(20 * levelScale); size = 14 * SPRITE_SCALE; color = '#84cc16'; vy = (0.7 + difficultyRef.current * 0.12) * Math.min(1.8, levelScale); }
+    else if (type === 'tank') { zHp = Math.floor(100 * levelScale); size = 26 * SPRITE_SCALE; color = '#4d7c0f'; vy = (0.3 + difficultyRef.current * 0.06) * Math.min(1.3, levelScale); }
+    else { zHp = Math.floor(30 * levelScale); size = 18 * SPRITE_SCALE; color = '#65a30d'; vy = (0.45 + difficultyRef.current * 0.08) * Math.min(1.8, levelScale); }
 
     const { w: sw } = canvasSizeRef.current;
     const z = zombiePoolRef.current.acquire();
@@ -844,16 +845,16 @@ export function ZombieGameScreen() {
 
         // Progressive difficulty: increases over time (score-based) + per-level base
         const timeMinutes = playTimeRef.current / 60000;
-        difficultyRef.current = 0.3 + scoreRef.current / 1000 + timeMinutes * 0.15;
+        difficultyRef.current = 0.3 + scoreRef.current / 1500 + timeMinutes * 0.08;
         if (coinsCapped) difficultyRef.current *= 1.3;
 
         // Continuous zombie + barrel spawning - never pauses, even during boss or ulti (BLOCK 7)
         if (!victoryTriggeredRef.current && !victory) {
           spawnTimerRef.current += dt;
-          const baseInterval = coinsCapped ? 18 : 30;
-          const levelMultiplier = Math.max(1.0, 2.0 - (campaignLevelRef.current - 1) * 0.06);
-          const interval = Math.max(8, baseInterval * levelMultiplier - difficultyRef.current * 2);
-          const maxActive = Math.floor(MAX_ACTIVE_ZOMBIES_BASE + (campaignLevelRef.current - 1) * MAX_ACTIVE_ZOMBIES_PER_LEVEL);
+          const baseInterval = coinsCapped ? 20 : 32;
+          const levelMultiplier = Math.max(0.7, 1.8 - (campaignLevelRef.current - 1) * 0.04);
+          const interval = Math.max(10, baseInterval * levelMultiplier - difficultyRef.current * 1.5);
+          const maxActive = Math.min(MAX_ACTIVE_ZOMBIES_CAP, Math.floor(MAX_ACTIVE_ZOMBIES_BASE + (campaignLevelRef.current - 1) * MAX_ACTIVE_ZOMBIES_PER_LEVEL));
           if (spawnTimerRef.current > interval && zombiePoolRef.current.getActive().length < maxActive) { spawnZombie(); spawnTimerRef.current = 0; }
           if (scoreRef.current >= miniBossThresholdRef.current) {
             for (let i = 0; i < 2; i++) {
@@ -1477,7 +1478,7 @@ export function ZombieGameScreen() {
             )}
             <p className="text-white/60 text-sm mb-1">Zombies eliminados: {zombiesKilled}</p>
             <p className="text-white/60 text-sm mb-1">Puntuacion: {score}</p>
-            <p className="text-amber-400 text-sm mb-6">Monedas ganadas: {coinsEarned}</p>
+            <p className="text-white/40 text-sm mb-6">Recompensas de Campana proximamente</p>
             {!hasRevived && isOnline && (
               <button onClick={() => {
                 const now = Date.now();

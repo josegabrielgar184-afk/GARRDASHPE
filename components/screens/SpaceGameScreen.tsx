@@ -66,7 +66,7 @@ export function SpaceGameScreen() {
   const [hasDoubleShot, setHasDoubleShot] = useState(false);
   const [hasCoinMagnet, setHasCoinMagnet] = useState(false);
   const [nuclearReady, setNuclearReady] = useState(false);
-  const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().space.move);
+  const [nuclearBtnLayout, setNuclearBtnLayout] = useState<ControlLayout>(() => loadControlLayouts().space.nuclear);
   const [milestoneBanner, setMilestoneBanner] = useState<string | null>(null);
   const [comboDisplay, setComboDisplay] = useState(0);
   const [shieldActive, setShieldActive] = useState(false);

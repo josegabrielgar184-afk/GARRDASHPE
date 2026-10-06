@@ -18,7 +18,8 @@ import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/
 import { UI_THEMES, type UITheme } from '@/hooks/use-game';
 import {
   loadControlLayouts, saveControlLayouts, resetControlLayouts, clampLayout,
-  DEFAULT_LAYOUTS, type ControlLayout, type ControlScreenId,
+  DEFAULT_LAYOUTS, CONTROL_LABELS, SCREEN_LABELS,
+  type ControlLayout, type ControlScreenId,
 } from '@/lib/control-layout';
 
 export function MenuScreen() {
@@ -506,19 +507,17 @@ export function MenuScreen() {
 
 function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void; onSave: () => void; onReset: () => void; }) {
   const [layouts, setLayouts] = useState(() => loadControlLayouts());
-  const [selectedScreen, setSelectedScreen] = useState<ControlScreenId>('zombie');
+  const [selectedScreen, setSelectedScreen] = useState<ControlScreenId>('campaign');
+  const [selectedControl, setSelectedControl] = useState<string>('nuclear');
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
 
-  const screenLabels: Record<ControlScreenId, string> = {
-    zombie: 'Zombies (Campana)',
-    space: 'Espacio (GarrFly)',
-    survival: 'Supervivencia',
-  };
+  const screenLabels = SCREEN_LABELS;
 
-  const currentLayout = layouts[selectedScreen].move;
+  const currentControls = Object.keys(layouts[selectedScreen]);
+  const currentLayout = layouts[selectedScreen][selectedControl] ?? layouts[selectedScreen]['nuclear'];
 
   const handleDragStart = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -545,7 +544,7 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
     const clamped = clampLayout({ ...currentLayout, x: newX, y: newY }, currentLayout.size);
     setLayouts((prev) => ({
       ...prev,
-      [selectedScreen]: { ...prev[selectedScreen], move: clamped },
+      [selectedScreen]: { ...prev[selectedScreen], [selectedControl]: clamped },
     }));
     dirtyRef.current = true;
   };
@@ -561,7 +560,7 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
       ...prev,
       [selectedScreen]: {
         ...prev[selectedScreen],
-        move: clampLayout({ ...prev[selectedScreen].move, size: prev[selectedScreen].move.size + delta }, prev[selectedScreen].move.size + delta),
+        [selectedControl]: clampLayout({ ...prev[selectedScreen][selectedControl], size: prev[selectedScreen][selectedControl].size + delta }, prev[selectedScreen][selectedControl].size + delta),
       },
     }));
     dirtyRef.current = true;
@@ -572,7 +571,7 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
       ...prev,
       [selectedScreen]: {
         ...prev[selectedScreen],
-        move: { ...prev[selectedScreen].move, opacity: Math.max(0.3, Math.min(1, prev[selectedScreen].move.opacity + delta)) },
+        [selectedControl]: { ...prev[selectedScreen][selectedControl], opacity: Math.max(0.3, Math.min(1, prev[selectedScreen][selectedControl].opacity + delta)) },
       },
     }));
     dirtyRef.current = true;
@@ -609,6 +608,24 @@ function ControlEditorModal({ onClose, onSave, onReset }: { onClose: () => void;
             </button>
           ))}
         </div>
+
+        {/* Control selector within selected screen */}
+        {currentControls.length > 1 && (
+          <div className="flex gap-2 mb-3">
+            {currentControls.map((ctrlId) => (
+              <button
+                key={ctrlId}
+                onClick={() => setSelectedControl(ctrlId)}
+                className={`flex-1 py-1.5 rounded-lg font-bold text-[9px] transition-colors ${selectedControl === ctrlId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'tac-btn text-[#6b7280]'}`}
+              >
+                {CONTROL_LABELS[selectedScreen][ctrlId] ?? ctrlId}
+              </button>
+            ))}
+          </div>
+        )}
+        {currentControls.length === 1 && (
+          <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{CONTROL_LABELS[selectedScreen][selectedControl] ?? 'Control'}</p>
+        )}
 
         {/* Preview area */}
         <div className="relative w-full aspect-[9/16] rounded-xl bg-black/60 border border-[#8a9b50]/20 overflow-hidden mb-4">

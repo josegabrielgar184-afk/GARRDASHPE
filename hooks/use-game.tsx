@@ -1360,7 +1360,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const refreshCampaignLevelStats = useCallback(async () => {
     try {
-      const snap = await getDocs(collection(db, 'usuarios'));
+      const snap = await getDocs(query(collection(db, 'usuarios'), limit(100)));
       const counts: Record<number, number> = {};
       snap.forEach((d) => {
         const data = d.data();
@@ -1458,7 +1458,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (userRole !== 'admin' && userRole !== 'operador') return;
     try {
-      const unsub = onSnapshot(collection(db, 'usuarios'), (snap) => {
+      const unsub = onSnapshot(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(50)), (snap) => {
         const users: Array<{
           uid: string; nombre: string; email: string; coins: number;
           puntos: number; vip: boolean; playerID: string; nickname: string;
@@ -2289,7 +2289,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const unsub = onSnapshot(collection(db, 'usuarios'), (snap) => {
+      const unsub = onSnapshot(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(100)), (snap) => {
         let totalCoins = 0;
         let totalUsers = 0;
         let activeCoins = 0;

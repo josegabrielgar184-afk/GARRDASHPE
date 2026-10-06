@@ -7,21 +7,33 @@ export interface ControlLayout {
   opacity: number;
 }
 
-export type ControlScreenId = 'zombie' | 'space' | 'survival';
+export type ControlScreenId = 'campaign' | 'vicio' | 'space';
 
-const STORAGE_KEY = 'garrdash_control_layouts';
+const STORAGE_KEY = 'garrdash_control_layouts_v2';
 const DEFAULT_OPACITY = 0.85;
 
 export const DEFAULT_LAYOUTS: Record<ControlScreenId, Record<string, ControlLayout>> = {
-  zombie: {
-    move: { x: 0.5, y: 0.88, size: 120, opacity: DEFAULT_OPACITY },
+  campaign: {
+    nuclear: { x: 0.85, y: 0.75, size: 64, opacity: DEFAULT_OPACITY },
+  },
+  vicio: {
+    nuclear: { x: 0.85, y: 0.75, size: 64, opacity: DEFAULT_OPACITY },
   },
   space: {
-    move: { x: 0.5, y: 0.85, size: 140, opacity: DEFAULT_OPACITY },
+    nuclear: { x: 0.85, y: 0.75, size: 64, opacity: DEFAULT_OPACITY },
   },
-  survival: {
-    move: { x: 0.5, y: 0.88, size: 120, opacity: DEFAULT_OPACITY },
-  },
+};
+
+export const CONTROL_LABELS: Record<ControlScreenId, Record<string, string>> = {
+  campaign: { nuclear: 'Bomba Nuclear' },
+  vicio: { nuclear: 'Bomba Nuclear' },
+  space: { nuclear: 'Bomba Nuclear' },
+};
+
+export const SCREEN_LABELS: Record<ControlScreenId, string> = {
+  campaign: 'Campana',
+  vicio: 'Camino del Vicio',
+  space: 'GarrFly / Espacio',
 };
 
 export function loadControlLayouts(): Record<ControlScreenId, Record<string, ControlLayout>> {
@@ -57,12 +69,12 @@ export function resetControlLayouts(): void {
 }
 
 export function clampLayout(layout: ControlLayout, controlSize: number): ControlLayout {
-  const halfSize = controlSize / 2 / window.innerWidth;
-  const halfSizeY = controlSize / 2 / window.innerHeight;
+  const halfW = controlSize / 2 / window.innerWidth;
+  const halfH = controlSize / 2 / window.innerHeight;
   return {
-    x: Math.max(halfSize, Math.min(1 - halfSize, layout.x)),
-    y: Math.max(halfSizeY, Math.min(1 - halfSizeY, layout.y)),
-    size: Math.max(60, Math.min(200, layout.size)),
+    x: Math.max(halfW, Math.min(1 - halfW, layout.x)),
+    y: Math.max(halfH, Math.min(1 - halfH, layout.y)),
+    size: Math.max(48, Math.min(200, layout.size)),
     opacity: Math.max(0.3, Math.min(1, layout.opacity)),
   };
 }
