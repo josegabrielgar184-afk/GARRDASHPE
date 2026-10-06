@@ -501,54 +501,61 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
   const [layouts, setLayouts] = useState(() => loadControlLayouts());
   const [selectedControl, setSelectedControl] = useState<string>(() => getFirstControlId(screenId));
   const [dragging, setDragging] = useState(false);
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const dragRef = useRef<{ ctrlId: string; pointerId: number } | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
+  const initialLayoutsRef = useRef<Record<ControlScreenId, Record<string, ControlLayout>> | null>(null);
 
-  const currentControls = Object.keys(layouts[screenId] ?? DEFAULT_LAYOUTS[screenId] ?? {});
+  if (!initialLayoutsRef.current) {
+    initialLayoutsRef.current = JSON.parse(JSON.stringify(layouts)) as typeof layouts;
+  }
+
   const screenLayouts = layouts[screenId] ?? DEFAULT_LAYOUTS[screenId];
-  const currentLayout: ControlLayout = screenLayouts[selectedControl] ?? screenLayouts[currentControls[0]] ?? DEFAULT_LAYOUTS[screenId][currentControls[0]] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
+  const defaults = DEFAULT_LAYOUTS[screenId];
+  const currentControls = Object.keys(defaults);
+  const currentLayout: ControlLayout = screenLayouts[selectedControl]
+    ?? screenLayouts[currentControls[0]]
+    ?? defaults[currentControls[0]]
+    ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
 
-  const handleDragStart = (e: React.PointerEvent) => {
+  const handleControlDragStart = (e: React.PointerEvent, ctrlId: string) => {
     e.preventDefault();
-    const preview = previewRef.current;
-    if (!preview) return;
-    const rect = preview.getBoundingClientRect();
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: rect.left + rect.width / 2,
-      origY: rect.top + rect.height / 2,
-    };
+    e.stopPropagation();
+    setSelectedControl(ctrlId);
+    dragRef.current = { ctrlId, pointerId: e.pointerId };
     setDragging(true);
-    preview.setPointerCapture(e.pointerId);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const handleDragMove = (e: React.PointerEvent) => {
+  const handleControlDragMove = (e: React.PointerEvent) => {
     if (!dragging || !dragRef.current || !previewRef.current) return;
-    const parent = previewRef.current.parentElement;
-    if (!parent) return;
+    const parent = previewRef.current;
     const parentRect = parent.getBoundingClientRect();
     const newX = (e.clientX - parentRect.left) / parentRect.width;
     const newY = (e.clientY - parentRect.top) / parentRect.height;
-    const clamped = clampLayout({ ...currentLayout, x: newX, y: newY }, currentLayout.size);
+    const ctrlId = dragRef.current.ctrlId;
+    const sl = layouts[screenId] ?? DEFAULT_LAYOUTS[screenId];
+    const cur = sl[ctrlId] ?? defaults[ctrlId] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
+    const clamped = clampLayout({ ...cur, x: newX, y: newY }, cur.size);
     setLayouts((prev) => ({
       ...prev,
-      [screenId]: { ...prev[screenId], [selectedControl]: clamped },
+      [screenId]: { ...(prev[screenId] ?? DEFAULT_LAYOUTS[screenId]), [ctrlId]: clamped },
     }));
     dirtyRef.current = true;
   };
 
-  const handleDragEnd = (e: React.PointerEvent) => {
+  const handleControlDragEnd = (e: React.PointerEvent) => {
     setDragging(false);
+    if (dragRef.current) {
+      try { (e.target as HTMLElement).releasePointerCapture(dragRef.current.pointerId); } catch {}
+    }
     dragRef.current = null;
-    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
   };
 
   const handleSizeChange = (delta: number) => {
     setLayouts((prev) => {
       const sl = prev[screenId] ?? DEFAULT_LAYOUTS[screenId];
-      const cur = sl[selectedControl] ?? sl[Object.keys(sl)[0]] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
+      const cur = sl[selectedControl] ?? sl[currentControls[0]] ?? defaults[selectedControl] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
       return {
         ...prev,
         [screenId]: {
@@ -563,7 +570,7 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
   const handleOpacityChange = (delta: number) => {
     setLayouts((prev) => {
       const sl = prev[screenId] ?? DEFAULT_LAYOUTS[screenId];
-      const cur = sl[selectedControl] ?? sl[Object.keys(sl)[0]] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
+      const cur = sl[selectedControl] ?? sl[currentControls[0]] ?? defaults[selectedControl] ?? { x: 0.5, y: 0.5, size: 56, opacity: 0.85 };
       return {
         ...prev,
         [screenId]: {
@@ -580,9 +587,18 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
     onSave();
   };
 
+  const handleCancel = () => {
+    if (initialLayoutsRef.current) {
+      setLayouts(JSON.parse(JSON.stringify(initialLayoutsRef.current)) as typeof layouts);
+    }
+    onClose();
+  };
+
   const handleReset = () => {
     resetControlLayouts();
-    setLayouts({ ...DEFAULT_LAYOUTS });
+    const fresh = JSON.parse(JSON.stringify(DEFAULT_LAYOUTS)) as typeof layouts;
+    setLayouts(fresh);
+    setSelectedControl(getFirstControlId(screenId));
     onReset();
   };
 
@@ -591,57 +607,64 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
       <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-5 animate-scale-in">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[#d4d8b8] font-bold text-lg flex items-center gap-2"><Move className="w-5 h-5 text-[#8a9b50]" /> Personalizar Controles</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
+          <button onClick={handleCancel} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
         </div>
 
         <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{SCREEN_LABELS[screenId]}</p>
 
-        {/* Control selector tabs */}
-        {currentControls.length > 1 && (
-          <div className="flex gap-1.5 mb-3 flex-wrap justify-center">
-            {currentControls.map((ctrlId) => {
-              const iconType = CONTROL_ICONS[ctrlId];
-              const Icon = iconType === 'up' ? ArrowUp : iconType === 'down' ? ArrowDown : iconType === 'left' ? ArrowLeft : iconType === 'right' ? ArrowRight : iconType === 'jump' ? ChevronUp : Move;
-              return (
-                <button
-                  key={ctrlId}
-                  onClick={() => setSelectedControl(ctrlId)}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold text-[9px] transition-colors flex items-center gap-1 ${selectedControl === ctrlId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'tac-btn text-[#6b7280]'}`}
-                >
-                  <Icon className="w-3 h-3" />
-                  {CONTROL_LABELS[screenId][ctrlId] ?? ctrlId}
-                </button>
-              );
-            })}
+        {/* Preview area with ALL controls visible */}
+        <div
+          ref={previewRef}
+          onPointerMove={handleControlDragMove}
+          onPointerUp={handleControlDragEnd}
+          className="relative w-full aspect-[9/16] rounded-xl bg-black/60 border border-[#8a9b50]/20 overflow-hidden mb-4 touch-none"
+        >
+          <div className="absolute inset-0 flex items-center justify-center text-[#6b7280]/20 text-xs pointer-events-none">
+            Toca un boton para seleccionarlo y arrastralo
           </div>
-        )}
-
-        {/* Preview area */}
-        <div className="relative w-full aspect-[9/16] rounded-xl bg-black/60 border border-[#8a9b50]/20 overflow-hidden mb-4">
-          <div className="absolute inset-0 flex items-center justify-center text-[#6b7280]/30 text-xs pointer-events-none">
-            Vista previa
-          </div>
-          <div
-            ref={previewRef}
-            onPointerDown={handleDragStart}
-            onPointerMove={handleDragMove}
-            onPointerUp={handleDragEnd}
-            className="absolute rounded-full border-2 border-cyan-400/40 flex items-center justify-center cursor-grab touch-none select-none"
-            style={{
-              width: currentLayout.size,
-              height: currentLayout.size,
-              left: `${currentLayout.x * 100}%`,
-              top: `${currentLayout.y * 100}%`,
-              transform: 'translate(-50%, -50%)',
-              opacity: currentLayout.opacity,
-              background: 'rgba(34,211,238,0.15)',
-              boxShadow: '0 0 12px rgba(34,211,238,0.3)',
-              transition: dragging ? 'none' : 'width 0.15s, height 0.15s',
-            }}
-          >
-            <ControlPreviewIcon iconType={CONTROL_ICONS[selectedControl] ?? 'nuclear'} size={currentLayout.size} />
-          </div>
+          {currentControls.map((ctrlId) => {
+            const layout = screenLayouts[ctrlId] ?? defaults[ctrlId];
+            if (!layout) return null;
+            const isSelected = ctrlId === selectedControl;
+            const iconType = CONTROL_ICONS[ctrlId] ?? 'nuclear';
+            const Icon = iconType === 'up' ? ArrowUp
+              : iconType === 'down' ? ArrowDown
+              : iconType === 'left' ? ArrowLeft
+              : iconType === 'right' ? ArrowRight
+              : iconType === 'jump' ? ChevronUp
+              : Move;
+            const w = layout.size * 0.85;
+            const h = layout.size * 0.7;
+            return (
+              <div
+                key={ctrlId}
+                onPointerDown={(e) => handleControlDragStart(e, ctrlId)}
+                className="absolute rounded-xl flex items-center justify-center cursor-grab touch-none select-none transition-shadow"
+                style={{
+                  width: w,
+                  height: h,
+                  left: `${layout.x * 100}%`,
+                  top: `${layout.y * 100}%`,
+                  transform: 'translate(-50%, -50%)',
+                  opacity: layout.opacity,
+                  background: isSelected ? 'rgba(34,211,238,0.25)' : 'rgba(0,0,0,0.7)',
+                  border: isSelected ? '2px solid rgba(34,211,238,0.8)' : '1px solid rgba(0,243,255,0.3)',
+                  boxShadow: isSelected ? '0 0 16px rgba(34,211,238,0.5)' : '0 0 6px rgba(0,243,255,0.15)',
+                }}
+              >
+                <div className="flex flex-col items-center justify-center gap-0.5 pointer-events-none">
+                  <Icon className="text-cyan-400" style={{ width: w * 0.4, height: w * 0.4 }} />
+                  {ctrlId === 'jump' && <span className="text-cyan-400 text-[7px] font-bold leading-none">SALTAR</span>}
+                </div>
+              </div>
+            );
+          })}
         </div>
+
+        {/* Selected control name */}
+        <p className="text-center text-cyan-400 text-xs font-bold mb-3">
+          {CONTROL_LABELS[screenId][selectedControl] ?? selectedControl}
+        </p>
 
         {/* Size controls */}
         <div className="space-y-3 mb-4">
@@ -663,7 +686,7 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
           </div>
         </div>
 
-        <p className="text-[#6b7280] text-[10px] text-center mb-4">Arrastra el boton para reposicionarlo. No puede salirse de la pantalla.</p>
+        <p className="text-[#6b7280] text-[10px] text-center mb-4">Toca un boton para seleccionarlo. Arrastralo para moverlo.</p>
 
         {/* Action buttons */}
         <div className="space-y-2">
@@ -674,7 +697,7 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
             <button onClick={handleReset} className="flex-1 py-2.5 rounded-xl tac-btn text-[#6b7280] font-bold text-xs hover:text-[#d4d8b8] flex items-center justify-center gap-2">
               <RotateCcw className="w-3.5 h-3.5" /> Restablecer
             </button>
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl tac-btn text-[#6b7280] font-bold text-xs hover:text-[#d4d8b8]">
+            <button onClick={handleCancel} className="flex-1 py-2.5 rounded-xl tac-btn text-[#6b7280] font-bold text-xs hover:text-[#d4d8b8]">
               Cancelar
             </button>
           </div>
