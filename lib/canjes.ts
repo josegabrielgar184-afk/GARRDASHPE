@@ -19,6 +19,20 @@ export const CANJE_REWARDS: Array<{ id: string; label: string; coinCost: number;
   { id: 'diamonds_1060', label: '1060 Diamantes', coinCost: 160000, keyCost: 25, usdValue: 10.0 },
 ];
 
+export const MIN_CANJE_COINS = CANJE_REWARDS[0].coinCost;
+export const MIN_CANJE_KEYS = CANJE_REWARDS[0].keyCost;
+export const NEAR_CANJE_THRESHOLD_PCT = 0.80;
+
+export function isReadyToCanje(coins: number, keys: number): boolean {
+  return coins >= MIN_CANJE_COINS && keys >= MIN_CANJE_KEYS;
+}
+
+export function isNearCanje(coins: number, keys: number): boolean {
+  const coinPct = coins / MIN_CANJE_COINS;
+  const keyPct = keys / MIN_CANJE_KEYS;
+  return coinPct >= NEAR_CANJE_THRESHOLD_PCT || keyPct >= NEAR_CANJE_THRESHOLD_PCT;
+}
+
 export const CORRECTION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export interface CanjeRequest {

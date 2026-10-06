@@ -136,6 +136,7 @@ export interface AdminUserInfo {
   createdAt?: any;
   adsWatched?: number;
   bitlabsEarnings?: number;
+  campaignKeys?: number;
 }
 
 export interface NearClaimSummary {
@@ -2308,8 +2309,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     rejected: adminCanjesCounts.rejected,
   };
 
+  const fetchGlobalStatsRef = useRef<(() => Promise<void>) | null>(null);
+
   const refreshAdminStats = useCallback(async () => {
-    return Promise.resolve();
+    if (fetchGlobalStatsRef.current) {
+      await fetchGlobalStatsRef.current();
+    }
   }, []);
 
   useEffect(() => {
@@ -2355,6 +2360,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               tiempo_jugado_min: data.tiempo_jugado_min ?? 0, vip: data.vip ?? false,
               diamondHistory: data.diamondHistory ?? 0, createdAt: data.createdAt ?? null,
               adsWatched: data.adsWatched ?? 0, bitlabsEarnings: data.bitlabsEarnings ?? 0,
+              campaignKeys: data.campaignKeys ?? 0,
             });
           }
           if (lastLoginDate < fifteenDaysAgo && (data.totalRuns ?? 0) < RETURNED_USER_MIN_GAMES) {
@@ -2390,6 +2396,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {}
     };
+    fetchGlobalStatsRef.current = fetchGlobalStats;
     fetchGlobalStats();
     const interval = setInterval(fetchGlobalStats, 60000);
     return () => clearInterval(interval);

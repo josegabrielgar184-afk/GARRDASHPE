@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import type { PendingRequest, AdminStats } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { CANJE_GAMES, formatElapsed, formatCountdown, getDayKey, getDayLabel } from '@/lib/canjes';
+import { CANJE_GAMES, CANJE_REWARDS, MIN_CANJE_COINS, MIN_CANJE_KEYS, coinsToSoles, formatElapsed, formatCountdown, getDayKey, getDayLabel } from '@/lib/canjes';
 import type { CanjeRequest } from '@/lib/canjes';
+import { COINS_PER_USD, SOLES_PER_USD, NEAR_CLAIM_THRESHOLD, INACTIVITY_THRESHOLD_DAYS } from '@/lib/config';
 import {
   ArrowLeft, DollarSign, Users, Wallet, TrendingUp, AlertTriangle, CheckCircle2,
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
@@ -110,13 +111,13 @@ export function AdminScreen() {
       setSimResult('Ingresa un monto valido en USD');
       return;
     }
-    const coins = amount * 15000;
-    const soles = amount * 3.80;
-    const reserveNeeded = coins / 15000 * 3.80;
+    const coins = amount * COINS_PER_USD;
+    const soles = amount * SOLES_PER_USD;
+    const reserveNeeded = soles;
     const available = adminUserStats.availableAmount;
     const canCover = available >= reserveNeeded;
     setSimResult(
-      `Retiro: $${amount.toFixed(2)} USD (S/. ${soles.toFixed(2)})\n` +
+      `Retiro: ${amount.toFixed(2)} USD (S/. ${soles.toFixed(2)})\n` +
       `Monedas equivalentes: ${coins.toLocaleString()}\n` +
       `Reserva requerida: S/. ${reserveNeeded.toFixed(2)}\n` +
       `Fondo disponible: S/. ${available.toFixed(2)}\n` +
@@ -247,7 +248,7 @@ export function AdminScreen() {
                   </div>
                   <div>
                     <h2 className="text-white font-bold">Jugadores por Nivel</h2>
-                    <p className="text-white/40 text-xs">Distribucion de jugadores activos en la campana</p>
+                    <p className="text-white/40 text-xs">Distribucion por nivel de Campana (muestra)</p>
                   </div>
                 </div>
                 <button onClick={() => refreshCampaignLevelStats()} className="mb-4 w-full py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-bold text-xs hover:bg-cyan-500/30 flex items-center justify-center gap-2"><RefreshCw className="w-4 h-4" /> Actualizar datos</button>
@@ -271,7 +272,8 @@ export function AdminScreen() {
                   </div>
                 )}
                 <div className="mt-4 rounded-xl bg-card border border-border p-3">
-                  <p className="text-white/40 text-xs">Total de jugadores: <span className="text-white font-bold">{campaignLevelStats.reduce((sum, s) => sum + s.activePlayers, 0)}</span></p>
+                  <p className="text-white/40 text-xs">Muestra analizada: <span className="text-white font-bold">{campaignLevelStats.reduce((sum, s) => sum + s.activePlayers, 0)}</span> jugadores</p>
+                  <p className="text-white/30 text-[10px] mt-0.5">Limite de muestra: 100 usuarios por consulta</p>
                   <p className="text-white/40 text-xs mt-1">Niveles alcanzados: <span className="text-white font-bold">{campaignLevelStats.length}</span></p>
                 </div>
               </div>
@@ -328,11 +330,11 @@ export function AdminScreen() {
 
               <div className="rounded-2xl bg-card border border-red-500/30 p-4 shadow-lg">
                 <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400" /> Alertas de Riesgo (Anti-Hack)</p>
-                {adminUserStats.nearClaimUsers.filter((u) => u.coins > 20000).length === 0 ? (
+                {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).length === 0 ? (
                   <p className="text-white/30 text-xs">No hay alertas de riesgo activas.</p>
                 ) : (
                   <div className="space-y-2">
-                    {adminUserStats.nearClaimUsers.filter((u) => u.coins > 20000).map((u) => (
+                    {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).map((u) => (
                       <div key={u.uid} className="flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/40 p-2">
                         <span className="text-red-400 text-xs font-bold">{u.nombre}</span>
                         <span className="text-red-400 text-xs">{u.coins.toLocaleString()} monedas - Subida anormal</span>
@@ -376,7 +378,7 @@ export function AdminScreen() {
                       <span className="text-amber-400 text-sm font-bold">Reserva requerida:</span>
                       <span className="text-amber-400 font-bold text-lg">S/. {adminUserStats.reservedAmount.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-xs mt-1">Calculo: 10,000 monedas + 5 llaves = S/. 3.80 soles / $1.00 USD</p>
+                    <p className="text-white/30 text-xs mt-1">Calculo: {COINS_PER_USD.toLocaleString()} monedas = S/. {SOLES_PER_USD.toFixed(2)} soles / $1.00 USD. Canje min: {MIN_CANJE_COINS.toLocaleString()} monedas + {MIN_CANJE_KEYS} llaves</p>
                   </div>
                 </div>
               </div>
@@ -469,7 +471,7 @@ export function AdminScreen() {
               <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/30 p-3 mb-4">
                 <div className="flex items-center gap-2 mb-1">
                   <AlertTriangle className="w-4 h-4 text-cyan-400" />
-                  <p className="text-cyan-400 text-xs font-bold">Usuarios con 12,000+ monedas (80% del canje)</p>
+                  <p className="text-cyan-400 text-xs font-bold">Usuarios con {NEAR_CLAIM_THRESHOLD.toLocaleString()}+ monedas (cercanos al canje)</p>
                 </div>
               </div>
 
@@ -491,10 +493,15 @@ export function AdminScreen() {
                 </div>
               ) : (
                 adminUserStats.nearClaimUsers.map((u) => {
-                  const progress = Math.min((u.coins / 10000) * 100, 100);
-                  const estimatedCost = (u.coins / 10000) * 3.80;
+                  const coinProgress = Math.min((u.coins / MIN_CANJE_COINS) * 100, 100);
+                  const keyProgress = Math.min(((u.campaignKeys ?? 0) / MIN_CANJE_KEYS) * 100, 100);
+                  const estimatedCost = coinsToSoles(u.coins);
                   const revenue = (u.bitlabsEarnings ?? 0) + ((u.adsWatched ?? 0) * 0.001);
                   const net = revenue - estimatedCost;
+                  const readyToCanje = u.coins >= MIN_CANJE_COINS && (u.campaignKeys ?? 0) >= MIN_CANJE_KEYS;
+                  const nearCanje = coinProgress >= 80 || keyProgress >= 80;
+                  const statusLabel = readyToCanje ? 'Listo para canjear' : nearCanje ? 'Cerca' : 'Lejos';
+                  const statusColor = readyToCanje ? 'text-green-400' : nearCanje ? 'text-amber-400' : 'text-white/40';
                   return (
                     <div key={u.uid} className="rounded-2xl bg-card border border-border p-4 shadow-lg">
                       <div className="flex items-center gap-3 mb-3">
@@ -506,17 +513,30 @@ export function AdminScreen() {
                           <p className="text-white/30 text-[10px] truncate font-mono">{u.uid.substring(0, 16)}...</p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-amber-400 font-bold text-sm">{u.coins.toLocaleString()}</p>
+                          <p className={`text-[10px] font-bold ${statusColor}`}>{statusLabel}</p>
                           <p className={`text-[10px] ${u.inactive ? 'text-white/30' : 'text-green-400'}`}>{u.inactive ? 'Inactivo' : 'Activo'}</p>
                         </div>
                       </div>
-                      <div className="mb-2">
-                        <div className="flex justify-between text-[10px] mb-1">
-                          <span className="text-white/40">Progreso al canje</span>
-                          <span className="text-cyan-400 font-bold">{progress.toFixed(0)}%</span>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <div className="flex justify-between text-[10px] mb-1">
+                            <span className="text-white/40">Monedas</span>
+                            <span className="text-cyan-400 font-bold">{u.coins.toLocaleString()} / {MIN_CANJE_COINS.toLocaleString()}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-background overflow-hidden">
+                            <div className="h-full transition-all duration-500" style={{ width: `${coinProgress}%`, background: coinProgress >= 100 ? '#34d399' : 'linear-gradient(90deg, #22d3ee, #34d399)' }} />
+                          </div>
+                          <p className="text-white/30 text-[9px] mt-0.5">{coinProgress.toFixed(1)}%</p>
                         </div>
-                        <div className="h-2.5 rounded-full bg-background overflow-hidden">
-                          <div className="h-full transition-all duration-500" style={{ width: `${progress}%`, background: progress >= 100 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : 'linear-gradient(90deg, #22d3ee, #34d399)' }} />
+                        <div>
+                          <div className="flex justify-between text-[10px] mb-1">
+                            <span className="text-white/40">Llaves</span>
+                            <span className="text-cyan-400 font-bold">{u.campaignKeys ?? 0} / {MIN_CANJE_KEYS}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-background overflow-hidden">
+                            <div className="h-full transition-all duration-500" style={{ width: `${keyProgress}%`, background: keyProgress >= 100 ? '#34d399' : 'linear-gradient(90deg, #22d3ee, #34d399)' }} />
+                          </div>
+                          <p className="text-white/30 text-[9px] mt-0.5">{keyProgress.toFixed(1)}%</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-[10px] mt-2">
@@ -547,13 +567,25 @@ export function AdminScreen() {
                 <div className="rounded-xl bg-green-500/10 border border-green-500/30 p-3 text-center">
                   <UserCheck className="w-6 h-6 text-green-400 mx-auto mb-1" />
                   <p className="text-green-400 font-bold text-lg">{adminUserStats.activeUsers}</p>
-                  <p className="text-white/40 text-xs">Activos</p>
+                  <p className="text-white/40 text-xs">Activos ({INACTIVITY_THRESHOLD_DAYS}d)</p>
                 </div>
                 <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3 text-center">
                   <UserX className="w-6 h-6 text-red-400 mx-auto mb-1" />
                   <p className="text-red-400 font-bold text-lg">{adminUserStats.inactiveUsers}</p>
-                  <p className="text-white/40 text-xs">Inactivos (7+ dias)</p>
+                  <p className="text-white/40 text-xs">Inactivos (+{INACTIVITY_THRESHOLD_DAYS}d)</p>
                 </div>
+              </div>
+              <div className="rounded-xl bg-card border border-border p-3 mb-4">
+                <p className="text-white font-bold text-xs mb-2 flex items-center gap-2"><Activity className="w-4 h-4 text-cyan-400" />Actividad por Periodo</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between rounded-lg bg-background/40 p-2"><span className="text-white/40">Registrados:</span><span className="text-white font-bold">{adminUserStats.totalUsers}</span></div>
+                  <div className="flex justify-between rounded-lg bg-background/40 p-2"><span className="text-white/40">Activos 1h:</span><span className="text-cyan-400 font-bold">{adminUserStats.activeUsers1h}</span></div>
+                  <div className="flex justify-between rounded-lg bg-background/40 p-2"><span className="text-white/40">Activos 24h:</span><span className="text-cyan-400 font-bold">{adminUserStats.activeUsers24h}</span></div>
+                  <div className="flex justify-between rounded-lg bg-background/40 p-2"><span className="text-white/40">Activos 7d:</span><span className="text-green-400 font-bold">{adminUserStats.activeUsers}</span></div>
+                  <div className="flex justify-between rounded-lg bg-background/40 p-2"><span className="text-white/40">Activos 30d:</span><span className="text-cyan-400 font-bold">{adminUserStats.activeUsers30d}</span></div>
+                  <div className="flex justify-between rounded-lg bg-background/40 p-2"><span className="text-white/40">Inactivos +7d:</span><span className="text-red-400 font-bold">{adminUserStats.inactiveUsers}</span></div>
+                </div>
+                <p className="text-white/30 text-[10px] mt-2">Activos 1h = ultima hora (no implica en linea ahora)</p>
               </div>
 
               <form onSubmit={handleSearch} className="rounded-xl bg-card border border-border p-3 mb-4">
@@ -613,7 +645,7 @@ export function AdminScreen() {
                 {adminUserStats.nearClaimUsers.slice(0, 5).map((u) => (
                   <div key={u.uid} className="flex items-center justify-between text-xs py-1.5 border-b border-border/50 last:border-0">
                     <span className="text-white/60 truncate">{u.nombre}</span>
-                    <span className="text-amber-400 font-bold shrink-0 ml-2">{u.coins.toLocaleString()}</span>
+                    <span className="text-amber-400 font-bold shrink-0 ml-2">{u.coins.toLocaleString()} monedas | {u.campaignKeys ?? 0} llaves</span>
                   </div>
                 ))}
                 {adminUserStats.nearClaimUsers.length === 0 && <p className="text-white/30 text-xs">No hay usuarios cercanos</p>}
@@ -1528,7 +1560,7 @@ function AdminStatsTab({
 
   // Payment allocation: near-claim users sorted by coins descending
   const nearClaimUsers = [...adminUserStats.nearClaimUsers].sort((a, b) => b.coins - a.coins).slice(0, 10);
-  const totalToAllocate = nearClaimUsers.reduce((sum, u) => sum + (u.coins / 15000) * 3.80, 0);
+  const totalToAllocate = nearClaimUsers.reduce((sum, u) => sum + coinsToSoles(u.coins), 0);
 
   return (
     <div className="space-y-4">
@@ -1589,8 +1621,8 @@ function AdminStatsTab({
         ) : (
           <div className="space-y-2">
             {nearClaimUsers.map((u) => {
-              const soles = (u.coins / 15000) * 3.80;
-              const pct = Math.min(100, (u.coins / 10000) * 100);
+              const soles = coinsToSoles(u.coins);
+              const pct = Math.min(100, (u.coins / MIN_CANJE_COINS) * 100);
               return (
                 <div key={u.uid} className="rounded-xl bg-card border border-border p-3">
                   <div className="flex justify-between items-center mb-1">
