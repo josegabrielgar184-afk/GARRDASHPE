@@ -206,6 +206,17 @@ export interface CampaignLevelStat {
   activePlayers: number;
 }
 
+export interface IncomeRecord {
+  id: string;
+  amount: number;
+  currency: 'PEN' | 'USD';
+  source: string;
+  rate: number | null;
+  amountPEN: number;
+  note: string;
+  date: string;
+}
+
 interface GameState {
   screen: Screen;
   coins: number;
@@ -338,7 +349,10 @@ interface GameState {
   influencerInfo: InfluencerInfo | null;
   refreshInfluencerInfo: () => Promise<void>;
   requestInfluencerWithdraw: (amount: number) => Promise<{ ok: boolean; error?: string }>;
-  adminManualIncome: (amount: number) => Promise<{ ok: boolean; error?: string }>;
+  adminManualIncome: (params: { amount: number; currency: 'PEN' | 'USD'; source: string; date: string; note?: string; rate?: number }) => Promise<{ ok: boolean; error?: string }>;
+  adminDeleteIncome: (id: string) => Promise<{ ok: boolean; error?: string }>;
+  adminIncomeRecords: IncomeRecord[];
+  refreshAdminIncomeRecords: () => Promise<void>;
   adminSetExchangeLimit: (limit: number) => Promise<{ ok: boolean; error?: string }>;
   adminBanUser: (uid: string) => Promise<{ ok: boolean; error?: string }>;
   adminPanicButton: () => Promise<{ ok: boolean; error?: string }>;
@@ -2708,19 +2722,74 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [influencerInfo, refreshInfluencerInfo]);
 
-  const adminManualIncome = useCallback(async (amount: number): Promise<{ ok: boolean; error?: string }> => {
+  const [adminIncomeRecords, setAdminIncomeRecords] = useState<IncomeRecord[]>([]);
+
+  const refreshAdminIncomeRecords = useCallback(async () => {
     try {
-      await addDoc(collection(db, 'admin_income'), {
-        amount,
-        date: serverTimestamp(),
-        type: 'manual',
+      const snap = await getDocs(query(collection(db, 'admin_income'), orderBy('date', 'desc'), limit(200)));
+      const records: IncomeRecord[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        const rawDate = data.date;
+        let dateStr = '';
+        if (rawDate && typeof rawDate.toDate === 'function') dateStr = rawDate.toDate().toISOString();
+        else if (rawDate) dateStr = new Date(rawDate).toISOString();
+        else dateStr = new Date().toISOString();
+        records.push({
+          id: d.id,
+          amount: data.amount ?? 0,
+          currency: data.currency ?? 'PEN',
+          source: data.source ?? 'admob',
+          rate: data.rate ?? null,
+          amountPEN: data.amountPEN ?? 0,
+          note: data.note ?? '',
+          date: dateStr,
+        });
       });
+      setAdminIncomeRecords(records);
+    } catch {}
+  }, []);
+
+  const adminManualIncome = useCallback(async (params: {
+    amount: number;
+    currency: 'PEN' | 'USD';
+    source: string;
+    date: string;
+    note?: string;
+    rate?: number;
+  }): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const rateUsed = params.currency === 'USD' ? (params.rate ?? SOLES_PER_USD) : 1;
+      const amountPEN = params.currency === 'USD' ? params.amount * rateUsed : params.amount;
+      await addDoc(collection(db, 'admin_income'), {
+        amount: params.amount,
+        currency: params.currency,
+        source: params.source,
+        rate: params.currency === 'USD' ? rateUsed : null,
+        amountPEN,
+        note: params.note ?? '',
+        date: new Date(params.date) || serverTimestamp(),
+        type: 'manual',
+        createdAt: serverTimestamp(),
+      });
+      await refreshAdminIncomeRecords();
       return { ok: true };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al registrar ingreso';
       return { ok: false, error: msg };
     }
-  }, []);
+  }, [refreshAdminIncomeRecords]);
+
+  const adminDeleteIncome = useCallback(async (id: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      await deleteDoc(doc(db, 'admin_income', id));
+      await refreshAdminIncomeRecords();
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar ingreso';
+      return { ok: false, error: msg };
+    }
+  }, [refreshAdminIncomeRecords]);
 
   const adminSetExchangeLimit = useCallback(async (limit: number): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -2844,7 +2913,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     delegateWork, setDelegateWork,
     operatorTurn, startOperatorTurn, endOperatorTurn, operatorOnLunch,
     influencerInfo, refreshInfluencerInfo, requestInfluencerWithdraw,
-    adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton,
+    adminManualIncome, adminDeleteIncome, adminIncomeRecords, refreshAdminIncomeRecords,
+    adminSetExchangeLimit, adminBanUser, adminPanicButton,
     transactionLight, currentUserRank, currentUserScore, allUsersList,
     observerMode, toggleObserverMode,
     addPlayTime,

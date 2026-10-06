@@ -25,7 +25,8 @@ export function AdminScreen() {
   const {
     setScreen, userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
     adminUserStats, refreshAdminStats, isOnline, delegateWork, setDelegateWork,
-    adminManualIncome, adminSetExchangeLimit, adminBanUser, adminPanicButton, transactionLight,
+    adminManualIncome, adminDeleteIncome, adminIncomeRecords, refreshAdminIncomeRecords,
+    adminSetExchangeLimit, adminBanUser, adminPanicButton, transactionLight,
     observerMode, toggleObserverMode,
     searchUsers, userSearchResults, clearUserSearch,
     adminCanjesList, adminApprovedList, refreshAdminCanjes, adminCanjesPage, setAdminCanjesPage,
@@ -79,10 +80,51 @@ export function AdminScreen() {
     setProcessing(null);
   };
 
+  const [incomeAmount, setIncomeAmount] = useState('');
+  const [incomeCurrency, setIncomeCurrency] = useState<'PEN' | 'USD'>('PEN');
+  const [incomeSource, setIncomeSource] = useState('admob');
+  const [incomeDate, setIncomeDate] = useState(new Date().toISOString().slice(0, 10));
+  const [incomeNote, setIncomeNote] = useState('');
+  const [incomeRate, setIncomeRate] = useState('');
+  const [incomeSaving, setIncomeSaving] = useState(false);
+  const [incomeError, setIncomeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    refreshAdminIncomeRecords();
+  }, [refreshAdminIncomeRecords]);
+
+  const handleRegisterIncome = async () => {
+    const amount = parseFloat(incomeAmount);
+    if (isNaN(amount) || amount <= 0) { setIncomeError('Monto invalido'); return; }
+    setIncomeSaving(true);
+    setIncomeError(null);
+    const rate = incomeCurrency === 'USD' ? (parseFloat(incomeRate) || undefined) : undefined;
+    const result = await adminManualIncome({
+      amount,
+      currency: incomeCurrency,
+      source: incomeSource,
+      date: incomeDate,
+      note: incomeNote.trim() || undefined,
+      rate,
+    });
+    setIncomeSaving(false);
+    if (!result.ok) { setIncomeError(result.error ?? 'Error'); return; }
+    setIncomeAmount(''); setIncomeNote(''); setIncomeRate('');
+  };
+
+  const handleDeleteIncome = async (id: string) => {
+    if (!confirm('¿Eliminar este ingreso?')) return;
+    await adminDeleteIncome(id);
+  };
+
+  const totalIncomePEN = adminIncomeRecords.reduce((sum, r) => sum + r.amountPEN, 0);
+  const totalGastosPEN = adminApprovedList.reduce((sum, c) => sum + c.estimatedUsdValue * SOLES_PER_USD, 0);
+  const utilidadNeta = totalIncomePEN - totalGastosPEN;
+
   const handleManualIncome = async () => {
     const amount = parseFloat(manualIncome);
     if (isNaN(amount) || amount <= 0) return;
-    await adminManualIncome(amount);
+    await adminManualIncome({ amount, currency: 'PEN', source: 'otro', date: new Date().toISOString().slice(0, 10) });
     setManualIncome('');
   };
 
@@ -283,61 +325,129 @@ export function AdminScreen() {
           {/* Balance Tab - Net Balance Module */}
           {tab === 'balance' && (
             <div className="space-y-4">
+              {/* A) RESULTADO REAL */}
               <div className="rounded-2xl bg-gradient-to-br from-amber-900/30 to-card border-2 border-amber-500/40 p-5 shadow-lg shadow-amber-500/20">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
                     <DollarSign className="w-6 h-6 text-amber-400" />
                   </div>
                   <div>
-                    <h2 className="text-white font-bold">Balanceador de Caja Neto</h2>
-                    <p className="text-white/40 text-xs">Ingresos vs Gastos en tiempo real</p>
+                    <h2 className="text-white font-bold">Balanza de Caja Real</h2>
+                    <p className="text-white/40 text-xs">Ingresos registrados vs Gastos realizados</p>
                   </div>
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-xl bg-green-500/10 border border-green-500/30 p-3">
                     <div className="flex justify-between items-center">
                       <span className="text-green-400 text-sm font-bold flex items-center gap-1"><TrendingUp className="w-4 h-4" /> Dinero Total Ingresado</span>
-                      <span className="text-green-400 font-black text-lg">S/. {adminUserStats.nearClaimSummary.totalEstimatedRevenue.toFixed(2)}</span>
+                      <span className="text-green-400 font-black text-lg">S/. {totalIncomePEN.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-[10px] mt-1">Acumulado de anuncios AdMob + Offerwall ayeT-Studios</p>
+                    <p className="text-white/30 text-[10px] mt-1">Suma de ingresos manuales registrados</p>
                   </div>
                   <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-3">
                     <div className="flex justify-between items-center">
                       <span className="text-red-400 text-sm font-bold flex items-center gap-1"><Wallet className="w-4 h-4" /> Gastos Totales</span>
-                      <span className="text-red-400 font-black text-lg">S/. {adminUserStats.nearClaimSummary.totalEstimatedCost.toFixed(2)}</span>
+                      <span className="text-red-400 font-black text-lg">S/. {totalGastosPEN.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-[10px] mt-1">Recargas de diamantes Free Fire aprobadas</p>
+                    <p className="text-white/30 text-[10px] mt-1">Canjes aprobados (USD * S/. {SOLES_PER_USD.toFixed(2)})</p>
                   </div>
                   <div className="rounded-xl bg-amber-500/10 border-2 border-amber-500/40 p-4">
                     <div className="flex justify-between items-center">
                       <span className="text-amber-400 text-base font-black flex items-center gap-1"><DollarSign className="w-5 h-5" /> Utilidad Neta Real</span>
-                      <span className={'font-black text-2xl ' + (adminUserStats.nearClaimSummary.totalNet >= 0 ? 'text-green-400' : 'text-red-400')}>S/. {adminUserStats.nearClaimSummary.totalNet.toFixed(2)}</span>
+                      <span className={'font-black text-2xl ' + (utilidadNeta >= 0 ? 'text-green-400' : 'text-red-400')}>S/. {utilidadNeta.toFixed(2)}</span>
                     </div>
-                    <p className="text-white/30 text-[10px] mt-1">Calculo: Ingresos Totales - Gastos Totales = Lo que te queda limpio</p>
+                    <p className="text-white/30 text-[10px] mt-1">Ingresos registrados - Gastos realizados</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
-                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Wallet className="w-4 h-4 text-amber-400" /> Control SUNAT y Reservas</p>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between"><span className="text-white/50">Tope de ingresos permitido:</span><span className="text-white font-bold">S/. 5,000/mes</span></div>
-                  <div className="flex justify-between"><span className="text-white/50">Reserva recomendada:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.reservedAmount.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-white/50">Ganancia neta actual:</span><span className={'font-bold ' + (adminUserStats.nearClaimSummary.totalNet >= 0 ? 'text-green-400' : 'text-red-400')}>S/. {adminUserStats.nearClaimSummary.totalNet.toFixed(2)}</span></div>
+              {/* Registrar Ingreso */}
+              <div className="rounded-2xl bg-card border border-green-500/30 p-4 shadow-lg">
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-green-400" />Registrar Ingreso</p>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input type="number" value={incomeAmount} onChange={(e) => setIncomeAmount(e.target.value)} placeholder="Monto" className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <select value={incomeCurrency} onChange={(e) => setIncomeCurrency(e.target.value as 'PEN' | 'USD')} className="px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none">
+                      <option value="PEN">PEN (S/.)</option>
+                      <option value="USD">USD ($)</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <select value={incomeSource} onChange={(e) => setIncomeSource(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none">
+                      <option value="admob">AdMob</option>
+                      <option value="offerwall">Offerwall</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                    <input type="date" value={incomeDate} onChange={(e) => setIncomeDate(e.target.value)} className="px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none" />
+                  </div>
+                  {incomeCurrency === 'USD' && (
+                    <input type="number" value={incomeRate} onChange={(e) => setIncomeRate(e.target.value)} placeholder={`Tipo de cambio (default: ${SOLES_PER_USD})`} className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                  )}
+                  <input type="text" value={incomeNote} onChange={(e) => setIncomeNote(e.target.value)} placeholder="Nota (opcional)" className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none" />
+                  {incomeError && <p className="text-red-400 text-xs">{incomeError}</p>}
+                  <button onClick={handleRegisterIncome} disabled={incomeSaving} className="w-full py-2.5 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-400 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {incomeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><TrendingUp className="w-4 h-4" /> REGISTRAR INGRESO</>}
+                  </button>
                 </div>
-                <p className="text-white/30 text-[10px] mt-2">Ten reservado al menos S/. {adminUserStats.reservedAmount.toFixed(2)} soles para cubrir canjes pendientes.</p>
               </div>
 
-              <div className="rounded-2xl bg-card border border-red-500/30 p-4 shadow-lg">
-                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400" /> Alertas de Riesgo (Anti-Hack)</p>
-                {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).length === 0 ? (
-                  <p className="text-white/30 text-xs">No hay alertas de riesgo activas.</p>
+              {/* Historial de Ingresos */}
+              <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><ScrollText className="w-4 h-4 text-green-400" />Historial de Ingresos</p>
+                {adminIncomeRecords.length === 0 ? (
+                  <p className="text-white/30 text-xs text-center py-4">Sin ingresos registrados</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+                    {adminIncomeRecords.map((r) => (
+                      <div key={r.id} className="rounded-xl bg-background/40 border border-border p-3 flex items-center justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-bold text-xs">{r.source === 'admob' ? 'AdMob' : r.source === 'offerwall' ? 'Offerwall' : 'Otro'}</span>
+                            <span className="text-white/30 text-[10px]">{new Date(r.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          </div>
+                          <p className="text-white/60 text-[10px] truncate mt-0.5">
+                            {r.currency === 'USD' ? `${r.amount.toFixed(2)}` : `S/. ${r.amount.toFixed(2)}`}
+                            {r.currency === 'USD' && r.rate ? ` (T/C: ${r.rate})` : ''}
+                            {r.note ? ` - ${r.note}` : ''}
+                          </p>
+                          <p className="text-green-400 text-[10px] font-bold">Equiv. PEN: S/. {r.amountPEN.toFixed(2)}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <span className="text-green-400 font-bold text-sm">S/. {r.amountPEN.toFixed(2)}</span>
+                          <button onClick={() => handleDeleteIncome(r.id)} className="text-white/30 hover:text-red-400">
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* B) RESERVA RECOMENDADA */}
+              <div className="rounded-2xl bg-gradient-to-br from-amber-900/20 to-card border border-amber-500/30 p-4 shadow-lg">
+                <p className="text-amber-400 font-bold text-sm mb-2 flex items-center gap-2"><Wallet className="w-4 h-4" /> B) Reserva Recomendada</p>
+                <p className="text-white/40 text-xs mb-2">Dinero que conviene tener disponible por posibles canjes futuros. NO es un gasto pagado.</p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-white/50">Reserva recomendada:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.reservedAmount.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Fondo liberado (inactivos):</span><span className="text-green-400 font-bold">S/. {adminUserStats.availableAmount.toFixed(2)}</span></div>
+                </div>
+              </div>
+
+              {/* C) EXPOSICION / RIESGO */}
+              <div className="rounded-2xl bg-gradient-to-br from-red-900/20 to-card border border-red-500/30 p-4 shadow-lg">
+                <p className="text-red-400 font-bold text-sm mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> C) Exposicion / Riesgo</p>
+                <p className="text-white/40 text-xs mb-2">Jugadores que podrian acercarse a un canje. NO es deuda pagada.</p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span className="text-white/50">Usuarios cercanos al canje:</span><span className="text-white font-bold">{adminUserStats.nearClaimSummary.count}</span></div>
+                  <div className="flex justify-between"><span className="text-white/50">Costo potencial estimado:</span><span className="text-amber-400 font-bold">S/. {adminUserStats.nearClaimSummary.totalEstimatedCost.toFixed(2)}</span></div>
+                </div>
+                {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).length > 0 && (
+                  <div className="mt-2 space-y-1">
                     {adminUserStats.nearClaimUsers.filter((u) => u.coins > MIN_CANJE_COINS).map((u) => (
                       <div key={u.uid} className="flex items-center justify-between rounded-lg bg-red-500/10 border border-red-500/40 p-2">
                         <span className="text-red-400 text-xs font-bold">{u.nombre}</span>
-                        <span className="text-red-400 text-xs">{u.coins.toLocaleString()} monedas - Subida anormal</span>
+                        <span className="text-red-400 text-xs">{u.coins.toLocaleString()} monedas</span>
                       </div>
                     ))}
                   </div>
@@ -400,14 +510,7 @@ export function AdminScreen() {
                 <p className="text-white/30 text-xs mt-2">Monedas inactivas: {adminUserStats.inactiveCoins.toLocaleString()}</p>
               </div>
 
-              {/* Manual income */}
-              <div className="rounded-2xl bg-card border border-border p-4">
-                <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><DollarSign className="w-4 h-4 text-green-400" />Registrar Ingreso Manual (USD)</p>
-                <div className="flex gap-2">
-                  <input type="number" value={manualIncome} onChange={(e) => setManualIncome(e.target.value)} placeholder="0.00" className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-                  <button onClick={handleManualIncome} className="px-4 py-2 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-400">Registrar</button>
-                </div>
-              </div>
+              {/* Manual income - moved to Balance tab */}
             </div>
           )}
 
