@@ -5,8 +5,6 @@ import { useGame } from '@/hooks/use-game';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ControlEditorModal } from '@/components/screens/MenuScreen';
-import { Move } from 'lucide-react';
 import { ArrowLeft, Heart, Coins, Video, Radiation, Shield, Baby, Sparkles, Magnet, Zap, Pause, Play, RotateCcw, Home, Trophy } from 'lucide-react';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
@@ -131,7 +129,6 @@ export function ZombieGameScreen() {
   const [themeName, setThemeName] = useState(COLOR_THEMES[0].name);
   const [campaignLevel, setCampaignLevel] = useState(1);
   const [reviveShieldTimer, setReviveShieldTimer] = useState(0);
-  const [showControlEditor, setShowControlEditor] = useState(false);
 
   const zombiePoolRef = useRef<ObjectPool<Zombie>>(new ObjectPool(makeZombie, 30));
   const bulletPoolRef = useRef<ObjectPool<Bullet>>(new ObjectPool(makeBullet, 80));
@@ -1551,20 +1548,6 @@ export function ZombieGameScreen() {
         adId={getRewardedAdId('revivir')}
       />
       <MuteButton />
-      <button
-        onClick={() => setShowControlEditor(true)}
-        className="fixed top-4 right-24 z-40 w-10 h-10 rounded-lg bg-black/50 backdrop-blur flex items-center justify-center text-cyan-400 hover:text-cyan-300 transition-colors"
-      >
-        <Move className="w-5 h-5" />
-      </button>
-      {showControlEditor && (
-        <ControlEditorModal
-          screenId="campaign"
-          onClose={() => setShowControlEditor(false)}
-          onSave={() => { setShowControlEditor(false); setNuclearBtnLayout(loadControlLayouts().campaign.nuclear); }}
-          onReset={() => { setNuclearBtnLayout(loadControlLayouts().campaign.nuclear); }}
-        />
-      )}
 
       {/* Pause Modal */}
       {showPauseModal && (

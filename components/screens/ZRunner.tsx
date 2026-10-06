@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
+import { ArcadeControlBtn, ControlSettingsButton } from '@/components/game/ArcadeControlBtn';
+import { ControlEditorModal } from '@/components/screens/MenuScreen';
+import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
@@ -42,6 +45,8 @@ export function ZRunner() {
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [showControlEditor, setShowControlEditor] = useState(false);
+  const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().zrunner);
 
   const laneRef = useRef(1);
   const playerXRef = useRef(LANES[1]);
@@ -367,6 +372,15 @@ export function ZRunner() {
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
+      <ControlSettingsButton onClick={() => setShowControlEditor(true)} />
+      {showControlEditor && (
+        <ControlEditorModal
+          screenId="zrunner"
+          onClose={() => setShowControlEditor(false)}
+          onSave={() => { setShowControlEditor(false); setCtrlLayouts(loadControlLayouts().zrunner); }}
+          onReset={() => { setCtrlLayouts(loadControlLayouts().zrunner); }}
+        />
+      )}
 
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
@@ -410,25 +424,10 @@ export function ZRunner() {
         />
       </div>
 
-      <div className="pb-6 px-8 flex items-center justify-between gap-4">
-        <button
-          onClick={moveLeft}
-          className="flex-1 py-3 bg-[#00f3ff]/15 border border-[#00f3ff]/40 rounded-xl text-[#00f3ff] flex justify-center items-center active:scale-95"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-        <button
-          onClick={jump}
-          className="flex-1 py-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-400 font-bold text-xs flex justify-center items-center gap-1 active:scale-95"
-        >
-          <ChevronUp className="w-5 h-5" /> SALTAR
-        </button>
-        <button
-          onClick={moveRight}
-          className="flex-1 py-3 bg-[#00f3ff]/15 border border-[#00f3ff]/40 rounded-xl text-[#00f3ff] flex justify-center items-center active:scale-95"
-        >
-          <ChevronRight className="w-6 h-6" />
-        </button>
+      <div className="flex-1 relative">
+        <ArcadeControlBtn layout={ctrlLayouts.left} icon="left" onClick={moveLeft} />
+        <ArcadeControlBtn layout={ctrlLayouts.jump} icon="jump" onClick={jump} label="SALTAR" color="#fbbf24" borderColor="rgba(251,191,36,0.4)" />
+        <ArcadeControlBtn layout={ctrlLayouts.right} icon="right" onClick={moveRight} />
       </div>
 
       <GameOverModal

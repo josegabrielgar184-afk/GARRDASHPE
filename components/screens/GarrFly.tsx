@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArcadeControlBtn, ControlSettingsButton } from '@/components/game/ArcadeControlBtn';
+import { ControlEditorModal } from '@/components/screens/MenuScreen';
+import { loadControlLayouts } from '@/lib/control-layout';
+import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
 const GRID_SIZE = 18;
@@ -33,6 +36,8 @@ export function GarrFly() {
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [showControlEditor, setShowControlEditor] = useState(false);
+  const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().garrfly);
 
   const snakeRef = useRef<Point[]>([
     { x: 9, y: 12 },
@@ -291,6 +296,15 @@ export function GarrFly() {
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
+      <ControlSettingsButton onClick={() => setShowControlEditor(true)} />
+      {showControlEditor && (
+        <ControlEditorModal
+          screenId="garrfly"
+          onClose={() => setShowControlEditor(false)}
+          onSave={() => { setShowControlEditor(false); setCtrlLayouts(loadControlLayouts().garrfly); }}
+          onReset={() => { setCtrlLayouts(loadControlLayouts().garrfly); }}
+        />
+      )}
 
       <div className="pt-14 px-4 pb-2 flex items-center justify-between border-b border-[#00f3ff]/10 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button
@@ -334,33 +348,11 @@ export function GarrFly() {
         />
       </div>
 
-      <div className="pb-6 pt-1 flex flex-col items-center justify-center gap-1">
-        <button
-          onClick={() => changeDirection('UP')}
-          className="p-3 bg-[#00f3ff]/15 border border-[#00f3ff]/40 rounded-xl text-[#00f3ff] active:scale-90"
-        >
-          <ChevronUp className="w-6 h-6" />
-        </button>
-        <div className="flex items-center gap-6">
-          <button
-            onClick={() => changeDirection('LEFT')}
-            className="p-3 bg-[#00f3ff]/15 border border-[#00f3ff]/40 rounded-xl text-[#00f3ff] active:scale-90"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <button
-            onClick={() => changeDirection('DOWN')}
-            className="p-3 bg-[#00f3ff]/15 border border-[#00f3ff]/40 rounded-xl text-[#00f3ff] active:scale-90"
-          >
-            <ChevronDown className="w-6 h-6" />
-          </button>
-          <button
-            onClick={() => changeDirection('RIGHT')}
-            className="p-3 bg-[#00f3ff]/15 border border-[#00f3ff]/40 rounded-xl text-[#00f3ff] active:scale-90"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
-        </div>
+      <div className="flex-1 relative">
+        <ArcadeControlBtn layout={ctrlLayouts.up} icon="up" onClick={() => changeDirection('UP')} />
+        <ArcadeControlBtn layout={ctrlLayouts.left} icon="left" onClick={() => changeDirection('LEFT')} />
+        <ArcadeControlBtn layout={ctrlLayouts.down} icon="down" onClick={() => changeDirection('DOWN')} />
+        <ArcadeControlBtn layout={ctrlLayouts.right} icon="right" onClick={() => changeDirection('RIGHT')} />
       </div>
 
       <GameOverModal

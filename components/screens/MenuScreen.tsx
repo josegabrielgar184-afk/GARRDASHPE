@@ -9,7 +9,7 @@ import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
   Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell,
-  Move, RotateCcw, Save, Sliders,
+  Move, RotateCcw, Save, Sliders, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
 } from 'lucide-react';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
@@ -18,7 +18,7 @@ import { getPerformanceTier, setPerformanceTier, type PerformanceTier } from '@/
 import { UI_THEMES, type UITheme } from '@/hooks/use-game';
 import {
   loadControlLayouts, saveControlLayouts, resetControlLayouts, clampLayout,
-  DEFAULT_LAYOUTS, CONTROL_LABELS, SCREEN_LABELS,
+  DEFAULT_LAYOUTS, CONTROL_LABELS, CONTROL_ICONS, SCREEN_LABELS,
   type ControlLayout, type ControlScreenId,
 } from '@/lib/control-layout';
 
@@ -585,7 +585,27 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
           <button onClick={onClose} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
         </div>
 
-        <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{SCREEN_LABELS[screenId]} - {CONTROL_LABELS[screenId][selectedControl] ?? 'Control'}</p>
+        <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{SCREEN_LABELS[screenId]}</p>
+
+        {/* Control selector tabs */}
+        {currentControls.length > 1 && (
+          <div className="flex gap-1.5 mb-3 flex-wrap justify-center">
+            {currentControls.map((ctrlId) => {
+              const iconType = CONTROL_ICONS[ctrlId];
+              const Icon = iconType === 'up' ? ArrowUp : iconType === 'down' ? ArrowDown : iconType === 'left' ? ArrowLeft : iconType === 'right' ? ArrowRight : iconType === 'jump' ? ChevronUp : Move;
+              return (
+                <button
+                  key={ctrlId}
+                  onClick={() => setSelectedControl(ctrlId)}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold text-[9px] transition-colors flex items-center gap-1 ${selectedControl === ctrlId ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'tac-btn text-[#6b7280]'}`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {CONTROL_LABELS[screenId][ctrlId] ?? ctrlId}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Preview area */}
         <div className="relative w-full aspect-[9/16] rounded-xl bg-black/60 border border-[#8a9b50]/20 overflow-hidden mb-4">
@@ -610,7 +630,7 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
               transition: dragging ? 'none' : 'width 0.15s, height 0.15s',
             }}
           >
-            <div className="rounded-full bg-cyan-400/60 border border-white/40" style={{ width: currentLayout.size * 0.4, height: currentLayout.size * 0.4 }} />
+            <ControlPreviewIcon iconType={CONTROL_ICONS[selectedControl] ?? 'nuclear'} size={currentLayout.size} />
           </div>
         </div>
 
@@ -653,4 +673,15 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
       </div>
     </div>
   );
+}
+
+function ControlPreviewIcon({ iconType, size }: { iconType: string; size: number }) {
+  const iconSize = Math.max(16, size * 0.45);
+  const cls = 'text-cyan-400';
+  if (iconType === 'up') return <ArrowUp className={cls} style={{ width: iconSize, height: iconSize }} />;
+  if (iconType === 'down') return <ArrowDown className={cls} style={{ width: iconSize, height: iconSize }} />;
+  if (iconType === 'left') return <ArrowLeft className={cls} style={{ width: iconSize, height: iconSize }} />;
+  if (iconType === 'right') return <ArrowRight className={cls} style={{ width: iconSize, height: iconSize }} />;
+  if (iconType === 'jump') return <ChevronUp className={cls} style={{ width: iconSize, height: iconSize }} />;
+  return <Move className={cls} style={{ width: iconSize, height: iconSize }} />;
 }

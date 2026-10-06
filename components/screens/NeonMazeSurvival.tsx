@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
+import { ArcadeControlBtn, ControlSettingsButton } from '@/components/game/ArcadeControlBtn';
+import { ControlEditorModal } from '@/components/screens/MenuScreen';
+import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 
@@ -51,6 +54,8 @@ export function NeonMazeSurvival() {
   const [lives, setLives] = useState(3);
   const [gameOver, setGameOver] = useState(false);
   const [overcharge, setOvercharge] = useState(false);
+  const [showControlEditor, setShowControlEditor] = useState(false);
+  const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().maze);
 
   const playerRef = useRef<Entity>({ x: 1, y: 1, dir: { dx: 0, dy: 0 } });
   const zombiesRef = useRef<Entity[]>([]);
@@ -353,6 +358,15 @@ export function NeonMazeSurvival() {
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
+      <ControlSettingsButton onClick={() => setShowControlEditor(true)} />
+      {showControlEditor && (
+        <ControlEditorModal
+          screenId="maze"
+          onClose={() => setShowControlEditor(false)}
+          onSave={() => { setShowControlEditor(false); setCtrlLayouts(loadControlLayouts().maze); }}
+          onReset={() => { setCtrlLayouts(loadControlLayouts().maze); }}
+        />
+      )}
 
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-3 pb-2 bg-gradient-to-b from-[#0a0e17] to-transparent">
         <button onClick={() => setScreen('arcade')} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/60 border border-[#00f3ff]/30 text-white text-sm font-bold active:scale-95">
@@ -394,33 +408,11 @@ export function NeonMazeSurvival() {
         />
       </div>
 
-      <div className="pb-6 pt-1 flex flex-col items-center justify-center gap-1.5 z-20">
-        <button
-          onClick={() => { inputDirRef.current = { dx: 0, dy: -1 }; }}
-          className="w-14 h-11 rounded-xl bg-black/80 border border-[#00f3ff]/40 flex items-center justify-center text-[#00f3ff] active:bg-[#00f3ff]/30 active:scale-90 transition-all shadow-md"
-        >
-          <ArrowUp className="w-6 h-6" />
-        </button>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => { inputDirRef.current = { dx: -1, dy: 0 }; }}
-            className="w-14 h-11 rounded-xl bg-black/80 border border-[#00f3ff]/40 flex items-center justify-center text-[#00f3ff] active:bg-[#00f3ff]/30 active:scale-90 transition-all shadow-md"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <button
-            onClick={() => { inputDirRef.current = { dx: 0, dy: 1 }; }}
-            className="w-14 h-11 rounded-xl bg-black/80 border border-[#00f3ff]/40 flex items-center justify-center text-[#00f3ff] active:bg-[#00f3ff]/30 active:scale-90 transition-all shadow-md"
-          >
-            <ArrowDown className="w-6 h-6" />
-          </button>
-          <button
-            onClick={() => { inputDirRef.current = { dx: 1, dy: 0 }; }}
-            className="w-14 h-11 rounded-xl bg-black/80 border border-[#00f3ff]/40 flex items-center justify-center text-[#00f3ff] active:bg-[#00f3ff]/30 active:scale-90 transition-all shadow-md"
-          >
-            <ArrowRight className="w-6 h-6" />
-          </button>
-        </div>
+      <div className="flex-1 relative">
+        <ArcadeControlBtn layout={ctrlLayouts.up} icon="up" onClick={() => { inputDirRef.current = { dx: 0, dy: -1 }; }} />
+        <ArcadeControlBtn layout={ctrlLayouts.left} icon="left" onClick={() => { inputDirRef.current = { dx: -1, dy: 0 }; }} />
+        <ArcadeControlBtn layout={ctrlLayouts.down} icon="down" onClick={() => { inputDirRef.current = { dx: 0, dy: 1 }; }} />
+        <ArcadeControlBtn layout={ctrlLayouts.right} icon="right" onClick={() => { inputDirRef.current = { dx: 1, dy: 0 }; }} />
       </div>
 
       <GameOverModal
