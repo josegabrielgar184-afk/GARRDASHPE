@@ -956,7 +956,7 @@ export function SpaceGameScreen() {
       <RewardAdModal open={showReviveReward} onClose={() => setShowReviveReward(false)} onReward={() => { livesRef.current = 3; shieldRef.current = true; setLives(3); gameOverRef.current = false; setGameOver(false); hasRevivedRef.current = true; setHasRevived(true); safeAddCoins(3); }} title="Revivir" rewardText="¡Has revivido con vida completa, escudo y 3 monedas extra!" userRole={userRole} vip={vip} adId={getRewardedAdId('revivir')} />
       <MuteButton />
       <button
-        onClick={() => setShowControlEditor(true)}
+        onClick={() => { setPaused(true); setShowControlEditor(true); }}
         className="fixed top-4 right-24 z-40 w-10 h-10 rounded-lg bg-black/50 backdrop-blur flex items-center justify-center text-cyan-400 hover:text-cyan-300 transition-colors"
       >
         <Move className="w-5 h-5" />

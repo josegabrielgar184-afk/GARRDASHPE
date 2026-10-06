@@ -60,7 +60,7 @@ export function RankingScreen() {
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      <div className="pt-16 px-6 pb-4 flex-shrink-0">
+      <div className="safe-top-lg px-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />

@@ -9,7 +9,7 @@ import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { ADMOB_CONFIG, getRewardedAdId } from '@/lib/config';
 import { ArrowLeft, Coins, Crown, CheckCircle2, AlertCircle, Zap, Swords, Shield, Lock, Key, Video } from 'lucide-react';
 import { VIP_DISPONIBLE_PLAYSTORE } from '@/lib/config';
-import { getCoinAdStatus, recordCoinAd, getMaxCoinAdsPerDay, getKeyAdProgress, recordKeyAd, getAdsPerKey } from '@/lib/ad-rewards';
+import { getCoinAdStatus, recordCoinAd, getMaxCoinAdsPerDay, getCoinAdReward, getKeyAdProgress, recordKeyAd, getAdsPerKey, getKeysRemainingToday, getMaxKeysPerDay } from '@/lib/ad-rewards';
 import { getPerformanceTier, type PerformanceTier } from '@/lib/performance';
 
 export function ShopScreen() {
@@ -28,6 +28,7 @@ export function ShopScreen() {
   const [showKeyAd, setShowKeyAd] = useState(false);
   const [coinAdStatus, setCoinAdStatus] = useState(getCoinAdStatus());
   const [keyProgress, setKeyProgress] = useState(getKeyAdProgress());
+  const [keysRemaining, setKeysRemaining] = useState(getKeysRemainingToday());
   const [perfTier] = useState<PerformanceTier>(getPerformanceTier());
   const adDebounceRef = useRef<number>(0);
 
@@ -41,6 +42,7 @@ export function ShopScreen() {
   useEffect(() => {
     setCoinAdStatus(getCoinAdStatus());
     setKeyProgress(getKeyAdProgress());
+    setKeysRemaining(getKeysRemainingToday());
   }, []);
 
   const companionDefs: Array<{ key: 'turret' | 'drone' | 'medic' | 'neon-shield'; icon: typeof Zap; name: string; desc: string; color: string; baseCost: number }> = [
@@ -59,7 +61,7 @@ export function ShopScreen() {
     setShowCoinAd(false);
     const ok = recordCoinAd();
     if (ok) {
-      const reward = 120;
+      const reward = getCoinAdReward();
       addCoins(reward);
       setSuccess(`¡+${reward} monedas ganadas!`);
       setCoinAdStatus(getCoinAdStatus());
@@ -78,6 +80,7 @@ export function ShopScreen() {
       setSuccess(`Progreso: ${result.newProgress}/${result.adsNeeded} anuncios vistos`);
     }
     setKeyProgress(getKeyAdProgress());
+    setKeysRemaining(getKeysRemainingToday());
   };
 
   const renderGlow = perfTier === 'high';
@@ -87,7 +90,7 @@ export function ShopScreen() {
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
 
-      <div className="pt-16 px-4 pb-16 flex-1 overflow-y-auto no-scrollbar">
+      <div className="safe-top-lg px-4 pb-16 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
@@ -241,33 +244,45 @@ export function ShopScreen() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-white font-bold uppercase tracking-wide">Llave por Anuncios</h2>
-                    <p className="text-white/40 text-xs">Ve {getAdsPerKey()} anuncios para ganar 1 llave</p>
+                    <p className="text-white/40 text-xs">Ve {getAdsPerKey()} anuncios para ganar 1 llave · Máx {getMaxKeysPerDay()} llaves/día</p>
                   </div>
                 </div>
 
-                <div className="mb-3">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-cyan-400 text-xs font-bold uppercase">Progreso</span>
-                    <span className="text-white/60 text-xs">{keyProgress.adsWatched}/{keyProgress.adsNeeded}</span>
+                {keysRemaining <= 0 && keyProgress.adsWatched === 0 ? (
+                  <div className="rounded-none bg-amber-500/10 border border-amber-500/30 p-3 text-center">
+                    <p className="text-amber-400 text-xs font-bold">Límite diario de llaves alcanzado ({getMaxKeysPerDay()}/día)</p>
                   </div>
-                  <div className="h-3 bg-[#0f1520] border border-cyan-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
-                    <div className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all" style={{ width: `${(keyProgress.adsWatched / keyProgress.adsNeeded) * 100}%` }} />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="mb-3">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-cyan-400 text-xs font-bold uppercase">Progreso</span>
+                        <span className="text-white/60 text-xs">{keyProgress.adsWatched}/{keyProgress.adsNeeded}</span>
+                      </div>
+                      <div className="h-3 bg-[#0f1520] border border-cyan-500/30 overflow-hidden" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 4px) 100%, 0 100%)' }}>
+                        <div className="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all" style={{ width: `${(keyProgress.adsWatched / keyProgress.adsNeeded) * 100}%` }} />
+                      </div>
+                    </div>
 
-                <button
-                  onClick={() => {
-                    if (!adDebounced()) return;
-                    setShowKeyAd(true);
-                  }}
-                  className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
-                  style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
-                >
-                  <Video className="w-5 h-5" />Ver Anuncio ({keyProgress.adsWatched}/{keyProgress.adsNeeded})
-                </button>
+                    {keysRemaining > 0 && (
+                      <p className="text-cyan-400/60 text-[10px] mb-3">Llaves restantes hoy: {keysRemaining}</p>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        if (!adDebounced()) return;
+                        setShowKeyAd(true);
+                      }}
+                      className="w-full py-3 rounded-none bg-gradient-to-r from-cyan-600 to-cyan-700 text-white font-bold hover:opacity-90 transition-colors flex items-center justify-center gap-2"
+                      style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)' }}
+                    >
+                      <Video className="w-5 h-5" />Ver Anuncio ({keyProgress.adsWatched}/{keyProgress.adsNeeded})
+                    </button>
+                  </>
+                )}
               </div>
 
-              {/* Coins by watching ads (120 monedas) */}
+              {/* Coins by watching ads */}
               <div className="rounded-none bg-gradient-to-br from-green-900/30 via-[#1a1a28] to-[#0f1520] border-l-4 border-green-500/60 p-5" style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%)' }}>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-12 h-12 rounded-none flex items-center justify-center shrink-0" style={{ backgroundColor: '#10b98120' }}>
@@ -275,7 +290,7 @@ export function ShopScreen() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h2 className="text-white font-bold uppercase tracking-wide">Monedas por Anuncio</h2>
-                    <p className="text-white/40 text-xs">+120 monedas por anuncio · Máx {getMaxCoinAdsPerDay()}/día</p>
+                    <p className="text-white/40 text-xs">+{getCoinAdReward()} monedas por anuncio · Máx {getMaxCoinAdsPerDay()}/día</p>
                   </div>
                 </div>
 
@@ -318,7 +333,7 @@ export function ShopScreen() {
         onClose={() => setShowCoinAd(false)}
         onReward={handleCoinAdReward}
         title="Monedas por Anuncio"
-        rewardText="¡+120 monedas!"
+        rewardText={`¡+${getCoinAdReward()} monedas!`}
         adId={getRewardedAdId('shop')}
         userRole={userRole}
         vip={vip}

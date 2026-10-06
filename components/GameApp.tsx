@@ -36,7 +36,7 @@ import { AdMob } from '@capacitor-community/admob';
 import { VersionChecker } from '@/components/screens/VersionChecker';
 
 const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade'];
-const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade', 'creator'];
+const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade', 'creator'];
 const INTERSTITIAL_INTERVAL_MS = 5 * 60 * 1000;
 const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade'];
 

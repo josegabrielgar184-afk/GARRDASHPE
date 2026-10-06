@@ -136,15 +136,27 @@ export function playPickup() {
   osc.stop(ctx.currentTime + 0.15);
 }
 
+let coinVariant = 0;
+
 export function playCoin() {
   if (!sfxEnabled) return;
   const ctx = getCtx();
   if (!ctx) return;
+  const variant = coinVariant % 3;
+  coinVariant++;
+
+  const freqPairs = [
+    [988, 1319],
+    [880, 1175],
+    [1047, 1397],
+  ];
+  const [f1, f2] = freqPairs[variant];
+
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'triangle';
-  osc.frequency.setValueAtTime(988, ctx.currentTime);
-  osc.frequency.setValueAtTime(1319, ctx.currentTime + 0.05);
+  osc.frequency.setValueAtTime(f1, ctx.currentTime);
+  osc.frequency.setValueAtTime(f2, ctx.currentTime + 0.05);
   gain.gain.setValueAtTime(0.1, ctx.currentTime);
   gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
   osc.connect(gain);

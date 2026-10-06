@@ -94,7 +94,7 @@ export function OperatorScreen() {
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
       <MuteButton />
 
-      <div className="pt-16 px-4 pb-28 flex-1 overflow-y-auto no-scrollbar">
+      <div className="safe-top-lg px-4 pb-28 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />

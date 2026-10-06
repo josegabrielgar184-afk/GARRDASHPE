@@ -168,7 +168,7 @@ export function CanjesScreen() {
     <div className="h-full flex flex-col bg-gradient-to-b from-[#0a0e14] via-[#0f1520] to-[#1a1a28]">
       <MuteButton />
 
-      <div className="pt-16 px-4 pb-32 flex-1 overflow-y-auto no-scrollbar">
+      <div className="safe-top-lg px-4 pb-32 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />

@@ -48,6 +48,9 @@ export function ZRunner() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showControlEditor, setShowControlEditor] = useState(false);
   const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().zrunner);
+  const controlEditorRef = useRef(false);
+
+  useEffect(() => { controlEditorRef.current = showControlEditor; }, [showControlEditor]);
 
   const laneRef = useRef(1);
   const playerXRef = useRef(LANES[1]);
@@ -196,7 +199,7 @@ export function ZRunner() {
     if (!ctx) return;
 
     const loop = () => {
-      if (gameOverRef.current) {
+      if (gameOverRef.current || controlEditorRef.current) {
         rafRef.current = requestAnimationFrame(loop);
         return;
       }

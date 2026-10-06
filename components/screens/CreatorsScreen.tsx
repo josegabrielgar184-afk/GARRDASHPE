@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { ArrowLeft, Users, Star, Gift, TrendingUp, Youtube, Check, X, Loader2, Sparkles, Award } from 'lucide-react';
 import { normalizeCode, isValidCode, isValidUrl, CODE_MIN_LENGTH, CODE_MAX_LENGTH, type Platform } from '@/lib/creators';
 
-type Section = 'main' | 'apply' | 'panel' | 'ranking';
+type Section = 'main' | 'support' | 'creator' | 'ranking';
 
 export function CreatorsScreen() {
   const {
@@ -94,8 +94,8 @@ export function CreatorsScreen() {
         {/* Section tabs */}
         <div className="flex gap-2 overflow-x-auto pb-1">
           <TabBtn active={section === 'main'} onClick={() => setSection('main')} label="Inicio" />
-          <TabBtn active={section === 'apply'} onClick={() => setSection('apply')} label="Apoyar" />
-          {isApprovedCreator && <TabBtn active={section === 'panel'} onClick={() => setSection('panel')} label="Mi Codigo" />}
+          <TabBtn active={section === 'support'} onClick={() => setSection('support')} label="Apoyar" />
+          <TabBtn active={section === 'creator'} onClick={() => setSection('creator')} label="Ser Creador" />
           <TabBtn active={section === 'ranking'} onClick={() => setSection('ranking')} label="Ranking" />
         </div>
 
@@ -119,7 +119,7 @@ export function CreatorsScreen() {
                   <p className="text-2xl font-black text-primary tracking-wider">{creatorReferralCode}</p>
                 </div>
               ) : (
-                <button onClick={() => setSection('apply')} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 text-sm hover:opacity-90 transition-opacity">
+                <button onClick={() => setSection('support')} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 text-sm hover:opacity-90 transition-opacity">
                   Ingresar codigo
                 </button>
               )}
@@ -149,13 +149,13 @@ export function CreatorsScreen() {
                     <p className="text-xs text-red-400">Tu solicitud fue rechazada. Puedes volver a solicitar con otro codigo.</p>
                   )}
                   {creatorApplication.status === 'approved' && (
-                    <button onClick={() => setSection('panel')} className="w-full rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold py-2.5 text-sm hover:bg-yellow-500/30 transition-colors">
+                    <button onClick={() => setSection('creator')} className="w-full rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold py-2.5 text-sm hover:bg-yellow-500/30 transition-colors">
                       Ver mi panel
                     </button>
                   )}
                 </div>
               ) : (
-                <button onClick={() => setSection('apply')} className="w-full rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold py-3 text-sm hover:bg-yellow-500/30 transition-colors">
+                <button onClick={() => setSection('creator')} className="w-full rounded-xl bg-yellow-500/20 border border-yellow-500/40 text-yellow-500 font-bold py-3 text-sm hover:bg-yellow-500/30 transition-colors">
                   Solicitar ser creador
                 </button>
               )}
@@ -163,10 +163,9 @@ export function CreatorsScreen() {
           </div>
         )}
 
-        {/* APPLY section — use code + apply form */}
-        {section === 'apply' && (
+        {/* SUPPORT section — enter a creator code */}
+        {section === 'support' && (
           <div className="space-y-5">
-            {/* Use code */}
             <div className="rounded-2xl bg-card border border-border p-5">
               <h2 className="font-black text-base mb-1">Apoya a un creador</h2>
               <p className="text-xs text-muted-foreground mb-4">Solo puedes elegir uno. No puedes cambiarlo despues.</p>
@@ -198,9 +197,39 @@ export function CreatorsScreen() {
                 </div>
               )}
             </div>
+          </div>
+        )}
 
-            {/* Creator application form — only if no active application */}
-            {!creatorApplication || creatorApplication.status === 'rejected' ? (
+        {/* CREATOR section — apply to become a creator + creator panel */}
+        {section === 'creator' && (
+          <div className="space-y-5">
+            {isApprovedCreator && (
+              <>
+                {/* Creator dashboard */}
+                <div className="rounded-2xl bg-gradient-to-br from-yellow-500/10 to-card border border-yellow-500/20 p-5 text-center">
+                  <p className="text-xs text-muted-foreground mb-1">MI CODIGO</p>
+                  <p className="text-4xl font-black text-yellow-500 tracking-wider">{creatorApplication?.requestedCode}</p>
+                </div>
+
+                {creatorStats && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatCard label="Referidos" value={creatorStats.total} icon={<Users className="w-4 h-4" />} />
+                    <StatCard label="Pendientes" value={creatorStats.pending} icon={<Loader2 className="w-4 h-4" />} />
+                    <StatCard label="Calificados" value={creatorStats.qualified} icon={<Check className="w-4 h-4" />} />
+                    <StatCard label="Ganado" value={creatorStats.coinsEarned.toLocaleString()} icon={<Gift className="w-4 h-4" />} />
+                  </div>
+                )}
+
+                <div className="rounded-xl bg-muted/30 border border-border p-4">
+                  <p className="text-xs text-muted-foreground">
+                    Comparte tu codigo para que tus seguidores lo usen. Recibes 50 monedas por cada jugador que juegue 10+ minutos en 2 dias diferentes.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {!isApprovedCreator && (!creatorApplication || creatorApplication.status === 'rejected') && (
+              /* Creator application form */
               <div className="rounded-2xl bg-card border border-border p-5 space-y-4">
                 <div>
                   <h2 className="font-black text-base flex items-center gap-2">
@@ -216,7 +245,7 @@ export function CreatorsScreen() {
                     onChange={(e) => setForm({ ...form, channelName: e.target.value })}
                     placeholder="PepitoFF"
                     maxLength={50}
-                    className="form-input"
+                    className="w-full rounded-xl bg-muted/30 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
                   />
                 </FormField>
 
@@ -241,7 +270,7 @@ export function CreatorsScreen() {
                     value={form.profileUrl}
                     onChange={(e) => setForm({ ...form, profileUrl: e.target.value })}
                     placeholder="https://tiktok.com/@pepitoff"
-                    className="form-input"
+                    className="w-full rounded-xl bg-muted/30 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
                   />
                 </FormField>
 
@@ -250,7 +279,7 @@ export function CreatorsScreen() {
                     value={form.videoUrl}
                     onChange={(e) => setForm({ ...form, videoUrl: e.target.value })}
                     placeholder="https://..."
-                    className="form-input"
+                    className="w-full rounded-xl bg-muted/30 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
                   />
                 </FormField>
 
@@ -260,7 +289,7 @@ export function CreatorsScreen() {
                     onChange={(e) => setForm({ ...form, requestedCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_MAX_LENGTH) })}
                     placeholder="PEPITOFF"
                     maxLength={CODE_MAX_LENGTH}
-                    className="form-input font-black tracking-widest"
+                    className="w-full rounded-xl bg-muted/30 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary font-black tracking-widest"
                   />
                 </FormField>
 
@@ -277,7 +306,9 @@ export function CreatorsScreen() {
                   Enviar solicitud
                 </button>
               </div>
-            ) : (
+            )}
+
+            {!isApprovedCreator && creatorApplication && creatorApplication.status !== 'rejected' && (
               <div className="rounded-2xl bg-card border border-border p-5 text-center">
                 <p className="text-sm text-muted-foreground">Tu solicitud esta siendo revisada.</p>
                 <div className="mt-2 flex items-center justify-center gap-2">
@@ -286,31 +317,6 @@ export function CreatorsScreen() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* PANEL section — creator dashboard */}
-        {section === 'panel' && isApprovedCreator && (
-          <div className="space-y-4">
-            <div className="rounded-2xl bg-gradient-to-br from-yellow-500/10 to-card border border-yellow-500/20 p-5 text-center">
-              <p className="text-xs text-muted-foreground mb-1">MI CODIGO</p>
-              <p className="text-4xl font-black text-yellow-500 tracking-wider">{creatorApplication?.requestedCode}</p>
-            </div>
-
-            {creatorStats && (
-              <div className="grid grid-cols-2 gap-3">
-                <StatCard label="Referidos" value={creatorStats.total} icon={<Users className="w-4 h-4" />} />
-                <StatCard label="Pendientes" value={creatorStats.pending} icon={<Loader2 className="w-4 h-4" />} />
-                <StatCard label="Calificados" value={creatorStats.qualified} icon={<Check className="w-4 h-4" />} />
-                <StatCard label="Ganado" value={creatorStats.coinsEarned.toLocaleString()} icon={<Gift className="w-4 h-4" />} />
-              </div>
-            )}
-
-            <div className="rounded-xl bg-muted/30 border border-border p-4">
-              <p className="text-xs text-muted-foreground">
-                Comparte tu codigo para que tus seguidores lo usen. Recibes 50 monedas por cada jugador que juegue 10+ minutos en 2 dias diferentes.
-              </p>
-            </div>
           </div>
         )}
 
@@ -353,20 +359,6 @@ export function CreatorsScreen() {
         )}
       </div>
 
-      <style jsx>{`
-        .form-input {
-          width: 100%;
-          border-radius: 0.75rem;
-          background: hsl(var(--muted) / 0.3);
-          border: 1px solid hsl(var(--border));
-          padding: 0.625rem 1rem;
-          font-size: 0.875rem;
-          outline: none;
-        }
-        .form-input:focus {
-          border-color: hsl(var(--primary));
-        }
-      `}</style>
     </div>
   );
 }

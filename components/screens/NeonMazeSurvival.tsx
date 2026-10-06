@@ -57,6 +57,9 @@ export function NeonMazeSurvival() {
   const [overcharge, setOvercharge] = useState(false);
   const [showControlEditor, setShowControlEditor] = useState(false);
   const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().maze);
+  const controlEditorRef = useRef(false);
+
+  useEffect(() => { controlEditorRef.current = showControlEditor; }, [showControlEditor]);
 
   const playerRef = useRef<Entity>({ x: 1, y: 1, dir: { dx: 0, dy: 0 } });
   const zombiesRef = useRef<Entity[]>([]);
@@ -151,7 +154,7 @@ export function NeonMazeSurvival() {
     const ZOMBIE_MOVE_INTERVAL = 12;
 
     const loop = (time: number) => {
-      if (gameOverRef.current) {
+      if (gameOverRef.current || controlEditorRef.current) {
         rafRef.current = requestAnimationFrame(loop);
         return;
       }

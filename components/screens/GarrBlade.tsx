@@ -60,6 +60,9 @@ export function GarrBlade() {
   const [gameOver, setGameOver] = useState(false);
   const [showControlEditor, setShowControlEditor] = useState(false);
   const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().garrblade);
+  const controlEditorRef = useRef(false);
+
+  useEffect(() => { controlEditorRef.current = showControlEditor; }, [showControlEditor]);
 
   const pxRef = useRef(40);
   const pyRef = useRef(H - 50);
@@ -196,7 +199,7 @@ export function GarrBlade() {
     if (!ctx) return;
 
     const loop = () => {
-      if (gameOverRef.current) {
+      if (gameOverRef.current || controlEditorRef.current) {
         rafRef.current = requestAnimationFrame(loop);
         return;
       }

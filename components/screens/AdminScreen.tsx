@@ -235,7 +235,7 @@ export function AdminScreen() {
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
       <MuteButton />
 
-      <div className="pt-16 px-4 pb-28 flex-1 overflow-y-auto no-scrollbar">
+      <div className="safe-top-lg px-4 pb-28 flex-1 overflow-y-auto no-scrollbar">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
@@ -1585,6 +1585,7 @@ function AdminCanjesTab({
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [subTab, setSubTab] = useState<'pending' | 'approved'>('pending');
   const pageSize = 100;
 
@@ -1609,21 +1610,36 @@ function AdminCanjesTab({
 
   const handleApprove = async (id: string) => {
     setActionLoading(id);
-    await adminApproveCanje(id);
+    setActionError(null);
+    const result = await adminApproveCanje(id);
     setActionLoading(null);
+    if (!result.ok) {
+      setActionError(result.error || 'Error al aprobar canje');
+      return;
+    }
     await refreshAdminCanjes();
   };
   const handleCorrect = async (id: string) => {
     setActionLoading(id);
-    await adminMarkCorrection(id);
+    setActionError(null);
+    const result = await adminMarkCorrection(id);
     setActionLoading(null);
+    if (!result.ok) {
+      setActionError(result.error || 'Error al marcar corrección');
+      return;
+    }
     await refreshAdminCanjes();
   };
   const handleReject = async (id: string) => {
     if (rejectReason.trim().length < 3) return;
     setActionLoading(id);
-    await adminRejectCanje(id, rejectReason.trim());
+    setActionError(null);
+    const result = await adminRejectCanje(id, rejectReason.trim());
     setActionLoading(null);
+    if (!result.ok) {
+      setActionError(result.error || 'Error al rechazar canje');
+      return;
+    }
     setRejectingId(null);
     setRejectReason('');
     await refreshAdminCanjes();
@@ -1633,6 +1649,14 @@ function AdminCanjesTab({
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/40 p-3 flex items-center justify-between">
+          <p className="text-red-400 text-xs font-bold">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-red-400/60 hover:text-red-400">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Prominent pending banner */}
       {adminCanjesList.length > 0 && (
         <div className={`rounded-2xl border p-4 text-center ${adminCanjesList.length >= 3 ? 'bg-red-950/30 border-red-500/50' : 'bg-amber-950/20 border-amber-500/40'}`}>

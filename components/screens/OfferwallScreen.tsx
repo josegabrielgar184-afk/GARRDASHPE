@@ -36,7 +36,7 @@ export function OfferwallScreen() {
       <OfflineBanner />
       <MuteButton />
 
-      <div className="pt-16 px-6 pb-28 flex-1 flex flex-col">
+      <div className="safe-top-lg px-6 pb-28 flex-1 flex flex-col">
         <div className="flex items-center gap-3 mb-6">
           <button onClick={() => setScreen('menu')} className="text-white/50 hover:text-white">
             <ArrowLeft className="w-6 h-6" />

@@ -8,7 +8,7 @@ export function MuteButton() {
   return (
     <button
       onClick={toggleMute}
-      className="fixed top-3 left-3 z-50 w-10 h-10 rounded-full bg-card/80 backdrop-blur border border-primary/30 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors"
+      className="fixed top-3 left-3 z-50 w-10 h-10 rounded-full bg-card/80 backdrop-blur border border-primary/30 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors safe-top"
       aria-label={muted ? 'Activar música' : 'Silenciar música'}
     >
       {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}

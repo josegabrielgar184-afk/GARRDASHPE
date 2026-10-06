@@ -39,6 +39,9 @@ export function GarrFly() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showControlEditor, setShowControlEditor] = useState(false);
   const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().garrfly);
+  const controlEditorRef = useRef(false);
+
+  useEffect(() => { controlEditorRef.current = showControlEditor; }, [showControlEditor]);
 
   const snakeRef = useRef<Point[]>([
     { x: 9, y: 12 },
@@ -184,7 +187,7 @@ export function GarrFly() {
     if (!ctx) return;
 
     const interval = setInterval(() => {
-      if (gameOverRef.current) return;
+      if (gameOverRef.current || controlEditorRef.current) return;
 
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);

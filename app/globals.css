@@ -67,6 +67,16 @@ body {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-top-lg {
+    padding-top: calc(env(safe-area-inset-top) + 4rem);
+  }
+  .safe-both {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
   .ad-safe-bottom {
     padding-bottom: calc(var(--ad-banner-height) + env(safe-area-inset-bottom));
   }
