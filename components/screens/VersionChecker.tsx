@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { APP_VERSION as FALLBACK_VERSION, PLAY_STORE_URL } from '@/lib/config';
+import { PLAY_STORE_URL } from '@/lib/config';
 
 export function VersionChecker() {
   const [needsUpdate, setNeedsUpdate] = useState(false);
@@ -12,29 +12,29 @@ export function VersionChecker() {
   useEffect(() => {
     const checkAppVersion = async () => {
       try {
-        // Step 1: Get the REAL installed versionCode from the native APK.
-        let installedVersionCode: number;
-        let installedVersionName: string;
-
-        if (Capacitor.isNativePlatform()) {
-          try {
-            const info = await App.getInfo();
-            installedVersionCode = Number(info.build);
-            installedVersionName = info.version;
-            console.log('[VersionChecker] INSTALLED VERSION CODE:', installedVersionCode);
-            console.log('[VersionChecker] INSTALLED VERSION NAME:', installedVersionName);
-          } catch (err) {
-            console.error('[VersionChecker] App.getInfo() failed, using fallback', err);
-            installedVersionCode = FALLBACK_VERSION;
-            installedVersionName = '';
-          }
-        } else {
-          installedVersionCode = FALLBACK_VERSION;
-          installedVersionName = '';
-          console.log('[VersionChecker] Web platform, fallback version:', installedVersionCode);
+        // On Android, the real versionCode comes from the APK via Capacitor.
+        // On Web/Bolt Preview there is no APK, so the update gate does not apply.
+        if (!Capacitor.isNativePlatform()) {
+          console.log('[VersionChecker] Web platform — update check skipped');
+          return;
         }
 
-        // Step 2: Fetch remote minimum version with cache-busting.
+        let installedVersionCode: number;
+        let installedVersionName: string;
+        try {
+          const info = await App.getInfo();
+          installedVersionCode = Number(info.build);
+          installedVersionName = info.version;
+        } catch (err) {
+          // If we cannot read the installed version, do NOT block the user.
+          console.error('[VersionChecker] App.getInfo() failed — not blocking', err);
+          return;
+        }
+
+        console.log('[VersionChecker] INSTALLED VERSION CODE:', installedVersionCode);
+        console.log('[VersionChecker] INSTALLED VERSION NAME:', installedVersionName);
+
+        // Fetch remote minimum version with cache-busting.
         const res = await fetch(`https://josegabrielgar184-afk.github.io/GARRDASHPE/version.json?t=${Date.now()}`, {
           cache: 'no-store',
         });
@@ -58,7 +58,8 @@ export function VersionChecker() {
           setNewVersionText(minimumVersionName);
         }
       } catch (e) {
-        console.error('[VersionChecker] Version check failed, not blocking user', e);
+        // Network or parse error — never block the user on failure.
+        console.error('[VersionChecker] Version check failed — not blocking', e);
       }
     };
 
