@@ -168,7 +168,7 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
 
     if (action === 'coherent' && userId) {
       // 1. Sumar 100 monedas al usuario
-      await updateDoc(doc(db, 'usuarios', userId), { coins: increment(100) });
+      await updateDoc(doc(db, 'usuarios', userId), { coins: increment(100), coins_from_suggestions: increment(100) });
       await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 100 });
 
       // 2. Enviar notificación al usuario
@@ -183,7 +183,7 @@ export async function handleSuggestion(suggestionId: string, action: 'coherent' 
 
     } else if (action === 'simple' && userId) {
       // 1. Sumar 5 monedas al usuario
-      await updateDoc(doc(db, 'usuarios', userId), { coins: increment(5) });
+      await updateDoc(doc(db, 'usuarios', userId), { coins: increment(5), coins_from_suggestions: increment(5) });
       await updateDoc(sugRef, { atendida: true, estado: 'atendida', attendedAt: serverTimestamp(), rewardGiven: 5 });
 
       // 2. Enviar notificación al usuario

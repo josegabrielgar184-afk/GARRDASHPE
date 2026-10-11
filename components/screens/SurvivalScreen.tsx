@@ -39,7 +39,7 @@ const TOWER_MAX_HP = 250;
 const CASTLE_MAX_HP = 350;
 
 export function SurvivalScreen() {
-  const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch, addPlayTime, flushPlayTime } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [survivalTime, setSurvivalTime] = useState(0);
@@ -77,6 +77,7 @@ export function SurvivalScreen() {
   const arenaThemeRef = useRef<ArenaTheme>(getArenaTheme(1));
   const fpsMonitorRef = useRef<FPSMonitor>(new FPSMonitor());
   const startTimeRef = useRef(0);
+  const lastPlayTimeSyncRef = useRef(0);
 
   const char = getZombieCharacter();
 
@@ -103,6 +104,7 @@ export function SurvivalScreen() {
     difficultyRef.current = 1;
     setSurvivalTime(0); setCoinsEarned(0); setBarricadeHp(100); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false);
     startTimeRef.current = performance.now();
+    lastPlayTimeSyncRef.current = performance.now();
     startGameBatch();
     initSessionStats('survival');
   }, [startGameBatch]);
@@ -178,6 +180,7 @@ export function SurvivalScreen() {
   useEffect(() => {
     if (gameOver) {
       endGameBatch();
+      flushPlayTime();
       submitSurvivalScore(survivalTimeRef.current);
       addCoinsToSession(coinsEarnedRef.current, 0);
       finishGameSession(Math.floor(survivalTimeRef.current / 1000), true);
@@ -211,6 +214,11 @@ export function SurvivalScreen() {
 
       if (!gameOverRef.current) {
         survivalTimeRef.current += dt * 16.67;
+        const nowMs = performance.now();
+        if (nowMs - lastPlayTimeSyncRef.current > 10000) {
+          if (isOnline) addPlayTime(nowMs - lastPlayTimeSyncRef.current);
+          lastPlayTimeSyncRef.current = nowMs;
+        }
         setSurvivalTime(Math.floor(survivalTimeRef.current / 1000));
         difficultyRef.current = 1 + survivalTimeRef.current / 30000;
 
@@ -424,7 +432,7 @@ export function SurvivalScreen() {
 
     rafRef.current = requestAnimationFrame(render);
     return () => { cancelAnimationFrame(rafRef.current); stopActionMusic(); };
-  }, [shoot, spawnZombie, spawnCrate, addCoins, char, endGameBatch]);
+  }, [shoot, spawnZombie, spawnCrate, addCoins, char, endGameBatch, addPlayTime]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -62,7 +62,7 @@ export function ShopScreen() {
     const ok = recordCoinAd();
     if (ok) {
       const reward = getCoinAdReward();
-      addCoins(reward);
+      addCoins(reward, 'ads');
       setSuccess(`¡+${reward} monedas ganadas!`);
       setCoinAdStatus(getCoinAdStatus());
     } else {

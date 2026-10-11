@@ -125,7 +125,7 @@ export function RouletteScreen() {
         rotationRef.current = finalRotation % 360;
         setSpinning(false);
         setResult(prize);
-        addCoins(prize.coins);
+        addCoins(prize.coins, 'roulette');
         playCoin();
         playPickup();
         hapticPattern([30, 20, 50]);

@@ -634,7 +634,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
               const daysSince = Math.floor((Date.now() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24));
               if (daysSince >= RETURN_REWARD_THRESHOLD_DAYS && !data.returnRewardClaimed) {
                 try {
-                  await updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(RETURN_REWARD_COINS), returnRewardClaimed: true, lastLogin: serverTimestamp() });
+                  await updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(RETURN_REWARD_COINS), coins_from_bonus: increment(RETURN_REWARD_COINS), returnRewardClaimed: true, lastLogin: serverTimestamp() });
                   setShowReturnReward(true);
                 } catch {}
               } else {
@@ -687,8 +687,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             if (data.survivalBestTime !== undefined) setSurvivalBestTime(data.survivalBestTime);
             if (data.welcomeBonusClaimed !== true) {
               try {
-                await updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(WELCOME_BONUS_COINS), welcomeBonusClaimed: true });
+                await updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(WELCOME_BONUS_COINS), coins_from_bonus: increment(WELCOME_BONUS_COINS), welcomeBonusClaimed: true });
                 setShowWelcomeBonus(true);
+              } catch {}
+            }
+            if (data.audit_start_coins === undefined) {
+              try {
+                await updateDoc(doc(db, 'usuarios', user.uid), { audit_start_coins: data.coins ?? 0 });
               } catch {}
             }
             saveData({
@@ -876,7 +881,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (vip && coinsToSync > 0) coinsToSync = Math.floor(coinsToSync * 1.5);
     if (user && isOnline) {
       const updates: Record<string, ReturnType<typeof increment>> = {};
-      if (coinsToSync !== 0) updates.coins = increment(coinsToSync);
+      if (coinsToSync !== 0) {
+        updates.coins = increment(coinsToSync);
+        updates.coins_from_gameplay = increment(coinsToSync);
+      }
       if (pendingGamePointsRef.current !== 0) updates.puntos = increment(pendingGamePointsRef.current);
       if (Object.keys(updates).length > 0) {
         try { updateDoc(doc(db, 'usuarios', user.uid), updates); } catch {}
@@ -888,7 +896,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     pendingGamePointsRef.current = 0;
   }, [isOnline, vip]);
 
-  const addCoins = useCallback((n: number) => {
+  const addCoins = useCallback((n: number, source: string = 'gameplay') => {
     if (typeof n !== 'number' || !isFinite(n) || n <= 0 || n > 100000) return;
     const user = auth.currentUser;
     if (!user || !isOnline) {
@@ -901,10 +909,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       pendingGameCoinsRef.current += n;
       return;
     }
-    try { updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(n) }); } catch {}
+    try {
+      const auditField = `coins_from_${source}`;
+      updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(n), [auditField]: increment(n) });
+    } catch {}
   }, [isOnline]);
 
-  const spendCoins = useCallback((n: number): boolean => {
+  const spendCoins = useCallback((n: number, reason: string = 'shop'): boolean => {
     if (typeof n !== 'number' || !isFinite(n) || n <= 0) return false;
     if (n > 1000000) return false;
     const user = auth.currentUser;
@@ -918,7 +929,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
     if (coins < n) return false;
     setCoins((prev) => prev - n);
-    try { updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(-n) }); } catch {}
+    try {
+      const auditField = `coins_spent_${reason}`;
+      updateDoc(doc(db, 'usuarios', user.uid), { coins: increment(-n), [auditField]: increment(n) });
+    } catch {}
     return true;
   }, [isOnline, coins]);
 
@@ -1208,8 +1222,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const getZombieChar = useCallback(() => getZombieCharacter(selectedZombie), [selectedZombie]);
 
   const buyUpgrade = useCallback((key: keyof UpgradeState, cost: number): boolean => {
-    if (!spendCoins(cost)) return false;
-    setUpgrades((prevUp) => {
+    if (!spendCoins(cost, 'shop')) return false;((prevUp) => {
       const nextUp = { ...prevUp, [key]: prevUp[key] + 1 };
       saveData({ upgrades: nextUp });
       return nextUp;
@@ -1221,7 +1234,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const isFirstClear = !campaignProgress.stars[level];
     const rewardRange = getCampaignCoinReward(level);
     const guaranteedCoins = Math.max(rewardRange.min, Math.min(rewardRange.max, coinsEarned || Math.floor((rewardRange.min + rewardRange.max) / 2)));
-    addCoins(guaranteedCoins);
+    addCoins(guaranteedCoins, 'gameplay');
     setCampaignProgress((prev) => {
       const newStars = { ...prev.stars, [level]: Math.max(prev.stars[level] ?? 0, stars) };
       const newLevel = Math.max(prev.currentLevel, level + 1);
@@ -1236,14 +1249,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             campaignLevel: newLevel,
             campaignKeys: newKeys,
             campaignStars: newStars,
-            coins: coins + guaranteedCoins,
             lastActive: serverTimestamp(),
           }).catch(() => {});
         } catch {}
       }
       return next;
     });
-  }, [campaignProgress.stars, addCoins, coins]);
+  }, [campaignProgress.stars, addCoins]);
 
   const getCurrentCampaignLevel = useCallback(() => campaignProgress.currentLevel, [campaignProgress.currentLevel]);
 
@@ -1265,7 +1277,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const buyCampaignKey = useCallback((): { ok: boolean; error?: string } => {
     const price = getConfigCampaignKeyPrice(campaignProgress.keys);
-    if (!spendCoins(price)) return { ok: false, error: 'No tienes suficientes monedas.' };
+    if (!spendCoins(price, 'keys')) return { ok: false, error: 'No tienes suficientes monedas.' };
     setCampaignProgress((prev) => {
       const next = { ...prev, keys: prev.keys + 1 };
       saveData({ campaignProgress: next });
@@ -1322,7 +1334,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = auth.currentUser;
       if (!user) return { ok: false, error: 'Debes iniciar sesion.' };
-      if (!spendCoins(MIN_CLAIM_COINS)) return { ok: false, error: 'No se pudieron descontar las monedas.' };
+      if (!spendCoins(MIN_CLAIM_COINS, 'canje')) return { ok: false, error: 'No se pudieron descontar las monedas.' };
       setCampaignProgress((prev) => {
         const next = { ...prev, keys: prev.keys - DIAMOND_CLAIM_KEYS_REQUIRED, diamondsClaimed: true };
         saveData({ campaignProgress: next });
@@ -1350,7 +1362,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         type: 'diamond_exchange',
       });
       await updateDoc(doc(db, 'usuarios', user.uid), {
-        coins: coins - MIN_CLAIM_COINS,
         campaignKeys: Math.max(0, campaignProgress.keys - DIAMOND_CLAIM_KEYS_REQUIRED),
         lastActive: serverTimestamp(),
       }).catch(() => {});
@@ -1359,10 +1370,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       const msg = err instanceof Error ? err.message : 'Error al procesar';
       return { ok: false, error: msg };
     }
-  }, [canExchangeDiamonds, spendCoins, coins, campaignProgress.keys]);
+  }, [canExchangeDiamonds, spendCoins, campaignProgress.keys]);
 
   const buyTower = useCallback((tower: keyof TowerLevel, cost: number): boolean => {
-    if (!spendCoins(cost)) return false;
+    if (!spendCoins(cost, 'shop')) return false;
     setTowerLevels((prev) => {
       const next = { ...prev, [tower]: (prev[tower] ?? 0) + 1 };
       saveData({ towerLevels: next });
@@ -1705,6 +1716,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         pais: data.country,
         email: data.email,
         coins: WELCOME_BONUS_COINS,
+        coins_from_bonus: WELCOME_BONUS_COINS,
+        audit_start_coins: WELCOME_BONUS_COINS,
         totalRuns: 0,
         bestScore: 0,
         createdAt: serverTimestamp(),
@@ -1738,7 +1751,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             const rows = await refRows.json() as Array<{ referrer_uid: string; referral_code: string; status: string }>;
             const ref = rows.find((r) => r.referral_code === refParam && r.status === 'pending');
             if (ref && ref.referrer_uid !== uid) {
-              await updateDoc(doc(db, 'usuarios', ref.referrer_uid), { coins: increment(200) });
+              await updateDoc(doc(db, 'usuarios', ref.referrer_uid), { coins: increment(200), coins_from_referral: increment(200) });
               await fetch(
                 `${process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || ''}/rest/v1/referrals?referral_code=eq.${refParam}`,
                 {
@@ -1852,7 +1865,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (!offerwallConfig?.active) return { ok: false, error: 'Las misiones de descarga no estan activas.' };
     if (offerwallDownloadsToday >= offerwallConfig.dailyLimit) return { ok: false, error: 'Limite alcanzado. Vuelve manana por mas!' };
     try {
-      addCoins(offerwallConfig.rewardPerDownload);
+      addCoins(offerwallConfig.rewardPerDownload, 'offerwall');
       setOfferwallDownloadsToday((prev) => prev + 1);
       return { ok: true };
     } catch {
@@ -2078,6 +2091,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         });
         tx.update(userRef, {
           coins: currentCoins - reward.coinCost,
+          coins_spent_canje: increment(reward.coinCost),
           campaignKeys: Math.max(0, currentKeys - reward.keyCost),
         });
       });
@@ -2908,7 +2922,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
       const batch = writeBatch(db);
       const userRef = doc(db, 'usuarios', user.uid);
-      batch.update(userRef, { coins: influencerInfo.coins - amount });
+      batch.update(userRef, { coins: increment(-amount), coins_spent_influencer: increment(amount) });
       const withdrawRef = doc(collection(db, 'retiros_influencers'));
       batch.set(withdrawRef, {
         uid: user.uid,
