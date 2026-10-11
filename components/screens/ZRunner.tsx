@@ -39,7 +39,7 @@ interface Particle {
 }
 
 export function ZRunner() {
-  const { setScreen, addCoins, userRole, vip } = useGame();
+  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -71,6 +71,7 @@ export function ZRunner() {
   const gameStartedRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const rafRef = useRef<number>(0);
+  const lastPlayTimeSyncRef = useRef(0);
 
   // Candados para evitar duplicados incorrectos de monedas
   const baseCoinsAddedRef = useRef(false);
@@ -101,6 +102,7 @@ export function ZRunner() {
     setCoinsEarned(0);
     setGameOver(false);
     setGameStarted(false);
+    lastPlayTimeSyncRef.current = Date.now();
     initSessionStats('zrunner');
   }, []);
 
@@ -127,6 +129,7 @@ export function ZRunner() {
     if (!gameStartedRef.current) {
       gameStartedRef.current = true;
       setGameStarted(true);
+      lastPlayTimeSyncRef.current = Date.now();
     }
   }, []);
 
@@ -183,6 +186,11 @@ export function ZRunner() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      if (isOnline && gameStartedRef.current) {
+        addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+        lastPlayTimeSyncRef.current = Date.now();
+      }
+      flushPlayTime();
       if (coinsRef.current > 0 && !baseCoinsAddedRef.current) {
         baseCoinsAddedRef.current = true;
         addCoins(coinsRef.current);
@@ -202,6 +210,11 @@ export function ZRunner() {
       if (gameOverRef.current || controlEditorRef.current) {
         rafRef.current = requestAnimationFrame(loop);
         return;
+      }
+
+      if (isOnline && gameStartedRef.current && Date.now() - lastPlayTimeSyncRef.current > 10000) {
+        addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+        lastPlayTimeSyncRef.current = Date.now();
       }
 
       ctx.fillStyle = '#0a0e17';
@@ -360,7 +373,7 @@ export function ZRunner() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins]);
+  }, [addCoins, addPlayTime, isOnline]);
 
   const handleRevive = () => {
     gameOverRef.current = false;

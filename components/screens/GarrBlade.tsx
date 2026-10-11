@@ -52,7 +52,7 @@ interface Particle {
 }
 
 export function GarrBlade() {
-  const { setScreen, addCoins, userRole, vip } = useGame();
+  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -111,6 +111,7 @@ export function GarrBlade() {
   const coinsEarnedRef = useRef(0);
   const gameOverRef = useRef(false);
   const rafRef = useRef<number>(0);
+  const lastPlayTimeSyncRef = useRef(0);
 
   const resetCoins = () => {
     coinsRef.current = JSON.parse(JSON.stringify(initialCoins));
@@ -138,6 +139,7 @@ export function GarrBlade() {
     setScore(0);
     setCoinsEarned(0);
     setGameOver(false);
+    lastPlayTimeSyncRef.current = Date.now();
     initSessionStats('garrblade');
   }, []);
 
@@ -183,6 +185,9 @@ export function GarrBlade() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      if (isOnline) addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+      flushPlayTime();
+      lastPlayTimeSyncRef.current = Date.now();
       if (coinsEarnedRef.current > 0 && !baseCoinsAddedRef.current) {
         baseCoinsAddedRef.current = true;
         addCoins(coinsEarnedRef.current);
@@ -202,6 +207,11 @@ export function GarrBlade() {
       if (gameOverRef.current || controlEditorRef.current) {
         rafRef.current = requestAnimationFrame(loop);
         return;
+      }
+
+      if (isOnline && Date.now() - lastPlayTimeSyncRef.current > 10000) {
+        addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+        lastPlayTimeSyncRef.current = Date.now();
       }
 
       ctx.fillStyle = '#0a0e17';
@@ -400,7 +410,7 @@ export function GarrBlade() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins]);
+  }, [addCoins, addPlayTime, isOnline]);
 
   const handleRevive = () => {
     gameOverRef.current = false;

@@ -30,7 +30,7 @@ interface Particle {
 }
 
 export function GarrFly() {
-  const { setScreen, addCoins, userRole, vip } = useGame();
+  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -58,6 +58,7 @@ export function GarrFly() {
   const gameOverRef = useRef(false);
   const gameStartedRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPlayTimeSyncRef = useRef(0);
 
   // Control de cobro único para evitar duplicados incorrectos
   const baseCoinsAddedRef = useRef(false);
@@ -98,6 +99,7 @@ export function GarrFly() {
     setGameOver(false);
     setGameStarted(false);
     spawnCoin(initialSnake);
+    lastPlayTimeSyncRef.current = Date.now();
     initSessionStats('garrfly');
   }, [spawnCoin]);
 
@@ -109,6 +111,7 @@ export function GarrFly() {
     if (!gameStartedRef.current) {
       gameStartedRef.current = true;
       setGameStarted(true);
+      lastPlayTimeSyncRef.current = Date.now();
     }
 
     const current = dirRef.current;
@@ -171,6 +174,11 @@ export function GarrFly() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      if (isOnline && gameStartedRef.current) {
+        addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+        lastPlayTimeSyncRef.current = Date.now();
+      }
+      flushPlayTime();
       if (coinsRef.current > 0 && !baseCoinsAddedRef.current) {
         baseCoinsAddedRef.current = true;
         addCoins(coinsRef.current);
@@ -188,6 +196,11 @@ export function GarrFly() {
 
     const interval = setInterval(() => {
       if (gameOverRef.current || controlEditorRef.current) return;
+
+      if (isOnline && gameStartedRef.current && Date.now() - lastPlayTimeSyncRef.current > 10000) {
+        addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+        lastPlayTimeSyncRef.current = Date.now();
+      }
 
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
@@ -284,7 +297,7 @@ export function GarrFly() {
     }, INITIAL_SPEED);
 
     return () => clearInterval(interval);
-  }, [addCoins, spawnCoin]);
+  }, [addCoins, spawnCoin, addPlayTime, isOnline]);
 
   const handleRevive = () => {
     gameOverRef.current = false;

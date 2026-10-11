@@ -48,7 +48,7 @@ function canMove(maze: string[], x: number, y: number): boolean {
 }
 
 export function NeonMazeSurvival() {
-  const { setScreen, addCoins, userRole, vip } = useGame();
+  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
@@ -77,6 +77,7 @@ export function NeonMazeSurvival() {
   const zombieMoveTimerRef = useRef(0);
   const rafRef = useRef<number>(0);
   const startTimeRef = useRef(0);
+  const lastPlayTimeSyncRef = useRef(0);
 
   // Candados para evitar duplicados incorrectos de monedas
   const baseCoinsAddedRef = useRef(false);
@@ -114,6 +115,7 @@ export function NeonMazeSurvival() {
     setGameOver(false);
     setOvercharge(false);
     startTimeRef.current = Date.now();
+    lastPlayTimeSyncRef.current = Date.now();
     initSessionStats('neon-maze');
   }, []);
 
@@ -134,6 +136,9 @@ export function NeonMazeSurvival() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      if (isOnline) addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+      flushPlayTime();
+      lastPlayTimeSyncRef.current = Date.now();
       if (coinsRef.current > 0 && !baseCoinsAddedRef.current) {
         baseCoinsAddedRef.current = true;
         addCoins(coinsRef.current);
@@ -157,6 +162,11 @@ export function NeonMazeSurvival() {
       if (gameOverRef.current || controlEditorRef.current) {
         rafRef.current = requestAnimationFrame(loop);
         return;
+      }
+
+      if (isOnline && Date.now() - lastPlayTimeSyncRef.current > 10000) {
+        addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
+        lastPlayTimeSyncRef.current = Date.now();
       }
 
       const dt = time - lastTime;
@@ -326,7 +336,7 @@ export function NeonMazeSurvival() {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [addCoins, overcharge]);
+  }, [addCoins, overcharge, addPlayTime, isOnline]);
 
   const handleTouch = (e: React.TouchEvent) => {
     e.preventDefault();

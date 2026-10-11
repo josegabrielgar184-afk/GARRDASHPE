@@ -46,6 +46,7 @@ export function AdminScreen() {
   const [simResult, setSimResult] = useState<string | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  const [openAuditUid, setOpenAuditUid] = useState<string | null>(null);
 
   useEffect(() => {
     refreshPendingRequests();
@@ -998,6 +999,78 @@ export function AdminScreen() {
                               <span>Solicitud: {user.currentRequest}</span>
                             </div>
                           )}
+                          <button
+                            onClick={() => setOpenAuditUid(openAuditUid === user.uid ? null : user.uid)}
+                            className="flex items-center gap-1.5 text-xs text-white/40 hover:text-amber-400 transition-colors mt-1"
+                          >
+                            <ScrollText className="w-3 h-3" />
+                            Ver auditoría
+                            <ChevronDown className={`w-3 h-3 transition-transform ${openAuditUid === user.uid ? 'rotate-180' : ''}`} />
+                          </button>
+                          {openAuditUid === user.uid && (() => {
+                            const earned = user.coins_from_gameplay + user.coins_from_bonus + user.coins_from_referral + user.coins_from_roulette + user.coins_from_ads + user.coins_from_suggestions;
+                            const spent = user.coins_spent_canje + user.coins_spent_influencer + user.coins_spent_shop + user.coins_spent_keys;
+                            const hasAuditStart = user.audit_start_coins !== undefined;
+                            const expectedBalance = hasAuditStart ? (user.audit_start_coins! + earned - spent) : null;
+                            const diff = expectedBalance !== null ? (user.coins - expectedBalance) : null;
+                            const hasTimeAndCoins = user.tiempo_jugado_min > 0 && user.coins_from_gameplay > 0;
+                            const coinsPerMin = hasTimeAndCoins ? (user.coins_from_gameplay / user.tiempo_jugado_min).toFixed(1) : null;
+                            return (
+                              <div className="mt-2 rounded-lg bg-black/30 border border-white/10 p-2.5 space-y-1.5">
+                                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">Auditoría de monedas</p>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                                  <span className="text-white/40">Jugadas</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_gameplay.toLocaleString()}</span>
+                                  <span className="text-white/40">Anuncios</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_ads.toLocaleString()}</span>
+                                  <span className="text-white/40">Ruleta</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_roulette.toLocaleString()}</span>
+                                  <span className="text-white/40">Referidos</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_referral.toLocaleString()}</span>
+                                  <span className="text-white/40">Creadores</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_suggestions.toLocaleString()}</span>
+                                  <span className="text-white/40">Bonos</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_bonus.toLocaleString()}</span>
+                                  <span className="text-white/40 border-t border-white/10 pt-1">Total ganado</span><span className="text-cyan-400 font-mono font-bold text-right border-t border-white/10 pt-1">+{earned.toLocaleString()}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] mt-1">
+                                  <span className="text-white/40">Canjes</span><span className="text-red-400 font-mono text-right">-{user.coins_spent_canje.toLocaleString()}</span>
+                                  <span className="text-white/40">Influencers</span><span className="text-red-400 font-mono text-right">-{user.coins_spent_influencer.toLocaleString()}</span>
+                                  <span className="text-white/40">Tienda</span><span className="text-red-400 font-mono text-right">-{user.coins_spent_shop.toLocaleString()}</span>
+                                  <span className="text-white/40">Llaves</span><span className="text-red-400 font-mono text-right">-{user.coins_spent_keys.toLocaleString()}</span>
+                                  <span className="text-white/40 border-t border-white/10 pt-1">Total gastado</span><span className="text-red-400 font-mono font-bold text-right border-t border-white/10 pt-1">-{spent.toLocaleString()}</span>
+                                </div>
+                                <div className="border-t border-white/10 pt-1.5 mt-1 space-y-1 text-[10px]">
+                                  <div className="flex justify-between">
+                                    <span className="text-white/40">Min. jugados</span>
+                                    <span className="text-cyan-400 font-mono">{Math.floor(user.tiempo_jugado_min)} min</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-white/40">Monedas/min</span>
+                                    <span className="text-white/60 font-mono">{coinsPerMin !== null ? coinsPerMin : 'No disponible'}</span>
+                                  </div>
+                                  {hasAuditStart ? (
+                                    <>
+                                      <div className="flex justify-between">
+                                        <span className="text-white/40">Saldo inicial (auditoría)</span>
+                                        <span className="text-white/60 font-mono">{user.audit_start_coins!.toLocaleString()}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-white/40">Saldo esperado</span>
+                                        <span className="text-white/60 font-mono">{expectedBalance!.toLocaleString()}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-white/40">Saldo real</span>
+                                        <span className="text-amber-400 font-mono font-bold">{user.coins.toLocaleString()}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-white/40">Diferencia</span>
+                                        <span className={`font-mono font-bold ${diff! === 0 ? 'text-green-400' : diff! > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                          {diff! > 0 ? '+' : ''}{diff!.toLocaleString()}
+                                        </span>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <p className="text-white/30 text-[10px] italic">Saldo inicial previo a la auditoría — datos históricos no disponibles para cruce.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

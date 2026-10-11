@@ -262,8 +262,8 @@ interface GameState {
   setCustomColorState: (c: string) => void;
   lastInterstitialTime: number;
   setScreen: (s: Screen) => void;
-  addCoins: (n: number) => void;
-  spendCoins: (n: number) => boolean;
+  addCoins: (n: number, source?: string) => void;
+  spendCoins: (n: number, reason?: string) => boolean;
   addPoints: (n: number) => void;
   spendPoints: (n: number) => boolean;
   setLives: (n: number) => void;
@@ -368,6 +368,10 @@ interface GameState {
     puntos: number; vip: boolean; playerID: string; nickname: string;
     tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
     lastActive: unknown; banned: boolean; currentRequest: string;
+    audit_start_coins: number | undefined;
+    coins_from_gameplay: number; coins_from_bonus: number; coins_from_referral: number;
+    coins_from_roulette: number; coins_from_ads: number; coins_from_suggestions: number;
+    coins_spent_canje: number; coins_spent_influencer: number; coins_spent_shop: number; coins_spent_keys: number;
   }>;
   observerMode: boolean;
   toggleObserverMode: () => void;
@@ -560,6 +564,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     puntos: number; vip: boolean; playerID: string; nickname: string;
     tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
     lastActive: unknown; banned: boolean; currentRequest: string;
+    audit_start_coins: number | undefined;
+    coins_from_gameplay: number; coins_from_bonus: number; coins_from_referral: number;
+    coins_from_roulette: number; coins_from_ads: number; coins_from_suggestions: number;
+    coins_spent_canje: number; coins_spent_influencer: number; coins_spent_shop: number; coins_spent_keys: number;
   }>>([]);
   const [vipExpiry, setVipExpiry] = useState<string | null>(null);
   const [observerMode, setObserverMode] = useState(false);
@@ -1222,13 +1230,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const getZombieChar = useCallback(() => getZombieCharacter(selectedZombie), [selectedZombie]);
 
   const buyUpgrade = useCallback((key: keyof UpgradeState, cost: number): boolean => {
-    if (!spendCoins(cost, 'shop')) return false;((prevUp) => {
-      const nextUp = { ...prevUp, [key]: prevUp[key] + 1 };
-      saveData({ upgrades: nextUp });
-      return nextUp;
-    });
+    if (!spendCoins(cost, 'shop')) return false;
+    const nextUp = { ...upgrades, [key]: upgrades[key] + 1 };
+    setUpgrades(nextUp);
+    saveData({ upgrades: nextUp });
     return true;
-  }, [spendCoins]);
+  }, [spendCoins, upgrades]);
 
   const completeLevel = useCallback((level: number, stars: number, coinsEarned: number) => {
     const isFirstClear = !campaignProgress.stars[level];
@@ -1563,6 +1570,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           puntos: number; vip: boolean; playerID: string; nickname: string;
           tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
           lastActive: unknown; banned: boolean; currentRequest: string;
+          audit_start_coins: number | undefined;
+          coins_from_gameplay: number; coins_from_bonus: number; coins_from_referral: number;
+          coins_from_roulette: number; coins_from_ads: number; coins_from_suggestions: number;
+          coins_spent_canje: number; coins_spent_influencer: number; coins_spent_shop: number; coins_spent_keys: number;
         }> = [];
         snap.forEach((d) => {
           const data = d.data();
@@ -1581,6 +1592,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             lastActive: data.lastActive ?? null,
             banned: data.banned ?? false,
             currentRequest: data.currentRequest ?? '',
+            audit_start_coins: data.audit_start_coins,
+            coins_from_gameplay: data.coins_from_gameplay ?? 0,
+            coins_from_bonus: data.coins_from_bonus ?? 0,
+            coins_from_referral: data.coins_from_referral ?? 0,
+            coins_from_roulette: data.coins_from_roulette ?? 0,
+            coins_from_ads: data.coins_from_ads ?? 0,
+            coins_from_suggestions: data.coins_from_suggestions ?? 0,
+            coins_spent_canje: data.coins_spent_canje ?? 0,
+            coins_spent_influencer: data.coins_spent_influencer ?? 0,
+            coins_spent_shop: data.coins_spent_shop ?? 0,
+            coins_spent_keys: data.coins_spent_keys ?? 0,
           });
         });
         setAllUsersList(users);
@@ -2724,6 +2746,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         puntos: number; vip: boolean; playerID: string; nickname: string;
         tiempo_jugado_min: number; tiempo_app_min: number; createdAt: unknown;
         lastActive: unknown; banned: boolean; currentRequest: string;
+        audit_start_coins: number | undefined;
+        coins_from_gameplay: number; coins_from_bonus: number; coins_from_referral: number;
+        coins_from_roulette: number; coins_from_ads: number; coins_from_suggestions: number;
+        coins_spent_canje: number; coins_spent_influencer: number; coins_spent_shop: number; coins_spent_keys: number;
       }> = [];
       snap.forEach((d) => {
         const data = d.data();
@@ -2742,6 +2768,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           lastActive: data.lastActive ?? null,
           banned: data.banned ?? false,
           currentRequest: data.currentRequest ?? '',
+          audit_start_coins: data.audit_start_coins,
+          coins_from_gameplay: data.coins_from_gameplay ?? 0,
+          coins_from_bonus: data.coins_from_bonus ?? 0,
+          coins_from_referral: data.coins_from_referral ?? 0,
+          coins_from_roulette: data.coins_from_roulette ?? 0,
+          coins_from_ads: data.coins_from_ads ?? 0,
+          coins_from_suggestions: data.coins_from_suggestions ?? 0,
+          coins_spent_canje: data.coins_spent_canje ?? 0,
+          coins_spent_influencer: data.coins_spent_influencer ?? 0,
+          coins_spent_shop: data.coins_spent_shop ?? 0,
+          coins_spent_keys: data.coins_spent_keys ?? 0,
         });
       });
       setAllUsersList(newUsers);
