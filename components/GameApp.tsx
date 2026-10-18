@@ -25,6 +25,7 @@ import { NeonMazeSurvival } from '@/components/screens/NeonMazeSurvival';
 import { GarrFly } from '@/components/screens/GarrFly';
 import { ZRunner } from '@/components/screens/ZRunner';
 import { GarrBlade } from '@/components/screens/GarrBlade';
+import { CanicasExplosivas } from '@/components/screens/CanicasExplosivas';
 import { CreatorsScreen } from '@/components/screens/CreatorsScreen';
 import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
@@ -35,10 +36,10 @@ import { AdMob } from '@capacitor-community/admob';
 // AQUI ESTA LA RUTA CORREGIDA APUNTANDO A SCREENS:
 import { VersionChecker } from '@/components/screens/VersionChecker';
 
-const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade'];
+const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade', 'creator'];
 const INTERSTITIAL_INTERVAL_MS = 5 * 60 * 1000;
-const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade'];
+const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -88,6 +89,8 @@ function GameRouter() {
       return <ZRunner />;
     case 'garrblade':
       return <GarrBlade />;
+    case 'canicas':
+      return <CanicasExplosivas />;
     case 'creator':
       return <CreatorsScreen />;
     default:

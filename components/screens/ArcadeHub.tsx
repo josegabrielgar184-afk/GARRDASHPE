@@ -4,7 +4,7 @@ import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import {
   Zap, Trophy, Coins, ShoppingBag, Star, Gamepad2, Crown, ArrowLeft,
-  Rocket, ShieldAlert,
+  Rocket, ShieldAlert, Circle,
 } from 'lucide-react';
 
 export function ArcadeHub() {
@@ -223,6 +223,43 @@ export function ArcadeHub() {
           </div>
           <div className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
             JUGAR GARRBLADE
+          </div>
+        </button>
+
+        {/* Card 5: Canicas Explosivas (prototipo) */}
+        <button
+          onClick={() => setScreen('canicas')}
+          className="w-full rounded-3xl bg-gradient-to-br from-[#ff2d95]/10 via-[#0a0e17] to-[#ffb700]/10 border-2 border-[#ff2d95]/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-[#ff2d95]/10"
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="text-[#ff2d95] text-[10px] font-black tracking-widest uppercase mb-1">
+                Prototipo
+              </p>
+              <h2
+                className="text-white font-black text-xl"
+                style={{ textShadow: '0 0 15px rgba(255,45,149,0.4)' }}
+              >
+                CANICAS EXPLOSIVAS
+              </h2>
+              <p className="text-white/40 text-xs mt-1">
+                Dispara canicas y junta grupos de 3 o más iguales
+              </p>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-[#ff2d95]/20 border border-[#ff2d95]/40 flex items-center justify-center shrink-0">
+              <Circle className="w-6 h-6 text-[#ff2d95]" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-0.5 rounded-full bg-[#ff2d95]/10 border border-[#ff2d95]/30 text-[#ff2d95] text-[10px] font-bold">
+              PUNTERÍA
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-[#ffb700]/10 border border-[#ffb700]/30 text-[#ffb700] text-[10px] font-bold">
+              +Puntos
+            </span>
+          </div>
+          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-[#ff2d95] to-[#ffb700] text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
+            JUGAR CANICAS
           </div>
         </button>
 
