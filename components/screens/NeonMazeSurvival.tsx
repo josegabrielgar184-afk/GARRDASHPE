@@ -160,6 +160,7 @@ export function NeonMazeSurvival() {
 
     const loop = (time: number) => {
       if (gameOverRef.current || controlEditorRef.current) {
+        lastPlayTimeSyncRef.current = Date.now();
         rafRef.current = requestAnimationFrame(loop);
         return;
       }

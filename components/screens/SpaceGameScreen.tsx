@@ -384,6 +384,8 @@ export function SpaceGameScreen() {
       endGameBatch();
       submitSpaceScore(Math.floor(scoreRef.current));
       playGameOver();
+      if (isOnline) addPlayTime(playTimeRef.current - lastPlayTimeSyncRef.current);
+      lastPlayTimeSyncRef.current = playTimeRef.current;
       flushPlayTime();
       addCoinsToSession(gameCoinsRef.current, 0);
       finishGameSession(Math.floor(scoreRef.current), true);

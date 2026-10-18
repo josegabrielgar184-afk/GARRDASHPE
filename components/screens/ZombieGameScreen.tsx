@@ -554,6 +554,8 @@ export function ZombieGameScreen() {
     if (gameOver && !interstitialCheckedRef.current) {
       interstitialCheckedRef.current = true;
       endGameBatch();
+      if (isOnline) addPlayTime(playTimeRef.current - lastPlayTimeSyncRef.current);
+      lastPlayTimeSyncRef.current = playTimeRef.current;
       flushPlayTime();
       submitZombieScore(killCountRef.current);
       addCoinsToSession(gameCoinsRef.current, 0);

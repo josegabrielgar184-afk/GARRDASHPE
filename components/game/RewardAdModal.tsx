@@ -80,17 +80,22 @@ export function RewardAdModal({
     const isNative = Capacitor?.isNativePlatform?.() ?? false;
 
     if (!isNative) {
-      if (marathonMode) {
-        setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
-        setTimeout(() => {
-          if (cancelled) return;
+      if (process.env.NODE_ENV !== 'production') {
+        if (marathonMode) {
+          setPhase(isMarathonStep ? 'marathon_ad' : 'ad');
+          setTimeout(() => {
+            if (cancelled) return;
+            rewardedRef.current = true;
+            handleAdComplete(isMarathonStep);
+          }, 2000);
+        } else {
+          // En navegador web de prueba (en PC simulamos el éxito directo)
           rewardedRef.current = true;
-          handleAdComplete(isMarathonStep);
-        }, 2000);
+          setPhase('reward');
+        }
       } else {
-        // En navegador web de prueba (en PC simulamos el éxito directo)
-        rewardedRef.current = true;
-        setPhase('reward');
+        setErrorMsg('Anuncios no disponibles en este entorno. Usa la aplicacion instalada.');
+        setPhase('error');
       }
       return;
     }

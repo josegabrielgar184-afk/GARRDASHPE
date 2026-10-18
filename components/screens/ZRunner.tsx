@@ -208,6 +208,7 @@ export function ZRunner() {
 
     const loop = () => {
       if (gameOverRef.current || controlEditorRef.current) {
+        lastPlayTimeSyncRef.current = Date.now();
         rafRef.current = requestAnimationFrame(loop);
         return;
       }

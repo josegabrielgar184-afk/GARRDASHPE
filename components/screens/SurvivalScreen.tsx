@@ -180,6 +180,8 @@ export function SurvivalScreen() {
   useEffect(() => {
     if (gameOver) {
       endGameBatch();
+      if (isOnline) addPlayTime(performance.now() - lastPlayTimeSyncRef.current);
+      lastPlayTimeSyncRef.current = performance.now();
       flushPlayTime();
       submitSurvivalScore(survivalTimeRef.current);
       addCoinsToSession(coinsEarnedRef.current, 0);

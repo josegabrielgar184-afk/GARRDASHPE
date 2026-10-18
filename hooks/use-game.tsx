@@ -5,6 +5,7 @@ import { CHARACTERS, getCharacter, getShip, getZombieCharacter, type CharacterDe
 import {
   collection, doc, setDoc, getDocs, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp,
   updateDoc, deleteDoc, where, writeBatch, getDoc, Timestamp, increment, runTransaction,
+  getCountFromServer,
 } from 'firebase/firestore';
 import { db, auth, verificarYCrearUsuario } from '@/lib/firebase';
 import { pauseAudio, resumeAudio, stopActionMusic, setSfxEnabled } from '@/lib/audio';
@@ -35,8 +36,13 @@ import {
 } from '@/lib/config';
 
 async function getDocsCount(q: ReturnType<typeof query>): Promise<number> {
-  const snap = await getDocs(q);
-  return snap.size;
+  try {
+    const snap = await getCountFromServer(q);
+    return snap.data().count;
+  } catch {
+    const snap = await getDocs(q);
+    return snap.size;
+  }
 }
 
 export type Screen =
@@ -855,6 +861,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
+        flushPlayTime();
         if (audioRef.current) audioRef.current.pause();
         pauseAudio();
         (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = true;
@@ -867,7 +874,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    const handlePageHide = () => { flushPlayTime(); };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
   }, [muted, musicEnabled, screen]);
 
   const setScreen = useCallback((s: Screen) => setScreenState(s), []);
@@ -1029,7 +1041,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (playTimeSyncTimerRef.current) clearTimeout(playTimeSyncTimerRef.current);
     playTimeSyncTimerRef.current = setTimeout(async () => {
       const user = auth.currentUser;
-      if (!user || !navigator.onLine) return;
+      if (!user || !navigator.onLine) {
+        if (!navigator.onLine) {
+          if (playTimeSyncTimerRef.current) clearTimeout(playTimeSyncTimerRef.current);
+          playTimeSyncTimerRef.current = setTimeout(() => { addPlayTime(0); }, 30000);
+        }
+        return;
+      }
       const addMs = playTimeBufferRef.current;
       if (addMs <= 0) return;
       playTimeBufferRef.current = 0;
@@ -1879,7 +1897,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshOfferwallConfig();
-    const interval = setInterval(refreshOfferwallConfig, 30000);
+    const interval = setInterval(refreshOfferwallConfig, 300000);
     return () => clearInterval(interval);
   }, [refreshOfferwallConfig]);
 

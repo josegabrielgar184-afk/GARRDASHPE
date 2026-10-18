@@ -195,7 +195,10 @@ export function GarrFly() {
     if (!ctx) return;
 
     const interval = setInterval(() => {
-      if (gameOverRef.current || controlEditorRef.current) return;
+      if (gameOverRef.current || controlEditorRef.current) {
+        lastPlayTimeSyncRef.current = Date.now();
+        return;
+      }
 
       if (isOnline && gameStartedRef.current && Date.now() - lastPlayTimeSyncRef.current > 10000) {
         addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
