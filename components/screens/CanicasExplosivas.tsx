@@ -210,7 +210,7 @@ export function CanicasExplosivas() {
 
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
-  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number } | null>(null);
+  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; firestoreCredited?: boolean } | null>(null);
   const [soundOn, setSoundOn] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('canicas_sfx') !== '0';
@@ -647,7 +647,7 @@ export function CanicasExplosivas() {
       explosions: explosionsRef.current,
     });
     if (result.credited > 0) {
-      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited } : prev));
+      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: result.firestore_credited === true } : prev));
     }
   }, []);
   creditGameEndRef.current = creditGameEnd;
@@ -688,7 +688,7 @@ export function CanicasExplosivas() {
         { label: 'Duracion', value: fmtTime(endStats.duration) },
         { label: 'Explosiones validas', value: String(endStats.explosions) },
         { label: 'Puntuacion', value: endStats.score.toLocaleString() },
-        { label: 'Recompensa aprobada', value: String(endStats.realCoins ?? 0) },
+        { label: 'Recompensa', value: `${endStats.realCoins ?? 0} ${endStats.firestoreCredited ? '(acreditado)' : '(pendiente)'}` },
       ]
     : [];
 
@@ -862,7 +862,9 @@ export function CanicasExplosivas() {
             </div>
           )}
           <p className="text-white/30 text-[10px] mt-2 max-w-60">
-            Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.
+            {endStats?.firestoreCredited
+              ? 'Recompensa acreditada en tu saldo por el servidor.'
+              : 'Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.'}
           </p>
 
           <div className="flex flex-col gap-3 mt-5 w-52">

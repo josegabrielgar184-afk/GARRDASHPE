@@ -1527,17 +1527,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const refreshWeeklyRanking = useCallback(async () => {
     try {
-      // Nota: el ranking semanal ordena por usuarios.puntos_semanales, un
-      // acumulado historico que nunca se reinicia, por eso siempre figuran los
-      // mismos lideres. La correccion real (leer scores_weekly de la semana
-      // actual) requiere una regla de lectura Firestore para esa coleccion,
-      // que hoy cae en default deny; pendiente de autorizacion explicita.
-      const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
+      const weekStart = getStartOfWeek();
+      const weeklyQ = query(
+        collection(db, 'scores_weekly'),
+        where('weekStart', '==', weekStart),
+        orderBy('score', 'desc'),
+        limit(RANKING_PAGE_SIZE),
+      );
       const weeklySnap = await getDocs(weeklyQ);
       const weeklyEntries: RankEntry[] = [];
       weeklySnap.forEach((d) => {
         const data = d.data();
-        weeklyEntries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_semanales ?? 0, uid: d.id });
+        if ((data.uid ?? '').startsWith('bot_')) return;
+        weeklyEntries.push({ name: data.name || 'Jugador', score: data.score ?? 0, uid: data.uid, level: data.level });
       });
       setWeeklyRanking(fillWithBots(weeklyEntries, 'weekly'));
     } catch {}
@@ -1586,12 +1588,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setSurvivalRanking(entries.slice(0, 15));
       }, () => setSurvivalRanking([])));
 
-      const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
+      const weekStart = getStartOfWeek();
+      const weeklyQ = query(
+        collection(db, 'scores_weekly'),
+        where('weekStart', '==', weekStart),
+        orderBy('score', 'desc'),
+        limit(RANKING_PAGE_SIZE),
+      );
       unsubs.push(onSnapshot(weeklyQ, (snap) => {
         const entries: RankEntry[] = [];
         snap.forEach((d) => {
           const data = d.data();
-          entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_semanales ?? 0, uid: d.id });
+          if ((data.uid ?? '').startsWith('bot_')) return;
+          entries.push({ name: data.name || 'Jugador', score: data.score ?? 0, uid: data.uid, level: data.level });
         });
         setWeeklyRanking(fillWithBots(entries, 'weekly'));
       }, () => setWeeklyRanking(fillWithBots([], 'weekly'))));
@@ -1674,9 +1683,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       };
       await addDoc(collection(db, 'scores_space'), scoreDoc);
       const weekStart = getStartOfWeek();
-      await setDoc(doc(db, 'scores_weekly', `${uid}_${weekStart.toISOString().slice(0,10)}`), {
-        ...scoreDoc, weekStart,
-      }, { merge: true });
+      const weeklyRef = doc(db, 'scores_weekly', `${uid}_${weekStart.toISOString().slice(0,10)}`);
+      const weeklyDoc = await getDoc(weeklyRef);
+      const prevBest = weeklyDoc.exists() ? (weeklyDoc.data()?.score ?? 0) : 0;
+      if (score > prevBest) {
+        await setDoc(weeklyRef, { ...scoreDoc, weekStart }, { merge: true });
+      }
       setSpaceRanking((prev) => {
         const next = [...prev, { name: playerNameToUse, score, uid }];
         next.sort((a, b) => b.score - a.score);
@@ -1717,9 +1729,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       };
       await addDoc(collection(db, 'scores_zombie'), scoreDoc);
       const weekStart = getStartOfWeek();
-      await setDoc(doc(db, 'scores_weekly', `${uid}_${weekStart.toISOString().slice(0,10)}`), {
-        ...scoreDoc, weekStart,
-      }, { merge: true });
+      const weeklyRef = doc(db, 'scores_weekly', `${uid}_${weekStart.toISOString().slice(0,10)}`);
+      const weeklyDoc = await getDoc(weeklyRef);
+      const prevBest = weeklyDoc.exists() ? (weeklyDoc.data()?.score ?? 0) : 0;
+      if (score > prevBest) {
+        await setDoc(weeklyRef, { ...scoreDoc, weekStart }, { merge: true });
+      }
       setZombieRanking((prev) => {
         const next = [...prev, { name: playerNameToUse, score, uid }];
         next.sort((a, b) => b.score - a.score);
@@ -3168,7 +3183,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         const userData = userDoc.data();
         const userSpace = userData.puntos_espacio ?? 0;
         const userZombie = userData.puntos_zombies ?? 0;
-        const userWeekly = userData.puntos_semanales ?? 0;
+
+        const weekStart = getStartOfWeek();
+        const weeklyRef = doc(db, 'scores_weekly', `${userUid}_${weekStart.toISOString().slice(0, 10)}`);
+        const weeklyDoc = await getDoc(weeklyRef);
+        const userWeekly = weeklyDoc.exists() ? (weeklyDoc.data()?.score ?? 0) : 0;
 
         if (userSpace <= 0 && userZombie <= 0 && userWeekly <= 0) {
           setCurrentUserRank(null);
@@ -3194,9 +3213,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           if (bestRank === null || rank < bestRank) bestRank = rank;
         }
         if (userWeekly > 0) {
-          const weeklyQ = query(collection(db, 'usuarios'), where('puntos_semanales', '>', userWeekly));
-          const weeklySnap = await getDocs(weeklyQ);
-          const rank = weeklySnap.size + 1;
+          const weeklyCountQ = query(
+            collection(db, 'scores_weekly'),
+            where('weekStart', '==', weekStart),
+            where('score', '>', userWeekly),
+          );
+          const weeklyCountSnap = await getDocs(weeklyCountQ);
+          const rank = weeklyCountSnap.size + 1;
           if (bestRank === null || rank < bestRank) bestRank = rank;
         }
 

@@ -145,6 +145,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- scores_weekly (weekly leaderboard, resets every week) ---
+    // Authenticated users can read (ranking). Only the owner can create/update
+    // their own weekly score document (id format: `${uid}_${weekKey}`).
+    // No deletes. This enables the weekly ranking to show only the current week.
+    match /scores_weekly/{scoreId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isOwner(resource.data.uid)
+        && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+    }
+
     // --- solicitudes_pendientes / confirmadas (operator prize queue) ---
     match /solicitudes_pendientes/{reqId} {
       allow read: if isSignedIn();

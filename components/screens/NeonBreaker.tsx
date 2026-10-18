@@ -138,8 +138,10 @@ export function NeonBreaker() {
   const levelsClearedRef = useRef(0);
   const rewardCreditedRef = useRef(false);
   const pendingRewardRef = useRef(0);
+  const rewardCreditedFsRef = useRef(false);
   const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
+  const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -294,6 +296,8 @@ export function NeonBreaker() {
     if (result.credited > 0) {
       pendingRewardRef.current = result.credited;
       setPendingReward(result.credited);
+      rewardCreditedFsRef.current = result.firestore_credited === true;
+      setRewardCreditedFs(result.firestore_credited === true);
     }
   }, []);
 
@@ -825,7 +829,7 @@ export function NeonBreaker() {
       />
       {pendingReward > 0 && (
         <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
-          <span className="text-amber-400 text-xs font-black">Recompensa aprobada: +{pendingReward} (abono pendiente)</span>
+          <span className="text-amber-400 text-xs font-black">Recompensa: +{pendingReward} {rewardCreditedFs ? '(acreditado)' : '(abono pendiente)'}</span>
         </div>
       )}
     </div>

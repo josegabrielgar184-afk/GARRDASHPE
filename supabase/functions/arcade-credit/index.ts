@@ -40,6 +40,27 @@ function clampInt(v: unknown, max: number): number {
   return Math.max(0, Math.min(max, n));
 }
 
+// Inicializa Firebase Admin SDK si el secreto FIREBASE_SERVICE_ACCOUNT_JSON
+// esta configurado. Si no existe, firestoreCredited queda desactivado y el
+// abono real queda pendiente (el cliente lo muestra como "abono pendiente").
+let firebaseApp: any = null;
+let firestore: any = null;
+let adminAvailable = false;
+try {
+  const saJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON");
+  if (saJson) {
+    const creds = JSON.parse(saJson);
+    const admin = await import("npm:firebase-admin@12.7.0");
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(creds),
+    }, "arcade-credit");
+    firestore = admin.getFirestore(firebaseApp);
+    adminAvailable = true;
+  }
+} catch {
+  adminAvailable = false;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -123,7 +144,7 @@ Deno.serve(async (req: Request) => {
 
     // Idempotencia: una partida (uid+game+session_id) solo se acredita una vez.
     const dupRes = await fetch(
-      `${supabaseUrl}/rest/v1/arcade_credit_log?select=id&uid=eq.${encodeURIComponent(uid)}&game=eq.${game}&session_id=eq.${encodeURIComponent(sessionId)}`,
+      `${supabaseUrl}/rest/v1/arcade_credit_log?select=id,status,amount&uid=eq.${encodeURIComponent(uid)}&game=eq.${game}&session_id=eq.${encodeURIComponent(sessionId)}`,
       {
         headers: {
           "apikey": serviceKey,
@@ -140,7 +161,14 @@ Deno.serve(async (req: Request) => {
     }
     const dupJson = await dupRes.json();
     if (Array.isArray(dupJson) && dupJson.length > 0) {
-      return new Response(JSON.stringify({ ok: true, credited: 0, duplicate: true }), {
+      const existing = dupJson[0];
+      const alreadyCredited = existing?.status === "credited" && typeof existing?.amount === "number";
+      return new Response(JSON.stringify({
+        ok: true,
+        credited: 0,
+        duplicate: true,
+        firestore_credited: alreadyCredited ? (existing.status === "credited") : false,
+      }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -176,7 +204,40 @@ Deno.serve(async (req: Request) => {
     }
     amount = Math.min(amount, DAILY_CAP_PER_GAME - creditedToday);
 
-    // Escribe primero el registro idempotente con id unico.
+    // Si Firebase Admin esta disponible, hace el abono atómico en Firestore:
+    // registro idempotente + incremento de saldo en una transaccion.
+    let firestoreCredited = false;
+    if (adminAvailable && firestore) {
+      try {
+        const userRef = firestore.doc(`usuarios/${uid}`);
+        const logRef = firestore.collection("arcade_credit_log_firestore").doc(`${uid}_${game}_${sessionId}`);
+        await firestore.runTransaction(async (tx: any) => {
+          const logSnap = await tx.get(logRef);
+          if (logSnap.exists) return;
+          const userSnap = await tx.get(userRef);
+          if (!userSnap.exists) throw new Error("user_not_found");
+          const currentCoins = userSnap.data()?.coins ?? 0;
+          tx.update(userRef, {
+            coins: currentCoins + amount,
+            coins_from_gameplay: (userSnap.data()?.coins_from_gameplay ?? 0) + amount,
+            lastActive: new Date(),
+          });
+          tx.set(logRef, {
+            uid,
+            game,
+            session_id: sessionId,
+            amount,
+            metrics,
+            created_at: new Date(),
+          });
+        });
+        firestoreCredited = true;
+      } catch {
+        firestoreCredited = false;
+      }
+    }
+
+    // Escribe el registro idempotente en Supabase (ledger + conciliacion).
     const logRes = await fetch(`${supabaseUrl}/rest/v1/arcade_credit_log`, {
       method: "POST",
       headers: {
@@ -191,7 +252,7 @@ Deno.serve(async (req: Request) => {
         session_id: sessionId,
         metrics,
         amount,
-        status: "credited",
+        status: firestoreCredited ? "credited" : "pending_firestore",
       }),
     });
     if (!logRes.ok) {
@@ -208,7 +269,11 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    return new Response(JSON.stringify({ ok: true, credited: amount }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      credited: amount,
+      firestore_credited: firestoreCredited,
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -11,6 +11,7 @@ export interface CreditResult {
   credited: number;
   duplicate?: boolean;
   capped?: boolean;
+  firestore_credited?: boolean;
 }
 
 // Pide al servidor que calcule y acredite la recompensa de una partida.
@@ -42,6 +43,7 @@ export async function requestArcadeCredit(
         credited: data.credited,
         duplicate: data.duplicate === true,
         capped: data.capped === true,
+        firestore_credited: data.firestore_credited === true,
       };
     }
     return { ok: false, credited: 0 };

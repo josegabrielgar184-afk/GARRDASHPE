@@ -57,8 +57,10 @@ export function TowerPerfecta() {
   const perfectsRef = useRef(0);
   const rewardCreditedRef = useRef(false);
   const pendingRewardRef = useRef(0);
+  const rewardCreditedFsRef = useRef(false);
   const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
+  const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
   const stabilizeUsedRef = useRef(false);
   const gameOverRef = useRef(false);
   const pausedRef = useRef(false);
@@ -162,6 +164,7 @@ export function TowerPerfecta() {
     });
     if (result.credited > 0) {
       pendingRewardRef.current = result.credited;
+      rewardCreditedFsRef.current = result.firestore_credited === true;
     }
   }, []);
 
@@ -174,6 +177,7 @@ export function TowerPerfecta() {
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setPendingReward(pendingRewardRef.current);
+    setRewardCreditedFs(rewardCreditedFsRef.current);
     setGameOver(true);
   }, [creditReward]);
 
@@ -591,7 +595,7 @@ export function TowerPerfecta() {
       />
       {pendingReward > 0 && (
         <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
-          <span className="text-amber-400 text-xs font-black">Recompensa aprobada: +{pendingReward} (abono pendiente)</span>
+          <span className="text-amber-400 text-xs font-black">Recompensa: +{pendingReward} {rewardCreditedFs ? '(acreditado)' : '(abono pendiente)'}</span>
         </div>
       )}
     </div>
