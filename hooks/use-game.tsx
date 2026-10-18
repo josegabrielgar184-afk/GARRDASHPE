@@ -1260,9 +1260,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const completeLevel = useCallback((level: number, stars: number, coinsEarned: number) => {
     const isFirstClear = !campaignProgress.stars[level];
+    // Recompensa de monedas SOLO en primera victoria del nivel (persistido en stars:
+    // repetir el nivel ya completado no vuelve a pagar; perder nunca paga).
     const rewardRange = getCampaignCoinReward(level);
-    const guaranteedCoins = Math.max(rewardRange.min, Math.min(rewardRange.max, coinsEarned || Math.floor((rewardRange.min + rewardRange.max) / 2)));
-    addCoins(guaranteedCoins, 'gameplay');
+    const guaranteedCoins = isFirstClear
+      ? Math.max(rewardRange.min, Math.min(rewardRange.max, coinsEarned || Math.floor((rewardRange.min + rewardRange.max) / 2)))
+      : 0;
+    if (guaranteedCoins > 0) addCoins(guaranteedCoins, 'gameplay');
     setCampaignProgress((prev) => {
       const newStars = { ...prev.stars, [level]: Math.max(prev.stars[level] ?? 0, stars) };
       const newLevel = Math.max(prev.currentLevel, level + 1);

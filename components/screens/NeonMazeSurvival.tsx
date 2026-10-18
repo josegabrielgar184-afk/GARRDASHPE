@@ -10,7 +10,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
-import { playCoin, playPickup, playHit, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
+import { playCoin, playPickup, playHit, playGameOver, startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const COLS = 15;
 const ROWS = 21;
@@ -237,6 +237,8 @@ export function NeonMazeSurvival() {
         scoreRef.current += 10;
         setScore(scoreRef.current);
         setCoinsEarned(coinsRef.current);
+        // Intensidad musical segun progreso real (monedas recogidas del total)
+        setGameMusicIntensity(Math.min(1, coinsRef.current / 40));
       }
 
       if (orbRef.current.active && p.x === orbRef.current.x && p.y === orbRef.current.y) {
@@ -293,6 +295,7 @@ export function NeonMazeSurvival() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
+      // Paredes del laberinto con brillo tenue constante (legible)
       ctx.strokeStyle = 'rgba(0,243,255,0.15)';
       ctx.lineWidth = 1;
       for (let r = 0; r < ROWS; r++) {
@@ -304,6 +307,16 @@ export function NeonMazeSurvival() {
           }
         }
       }
+
+      // Vineta de antorcha: oscuridad en los bordes, luz alrededor del jugador
+      const ppx = p.x * CELL + CELL / 2;
+      const ppy = p.y * CELL + CELL / 2;
+      const torchR = Math.max(W, H) * 0.55;
+      const vg = ctx.createRadialGradient(ppx, ppy, CELL * 2.5, ppx, ppy, torchR);
+      vg.addColorStop(0, 'rgba(10,14,23,0)');
+      vg.addColorStop(1, 'rgba(2,4,8,0.55)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, W, H);
 
       ctx.fillStyle = '#ffb700';
       ctx.shadowColor = '#ffb700';

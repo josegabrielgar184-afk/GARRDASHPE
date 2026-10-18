@@ -6,7 +6,8 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
 import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Sparkles } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, initAudio } from '@/lib/audio';
+import { towerCoins } from '@/lib/arcade-rewards';
+import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 
 const W = 360;
 const H = 480;
@@ -33,7 +34,7 @@ interface Particle {
 }
 
 export function TowerPerfecta() {
-  const { setScreen, userRole, vip } = useGame();
+  const { setScreen, userRole, vip, addCoins } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -52,6 +53,11 @@ export function TowerPerfecta() {
   const fallingRef = useRef<Block[]>([]);
   const scoreRef = useRef(0);
   const comboRef = useRef(0);
+  const blocksPlacedRef = useRef(0);
+  const perfectsRef = useRef(0);
+  const rewardCreditedRef = useRef(false);
+  const pendingRewardRef = useRef(0);
+  const [pendingReward, setPendingReward] = useState(0);
   const stabilizeUsedRef = useRef(false);
   const gameOverRef = useRef(false);
   const pausedRef = useRef(false);
@@ -92,6 +98,11 @@ export function TowerPerfecta() {
     movingRef.current = null;
     scoreRef.current = 0;
     comboRef.current = 0;
+    blocksPlacedRef.current = 0;
+    perfectsRef.current = 0;
+    rewardCreditedRef.current = false;
+    pendingRewardRef.current = 0;
+    setPendingReward(0);
     stabilizeUsedRef.current = false;
     continueUsedRef.current = false;
     gameOverRef.current = false;
@@ -142,10 +153,17 @@ export function TowerPerfecta() {
     gameOverRef.current = true;
     stopGameMusic();
     playGameOver();
+    // Recompensa por progreso: una sola vez por partida (bloques colocados + perfectos)
+    if (!rewardCreditedRef.current) {
+      rewardCreditedRef.current = true;
+      const reward = towerCoins(blocksPlacedRef.current, perfectsRef.current);
+      if (reward > 0) { addCoins(reward, 'gameplay'); pendingRewardRef.current = reward; }
+    }
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
+    setPendingReward(pendingRewardRef.current);
     setGameOver(true);
-  }, []);
+  }, [addCoins]);
 
   const dropBlock = useCallback(() => {
     const moving = movingRef.current;
@@ -179,6 +197,8 @@ export function TowerPerfecta() {
     if (perfect) {
       // Perfecto: bloque completo, centrado, combo crece
       comboRef.current += 1;
+      perfectsRef.current += 1;
+      blocksPlacedRef.current += 1;
       setCombo(comboRef.current);
       const bonus = 50 + Math.min(150, (comboRef.current - 1) * 25);
       scoreRef.current += 100 + bonus;
@@ -205,10 +225,13 @@ export function TowerPerfecta() {
       fallingRef.current.push({ x: cutX, w: cutW, y: top.y - BLOCK_H, hue: moving.hue, perfect: false });
       createSparks(cutX, top.y - BLOCK_H, '#00f3ff', 8);
       towerRef.current.push({ x: newX, w: newW, y: top.y - BLOCK_H, hue: moving.hue, perfect: false });
+      blocksPlacedRef.current += 1;
     }
 
     setScore(scoreRef.current);
     setHeightBlocks(towerRef.current.length - 1);
+    // Intensidad musical y ciudad segun altura real de la torre
+    setGameMusicIntensity(Math.min(1, towerRef.current.length / 40));
 
     // Camara sigue a la torre
     const topY = towerRef.current[towerRef.current.length - 1].y;
@@ -278,6 +301,27 @@ export function TowerPerfecta() {
       grad.addColorStop(1, 'rgba(10,14,23,1)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
+
+      // Ciudad nocturna: edificios fijos con ventanas, se desplazan con la camara
+      const bSeed = (n: number) => { const x = Math.sin(n * 91.7) * 14357.31; return x - Math.floor(x); };
+      ctx.save();
+      const cityScroll = (cameraRef.current * 0.35) % 90;
+      for (let b = -1; b < 14; b++) {
+        const bw = 26 + bSeed(b) * 22;
+        const bx = b * 28 - 10 + bSeed(b + 7) * 8;
+        const bh = 46 + bSeed(b + 3) * 92;
+        const by = H - bh + cityScroll * 0.6;
+        ctx.fillStyle = 'rgba(12,18,32,0.85)';
+        ctx.fillRect(bx, by, bw, bh);
+        // Ventanas encendidas
+        ctx.fillStyle = `rgba(255,183,0,${0.10 + skyT * 0.08})`;
+        for (let wx = 3; wx < bw - 3; wx += 7) {
+          for (let wy = 6; wy < bh - 6; wy += 10) {
+            if (bSeed(b * 31 + wx * 7 + wy * 13) > 0.55) ctx.fillRect(bx + wx, by + wy, 3, 4);
+          }
+        }
+      }
+      ctx.restore();
 
       const cam = cameraRef.current;
 
@@ -533,6 +577,11 @@ export function TowerPerfecta() {
         userRole={userRole}
         vip={vip}
       />
+      {pendingReward > 0 && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
+          <span className="text-amber-400 text-xs font-black">Monedas por progreso: +{pendingReward}</span>
+        </div>
+      )}
     </div>
   );
 }

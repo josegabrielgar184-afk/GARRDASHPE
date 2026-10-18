@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { OfflineBanner } from '@/components/game/OfflineBanner';
-import { ArrowLeft, Skull, Clock, Coins, Trophy } from 'lucide-react';
+import { ArrowLeft, Skull, Clock, Coins, Trophy, Shield, Zap, Heart } from 'lucide-react';
 import {
   type Particle2D, type MuzzleFlash,
   spawnParticles2D, updateParticles2D, drawParticles2D,
@@ -18,6 +18,9 @@ import {
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playExplosion, playCoin, playHit, playBarrelHit, playPickup, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { RewardAdModal } from '@/components/game/RewardAdModal';
+import { getRewardedAdId } from '@/lib/config';
+import { isRewardedContinueEnabled } from '@/lib/continue-policy';
 
 type ZombieType = 'normal' | 'fast' | 'tank';
 
@@ -39,7 +42,7 @@ const TOWER_MAX_HP = 250;
 const CASTLE_MAX_HP = 350;
 
 export function SurvivalScreen() {
-  const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch, addPlayTime, flushPlayTime } = useGame();
+  const { setScreen, addCoins, getZombieCharacter, submitSurvivalScore, survivalBestTime, isOnline, startGameBatch, endGameBatch, addPlayTime, flushPlayTime, userRole, vip } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const [survivalTime, setSurvivalTime] = useState(0);
@@ -68,6 +71,15 @@ export function SurvivalScreen() {
   const rightTowerHpRef = useRef(TOWER_MAX_HP);
   const castleHpRef = useRef(CASTLE_MAX_HP);
   const gameOverRef = useRef(false);
+  // Ventajas por anuncio recompensado: max 1 escudo O 1 velocidad por partida, 1 continuation
+  const shieldUntilRef = useRef(0);
+  const speedUntilRef = useRef(0);
+  const normalLerpRef = useRef(0.25); // velocidad base exacta del lerp de la torreta
+  const perkUsedRef = useRef<{ shield: boolean; speed: boolean }>({ shield: false, speed: false });
+  const continueUsedRef = useRef(false);
+  const [perkOffer, setPerkOffer] = useState<null | 'shield' | 'speed' | 'continue'>(null);
+  const [perkUsedView, setPerkUsedView] = useState<{ shield: boolean; speed: boolean }>({ shield: false, speed: false });
+  const [continueUsedView, setContinueUsedView] = useState(false);
   const shootCooldownRef = useRef(0);
   const spawnTimerRef = useRef(0);
   const crateTimerRef = useRef(0);
@@ -100,6 +112,13 @@ export function SurvivalScreen() {
     rightTowerHpRef.current = TOWER_MAX_HP;
     castleHpRef.current = CASTLE_MAX_HP;
     gameOverRef.current = false;
+    shieldUntilRef.current = 0;
+    speedUntilRef.current = 0;
+    perkUsedRef.current = { shield: false, speed: false };
+    setPerkUsedView({ shield: false, speed: false });
+    continueUsedRef.current = false;
+    setContinueUsedView(false);
+    setPerkOffer(null);
     spawnTimerRef.current = 0; crateTimerRef.current = 0;
     difficultyRef.current = 1;
     setSurvivalTime(0); setCoinsEarned(0); setBarricadeHp(100); setLeftTowerHp(TOWER_MAX_HP); setRightTowerHp(TOWER_MAX_HP); setCastleHp(CASTLE_MAX_HP); setGameOver(false);
@@ -179,6 +198,8 @@ export function SurvivalScreen() {
 
   useEffect(() => {
     if (gameOver) {
+      // La continuation por anuncio restaura desde estado seguro sin tocar
+      // dificultad, oleadas ni contadores: se ofrece solo si no se uso todavia
       endGameBatch();
       if (isOnline) addPlayTime(performance.now() - lastPlayTimeSyncRef.current);
       lastPlayTimeSyncRef.current = performance.now();
@@ -227,7 +248,9 @@ export function SurvivalScreen() {
         if (shootCooldownRef.current > 0) shootCooldownRef.current -= dt;
 
         if (touchTargetRef.current.active) {
-          turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), 0.25 * dt);
+          // +10% de velocidad durante la ventaja; velocidad exacta restaurada al expirar
+          const speedActive = Date.now() < speedUntilRef.current;
+          turretXRef.current = lerp(turretXRef.current, clamp(touchTargetRef.current.x, 30, w - 30), normalLerpRef.current * (speedActive ? 1.1 : 1) * dt);
         }
         turretXRef.current = clamp(turretXRef.current, 30, w - 30);
 
@@ -266,6 +289,14 @@ export function SurvivalScreen() {
 
           if (z.y > barricadeY - z.size) {
             const dmg = z.type === 'tank' ? 40 : z.type === 'fast' ? 20 : 25;
+            // Escudo ligero por anuncio: absorbe UN golpe y expira a los 8 segundos
+            if (Date.now() < shieldUntilRef.current) {
+              shieldUntilRef.current = 0;
+              spawnParticles2D(particlesRef.current, z.x, z.y, 12, '#00f3ff', 4);
+              playPickup();
+              zombiePoolRef.current.release(z);
+              continue;
+            }
             // Determine which structure to damage based on x position
             const { w } = canvasSizeRef.current;
             const leftTowerX = w * 0.15;
@@ -498,18 +529,84 @@ export function SurvivalScreen() {
           </div>
         </div>
       </div>
+      {/* Ventajas por anuncio: max 1 escudo O 1 velocidad por partida */}
+      {!gameOver && isRewardedContinueEnabled() && (
+        <div className="absolute top-[92px] left-1/2 -translate-x-1/2 z-10 flex items-center justify-center gap-2">
+          {!perkUsedView.shield && (
+            <button
+              onClick={() => setPerkOffer('shield')}
+              disabled={Date.now() < shieldUntilRef.current}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/60 border border-[#00f3ff]/40 text-[#00f3ff] text-[10px] font-bold active:scale-95 disabled:opacity-40"
+            >
+              <Shield className="w-3.5 h-3.5" /> Escudo
+            </button>
+          )}
+          {!perkUsedView.speed && (
+            <button
+              onClick={() => setPerkOffer('speed')}
+              disabled={Date.now() < speedUntilRef.current}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/60 border border-[#34d399]/40 text-[#34d399] text-[10px] font-bold active:scale-95 disabled:opacity-40"
+            >
+              <Zap className="w-3.5 h-3.5" /> Velocidad
+            </button>
+          )}
+        </div>
+      )}
+
       {gameOver && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-xs mx-4 rounded-2xl bg-card/90 border border-red-500/30 p-6 text-center animate-scale-in shadow-2xl shadow-red-500/20">
             <Skull className="w-12 h-12 text-red-400 mx-auto mb-3" />
             <h2 className="text-red-400 font-bold text-2xl mb-2">Fin de la Supervivencia</h2>
             <p className="text-white/60 text-sm mb-1">Tiempo: {survivalTime}s</p>
-            <p className="text-amber-400 text-sm mb-6">Monedas ganadas: {coinsEarned}</p>
+            <p className="text-amber-400 text-sm mb-4">Monedas ganadas: {coinsEarned}</p>
+            {isRewardedContinueEnabled() && !continueUsedView && (
+              <button
+                onClick={() => setPerkOffer('continue')}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500/20 to-emerald-600/20 border border-green-500/40 text-green-400 font-bold text-sm flex items-center justify-center gap-2 mb-2 active:scale-95"
+              >
+                <Heart className="w-4 h-4" /> Ver anuncio para continuar
+              </button>
+            )}
             <button onClick={() => initGame()} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold mb-2 hover:bg-primary/90">Reiniciar</button>
             <button onClick={() => setScreen('campaign')} className="w-full py-3 rounded-xl bg-card border border-border text-white font-bold hover:bg-secondary">Salir</button>
           </div>
         </div>
       )}
+
+      {/* Anuncio recompensado: la ventaja se concede SOLO cuando el SDK confirma la recompensa */}
+      <RewardAdModal
+        open={perkOffer !== null}
+        onClose={() => setPerkOffer(null)}
+        onReward={() => {
+          if (perkOffer === 'shield') {
+            perkUsedRef.current.shield = true;
+            setPerkUsedView({ ...perkUsedRef.current });
+            shieldUntilRef.current = Date.now() + 8000;
+          } else if (perkOffer === 'speed') {
+            perkUsedRef.current.speed = true;
+            setPerkUsedView({ ...perkUsedRef.current });
+            speedUntilRef.current = Date.now() + 15000;
+          } else if (perkOffer === 'continue') {
+            continueUsedRef.current = true;
+            setContinueUsedView(true);
+            // Estado seguro: ~30% de vida del castillo + proteccion breve de 3s,
+            // sin reiniciar dificultad, oleadas ni contadores ni duplicar monedas
+            castleHpRef.current = Math.max(1, Math.round(CASTLE_MAX_HP * 0.3));
+            setCastleHp(castleHpRef.current);
+            shieldUntilRef.current = Date.now() + 3000;
+            gameOverRef.current = false;
+            setGameOver(false);
+          }
+          setPerkOffer(null);
+        }}
+        title="Ventaja"
+        rewardText={perkOffer === 'shield' ? 'Escudo: absorbe un golpe (8s)' : perkOffer === 'speed' ? 'Velocidad +10% (15s)' : 'Continuas con 30% de vida'}
+        adId={getRewardedAdId('revivir')}
+        userRole={userRole}
+        vip={vip}
+        touchKey={`vicio_${perkOffer}`}
+      />
       <MuteButton />
     </div>
   );

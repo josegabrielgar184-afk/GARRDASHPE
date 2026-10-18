@@ -10,7 +10,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
-import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
+import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const GRID_SIZE = 18;
 const COLS = 18;
@@ -224,7 +224,11 @@ export function GarrFly() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
+      // Cuadricula digital neon con brillo segun longitud de la serpiente
+      const snakeLen = snakeRef.current.length;
+      const gridGlow = 0.04 + Math.min(0.09, snakeLen * 0.002);
+      const hueShift = Math.min(40, snakeLen);
+      ctx.strokeStyle = `rgba(${Math.round(180 - hueShift)}, 243, ${Math.round(255 - hueShift * 2)}, ${gridGlow})`;
       ctx.lineWidth = 1;
       for (let x = 0; x < W; x += GRID_SIZE) {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
@@ -264,6 +268,8 @@ export function GarrFly() {
           coinsRef.current += 1;
           setScore(scoreRef.current);
           setCoinsEarned(coinsRef.current);
+          // Intensidad musical segun progreso real (monedas comidas)
+          setGameMusicIntensity(Math.min(1, coinsRef.current / 30));
 
           createSparks(
             head.x * GRID_SIZE + GRID_SIZE / 2,

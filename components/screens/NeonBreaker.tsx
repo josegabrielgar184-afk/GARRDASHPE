@@ -6,7 +6,8 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
 import { ArrowLeft, Pause, Play, RotateCcw, Trophy } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, initAudio } from '@/lib/audio';
+import { neonBreakerCoins } from '@/lib/arcade-rewards';
+import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 
 const W = 360;
 const H = 480;
@@ -103,7 +104,7 @@ const POWER_LABELS: Record<PowerType, string> = {
 };
 
 export function NeonBreaker() {
-  const { setScreen, userRole, vip } = useGame();
+  const { setScreen, userRole, vip, addCoins } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -133,6 +134,11 @@ export function NeonBreaker() {
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
   const comboRef = useRef(0);
+  const blocksDestroyedRef = useRef(0);
+  const levelsClearedRef = useRef(0);
+  const rewardCreditedRef = useRef(false);
+  const pendingRewardRef = useRef(0);
+  const [pendingReward, setPendingReward] = useState(0);
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -199,12 +205,19 @@ export function NeonBreaker() {
     resetBall();
     comboRef.current = 0;
     setCombo(0);
+    // Intensidad musical segun nivel (progreso real de la partida)
+    setGameMusicIntensity(Math.min(1, (lvl - 1) / 4));
   }, [buildBricks, resetBall]);
 
   const initGame = useCallback(() => {
     scoreRef.current = 0;
     livesRef.current = 3;
     comboRef.current = 0;
+    blocksDestroyedRef.current = 0;
+    levelsClearedRef.current = 0;
+    rewardCreditedRef.current = false;
+    pendingRewardRef.current = 0;
+    setPendingReward(0);
     continueUsedRef.current = false;
     setScore(0);
     setLives(3);
@@ -270,12 +283,19 @@ export function NeonBreaker() {
     gameOverRef.current = true;
     stopGameMusic();
     playGameOver();
+    // Recompensa por progreso: una sola vez por partida (bloques + niveles)
+    if (!rewardCreditedRef.current) {
+      rewardCreditedRef.current = true;
+      const reward = neonBreakerCoins(blocksDestroyedRef.current, levelsClearedRef.current, levelRef.current);
+      if (reward > 0) { addCoins(reward, 'gameplay'); pendingRewardRef.current = reward; }
+    }
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setGameOver(true);
     setRunning(false);
     runningRef.current = false;
-  }, []);
+    setPendingReward(pendingRewardRef.current);
+  }, [addCoins]);
 
   const triggerVictory = useCallback(() => {
     gameOverRef.current = true;
@@ -283,13 +303,19 @@ export function NeonBreaker() {
     playVictory();
     scoreRef.current += 1000;
     setScore(scoreRef.current);
+    if (!rewardCreditedRef.current) {
+      rewardCreditedRef.current = true;
+      const reward = neonBreakerCoins(blocksDestroyedRef.current, levelsClearedRef.current, levelRef.current);
+      if (reward > 0) { addCoins(reward, 'gameplay'); pendingRewardRef.current = reward; }
+    }
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setVictory(true);
     setGameOver(true);
     setRunning(false);
     runningRef.current = false;
-  }, []);
+    setPendingReward(pendingRewardRef.current);
+  }, [addCoins]);
 
   // ── Bucle principal ──
   useEffect(() => {
@@ -430,6 +456,7 @@ export function NeonBreaker() {
                   playHit();
                 }
                 bricksRef.current.splice(i, 1);
+                blocksDestroyedRef.current += 1;
 
                 comboRef.current += 1;
                 setCombo(comboRef.current);
@@ -443,8 +470,10 @@ export function NeonBreaker() {
 
               if (bricksRef.current.length === 0) {
                 if (levelRef.current >= LEVELS.length) {
+                  levelsClearedRef.current = LEVELS.length;
                   triggerVictory();
                 } else {
+                  levelsClearedRef.current = levelRef.current;
                   playVictory();
                   scoreRef.current += 250;
                   setScore(scoreRef.current);
@@ -463,15 +492,22 @@ export function NeonBreaker() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
-      // Fondo: cuadricula tenue
-      ctx.strokeStyle = 'rgba(0,243,255,0.05)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < W; x += 30) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      // Fondo espacial ligero: estrellas fijas (sin coste por frame)
+      ctx.fillStyle = '#070b12';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      const starSeed = (n: number) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+      for (let s = 0; s < 28; s++) {
+        const sx = starSeed(s) * W;
+        const sy = starSeed(s + 50) * H;
+        ctx.fillRect(sx, sy, s % 7 === 0 ? 2 : 1, s % 7 === 0 ? 2 : 1);
       }
-      for (let y = BRICK_TOP - 10; y < H; y += 30) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      }
+      // Nebulosa tenue fija
+      const neb = ctx.createRadialGradient(W * 0.72, H * 0.25, 8, W * 0.72, H * 0.25, W * 0.5);
+      neb.addColorStop(0, 'rgba(0,243,255,0.05)');
+      neb.addColorStop(1, 'rgba(0,243,255,0)');
+      ctx.fillStyle = neb;
+      ctx.fillRect(0, 0, W, H);
 
       // Bloques
       for (const brick of bricksRef.current) {
@@ -773,10 +809,15 @@ export function NeonBreaker() {
         onExit={() => { stopGameMusic(); setScreen('arcade'); }}
         canContinue={!victory}
         onContinue={handleContinue}
-        continueText="Ver anuncio para continuar (vidas + escudo)"
+        continueText={`Ver anuncio para continuar (+${Math.max(10, 30)}% vidas)`}
         userRole={userRole}
         vip={vip}
       />
+      {pendingReward > 0 && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
+          <span className="text-amber-400 text-xs font-black">Monedas por progreso: +{pendingReward}</span>
+        </div>
+      )}
     </div>
   );
 }

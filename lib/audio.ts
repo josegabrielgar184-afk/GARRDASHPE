@@ -367,38 +367,124 @@ const TRACKS: Record<MusicTrack, TrackDef> = {
   },
 };
 
+// Variaciones de progreso (media) y dificultad alta por minijuego.
+// Indice 0 = tema inicial (los TRACKS de arriba), 1 = progreso, 2 = dificultad alta.
+const MUSIC_VARIANTS: Record<MusicTrack, [TrackDef, TrackDef]> = {
+  garrfly: [
+    { stepMs: 260, leadWave: 'square', volume: 0.08,
+      bass: [110, 110, 130.81, 110, 146.83, 130.81, 110, 98],
+      lead: [440, 523.25, 659.25, 783.99, 659.25, 587.33, 523.25, 440],
+      drums: [1, 0, 0.5, 0, 1, 0, 0.5, 0] },
+    { stepMs: 220, leadWave: 'square', volume: 0.08,
+      bass: [146.83, 146.83, 174.61, 146.83, 164.81, 164.81, 196, 174.61],
+      lead: [587.33, 659.25, 783.99, 880, 783.99, 659.25, 587.33, 523.25],
+      drums: [1, 0.5, 1, 0.5, 1, 0.5, 1, 0.5] },
+  ],
+  maze: [
+    { stepMs: 300, leadWave: 'triangle', volume: 0.07,
+      bass: [87.31, 87.31, 0, 98, 0, 87.31, 110, 98],
+      lead: [311.13, 349.23, 0, 392, 349.23, 0, 311.13, 293.66],
+      drums: [0.6, 0, 0, 0.4, 0, 0, 0.5, 0] },
+    { stepMs: 250, leadWave: 'triangle', volume: 0.07,
+      bass: [98, 110, 98, 123.47, 110, 98, 87.31, 98],
+      lead: [349.23, 392, 440, 392, 415.3, 440, 392, 349.23],
+      drums: [1, 0.4, 0.8, 0.4, 1, 0.4, 0.8, 0.4] },
+  ],
+  zrunner: [
+    { stepMs: 180, leadWave: 'sawtooth', volume: 0.07,
+      bass: [65.41, 65.41, 98, 65.41, 82.41, 82.41, 110, 98],
+      lead: [261.63, 329.63, 392, 440, 392, 349.23, 293.66, 261.63],
+      drums: [1, 0.5, 0.8, 0.5, 1, 0.5, 0.8, 0.5] },
+    { stepMs: 150, leadWave: 'sawtooth', volume: 0.07,
+      bass: [82.41, 98, 82.41, 110, 98, 123.47, 110, 82.41],
+      lead: [329.63, 392, 523.25, 587.33, 523.25, 440, 392, 329.63],
+      drums: [1, 0.8, 1, 0.8, 1, 0.8, 1, 0.8] },
+  ],
+  garrblade: [
+    { stepMs: 200, leadWave: 'square', volume: 0.075,
+      bass: [110, 0, 116.54, 0, 130.81, 0, 116.54, 0],
+      lead: [440, 466.16, 523.25, 466.16, 440, 392, 466.16, 440],
+      drums: [1, 0.5, 1, 0.5, 1, 1, 0.5, 1] },
+    { stepMs: 170, leadWave: 'square', volume: 0.075,
+      bass: [116.54, 130.81, 116.54, 146.83, 130.81, 116.54, 110, 116.54],
+      lead: [523.25, 587.33, 622.25, 587.33, 523.25, 466.16, 523.25, 466.16],
+      drums: [1, 1, 0.6, 1, 1, 0.6, 1, 0.6] },
+  ],
+  canicas: [
+    { stepMs: 230, leadWave: 'square', volume: 0.08,
+      bass: [155.56, 155.56, 196, 155.56, 174.61, 174.61, 220, 196],
+      lead: [587.33, 698.46, 880, 698.46, 659.25, 783.99, 880, 698.46],
+      drums: [1, 0, 0.6, 0, 1, 0, 0.6, 0] },
+    { stepMs: 200, leadWave: 'square', volume: 0.08,
+      bass: [174.61, 196, 174.61, 220, 196, 174.61, 164.81, 174.61],
+      lead: [659.25, 783.99, 880, 987.77, 880, 783.99, 659.25, 587.33],
+      drums: [1, 0.6, 1, 0.6, 1, 0.6, 1, 0.6] },
+  ],
+  neonbreaker: [
+    { stepMs: 190, leadWave: 'square', volume: 0.07,
+      bass: [98, 98, 123.47, 98, 110, 110, 146.83, 130.81],
+      lead: [415.3, 493.88, 587.33, 493.88, 523.25, 587.33, 698.46, 587.33],
+      drums: [1, 0.4, 0.8, 0.4, 1, 0.4, 0.8, 0.4] },
+    { stepMs: 165, leadWave: 'square', volume: 0.07,
+      bass: [110, 130.81, 110, 146.83, 130.81, 110, 98, 110],
+      lead: [493.88, 587.33, 698.46, 783.99, 698.46, 587.33, 523.25, 493.88],
+      drums: [1, 0.8, 1, 0.8, 1, 0.8, 1, 0.8] },
+  ],
+  tower: [
+    { stepMs: 260, leadWave: 'sine', volume: 0.06,
+      bass: [98, 0, 110, 0, 98, 0, 123.47, 110],
+      lead: [392, 440, 493.88, 440, 440, 493.88, 440, 392],
+      drums: [0.5, 0, 0.3, 0, 0.5, 0, 0.3, 0] },
+    { stepMs: 220, leadWave: 'sine', volume: 0.06,
+      bass: [110, 123.47, 110, 146.83, 123.47, 110, 98, 110],
+      lead: [440, 493.88, 587.33, 493.88, 523.25, 587.33, 493.88, 440],
+      drums: [1, 0.4, 0.8, 0.4, 1, 0.4, 0.8, 0.4] },
+  ],
+};
+
+function themeDef(track: MusicTrack, intensity: number): TrackDef {
+  if (intensity <= 0) return TRACKS[track];
+  const variants = MUSIC_VARIANTS[track];
+  return variants[Math.min(1, intensity - 1)];
+}
+
 let currentTrack: MusicTrack | null = null;
+let currentIntensity = 0;
 let gameMusicTimer: ReturnType<typeof setInterval> | null = null;
 let gameMusicGain: GainNode | null = null;
+let gameMusicStep = 0;
 
-export function startGameMusic(track: MusicTrack) {
+export function startGameMusic(track: MusicTrack, intensity = 0) {
   const ctx = getCtx();
   if (!ctx) return;
-  if (currentTrack === track && gameMusicTimer) return;
+  if (currentTrack === track && currentIntensity === intensity && gameMusicTimer) return;
   stopGameMusic();
   currentTrack = track;
-  const def = TRACKS[track];
+  currentIntensity = intensity;
+  const def = themeDef(track, intensity);
   gameMusicGain = ctx.createGain();
   gameMusicGain.gain.setValueAtTime(0.0001, ctx.currentTime);
   gameMusicGain.gain.linearRampToValueAtTime(def.volume, ctx.currentTime + 0.6);
   gameMusicGain.connect(ctx.destination);
+  scheduleThemeLoop(ctx, def);
+}
 
-  let step = 0;
+function scheduleThemeLoop(ctx: AudioContext, def: TrackDef) {
+  if (gameMusicTimer) { clearInterval(gameMusicTimer); gameMusicTimer = null; }
   gameMusicTimer = setInterval(() => {
     if (!gameMusicGain || !ctx || !currentTrack) return;
     // Mientras el contexto este suspendido (app en segundo plano) no se agenda nada,
     // para evitar que todas las notas suenen de golpe al volver
     if (ctx.state !== 'running') return;
-    const d = TRACKS[currentTrack];
     const t = ctx.currentTime;
-    const i = step % 8;
-    const noteLen = d.stepMs / 1000;
+    const i = gameMusicStep % 8;
+    const noteLen = def.stepMs / 1000;
 
-    if (d.bass[i] > 0) {
+    if (def.bass[i] > 0) {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(d.bass[i], t);
+      osc.frequency.setValueAtTime(def.bass[i], t);
       g.gain.setValueAtTime(0.5, t);
       g.gain.exponentialRampToValueAtTime(0.001, t + noteLen * 0.9);
       osc.connect(g);
@@ -407,11 +493,11 @@ export function startGameMusic(track: MusicTrack) {
       osc.stop(t + noteLen);
     }
 
-    if (d.lead[i] > 0) {
+    if (def.lead[i] > 0) {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
-      osc.type = d.leadWave;
-      osc.frequency.setValueAtTime(d.lead[i], t);
+      osc.type = def.leadWave;
+      osc.frequency.setValueAtTime(def.lead[i], t);
       g.gain.setValueAtTime(0.35, t);
       g.gain.exponentialRampToValueAtTime(0.001, t + noteLen);
       osc.connect(g);
@@ -420,7 +506,7 @@ export function startGameMusic(track: MusicTrack) {
       osc.stop(t + noteLen);
     }
 
-    if (d.drums && d.drums[i] > 0) {
+    if (def.drums && def.drums[i] > 0) {
       const bufSize = Math.max(256, Math.floor(ctx.sampleRate * 0.06));
       const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
       const data = buf.getChannelData(0);
@@ -431,7 +517,7 @@ export function startGameMusic(track: MusicTrack) {
       filter.type = 'lowpass';
       filter.frequency.value = 220;
       const g = ctx.createGain();
-      g.gain.setValueAtTime(d.drums[i] * 0.4, t);
+      g.gain.setValueAtTime(def.drums[i] * 0.4, t);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
       noise.connect(filter);
       filter.connect(g);
@@ -439,8 +525,31 @@ export function startGameMusic(track: MusicTrack) {
       noise.start(t);
     }
 
-    step++;
+    gameMusicStep++;
   }, def.stepMs);
+}
+
+// Transicion suave de tema segun progreso 0..1 de la partida:
+// <0.45 tema inicial, <0.8 tema de progreso, resto tema de dificultad alta.
+// Solo cambia al cruzar un umbral, nunca por eventos menores.
+export function setGameMusicIntensity(progress01: number) {
+  if (!currentTrack || !gameMusicTimer || !gameMusicGain) return;
+  const p = Math.max(0, Math.min(1, progress01));
+  const target = p < 0.45 ? 0 : p < 0.8 ? 1 : 2;
+  if (target === currentIntensity) return;
+  const ctx = getCtx();
+  if (!ctx) return;
+  currentIntensity = target;
+  const def = themeDef(currentTrack, target);
+  // Crossfade corto: baja el volumen y lo sube con el nuevo tema,
+  // manteniendo el contador de pasos para no reiniciar la melodia
+  try {
+    gameMusicGain.gain.cancelScheduledValues(ctx.currentTime);
+    gameMusicGain.gain.setValueAtTime(gameMusicGain.gain.value, ctx.currentTime);
+    gameMusicGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+    gameMusicGain.gain.linearRampToValueAtTime(def.volume, ctx.currentTime + 0.55);
+  } catch {}
+  scheduleThemeLoop(ctx, def);
 }
 
 export function stopGameMusic() {

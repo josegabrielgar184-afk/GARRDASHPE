@@ -9,7 +9,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
-import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
+import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const W = 360;
 const H = 540;
@@ -225,6 +225,20 @@ export function ZRunner() {
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
 
+      // Sensacion de velocidad: franjas laterales con perspectiva y barrido
+      const speedT = Math.min(1, (gameSpeedRef.current - 3) / 9);
+      ctx.strokeStyle = `rgba(0, 243, 255, ${0.05 + speedT * 0.08})`;
+      ctx.lineWidth = 2;
+      const sweep = (Date.now() / 40) % 60;
+      for (let y = -60 + sweep; y < H; y += 60) {
+        ctx.beginPath();
+        ctx.moveTo(30, y);
+        ctx.lineTo(80, y + 30);
+        ctx.moveTo(W - 30, y);
+        ctx.lineTo(W - 80, y + 30);
+        ctx.stroke();
+      }
+
       ctx.strokeStyle = 'rgba(0, 243, 255, 0.12)';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -250,7 +264,9 @@ export function ZRunner() {
         setScore(Math.floor(scoreRef.current / 5));
 
         // Aumento de velocidad progresivo
-        gameSpeedRef.current += 0.0025; 
+        gameSpeedRef.current += 0.0025;
+        // Intensidad musical segun dificultad real (velocidad de juego)
+        setGameMusicIntensity(Math.min(1, (gameSpeedRef.current - 3) / 9));
 
         coinSpawnTimerRef.current++;
         if (coinSpawnTimerRef.current > Math.max(40, 90 - Math.floor(gameSpeedRef.current * 3))) {

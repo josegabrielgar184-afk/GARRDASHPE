@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap, Volume2, VolumeX, Music, Music2 } from 'lucide-react';
-import { startGameMusic, stopGameMusic } from '@/lib/audio';
+import { startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const W = 360;
 const H = 480;
@@ -354,6 +354,7 @@ export function CanicasExplosivas() {
         }
       }
       if (groups > 0) setScore(scoreRef.current);
+      if (groups > 0) setGameMusicIntensity(Math.min(1, explosionsRef.current / 12));
       if (groups > 1) sfx().combo();
       return groups;
     };
@@ -466,8 +467,15 @@ export function CanicasExplosivas() {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
       }
 
-      ctx.strokeStyle = 'rgba(0,243,255,0.22)';
-      ctx.lineWidth = 3;
+      // Camino luminoso: doble trazo (halo + nucleo) para claridad
+      ctx.strokeStyle = 'rgba(0,243,255,0.10)';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(pathPts[0].x, pathPts[0].y);
+      for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i].x, pathPts[i].y);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,243,255,0.30)';
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.moveTo(pathPts[0].x, pathPts[0].y);
       for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i].x, pathPts[i].y);

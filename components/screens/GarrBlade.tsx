@@ -9,7 +9,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
-import { playCoin, playHit, playPickup, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
+import { playCoin, playHit, playPickup, playGameOver, startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const W = 360;
 const H = 540;
@@ -224,14 +224,21 @@ export function GarrBlade() {
         startGameMusic('garrblade');
       }
 
+      // Escenario futurista: horizonte con estrellas fijas y niebla de altura
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, W, H);
-
-      ctx.strokeStyle = 'rgba(0, 243, 255, 0.04)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < W; i += 30) {
-        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      const starSeed = (n: number) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+      for (let s = 0; s < 24; s++) {
+        const sx = starSeed(s) * W;
+        const sy = starSeed(s + 50) * (H * 0.5);
+        ctx.fillRect(sx, sy, 1.5, 1.5);
       }
+      const horizon = ctx.createLinearGradient(0, H * 0.45, 0, H);
+      horizon.addColorStop(0, 'rgba(0,243,255,0)');
+      horizon.addColorStop(1, 'rgba(0,243,255,0.07)');
+      ctx.fillStyle = horizon;
+      ctx.fillRect(0, H * 0.45, W, H * 0.55);
 
       spawnTimerRef.current++;
       if (spawnTimerRef.current > 140 && barrelsRef.current.length < 3) {
@@ -286,6 +293,7 @@ export function GarrBlade() {
           scoreRef.current += 50;
           setCoinsEarned(coinsEarnedRef.current);
           setScore(scoreRef.current);
+          setGameMusicIntensity(Math.min(1, coinsEarnedRef.current / 25));
           createSparks(coin.x, coin.y, '#ffb700', 10);
         }
       }

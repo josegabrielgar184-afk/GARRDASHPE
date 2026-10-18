@@ -86,19 +86,18 @@ export const SPECIAL_LEVELS: Record<number, { theme: string; color: string; mess
 
 export const TOTAL_CAMPAIGN_LEVELS = 999;
 
-// Centralized campaign coin reward control. Set to 0 to disable coin rewards.
-// Change this value to balance campaign economy without rewriting Campaign code.
-export const CAMPAIGN_COIN_REWARD_ENABLED = false;
+// Recompensa por PRIMERA victoria de cada nivel de campania: 10-25 monedas.
+// Se activa/desactiva desde aqui; el pago solo ocurre en primera victoria
+// (isFirstClear en completeLevel) y queda persistido en campaignProgress.stars.
+export const CAMPAIGN_COIN_REWARD_ENABLED = true;
 
-// Level 1: 2-3 coins. Level 30: 10-15 coins. Slow, grinding progression.
-// Beyond level 30, capped at 10-15 to keep resource acquisition very difficult.
+// Nivel bajo = 10-14, medio = 15-20, alto = 21-25. Maximo 25 por primera victoria.
 export function getCampaignCoinReward(level: number): { min: number; max: number } {
   if (!CAMPAIGN_COIN_REWARD_ENABLED) return { min: 0, max: 0 };
   if (level <= 0) level = 1;
-  if (level === 1) return { min: 5, max: 10 };
-  if (level <= 5) return { min: 8, max: 18 };
-  if (level <= 15) return { min: 12, max: 25 };
-  return { min: 15, max: 30 };
+  if (level <= 5) return { min: 10, max: 14 };
+  if (level <= 15) return { min: 15, max: 20 };
+  return { min: 21, max: 25 };
 }
 
 export const INTERSTITIAL_COOLDOWN_SECONDS = 300;
