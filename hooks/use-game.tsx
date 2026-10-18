@@ -720,6 +720,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             });
           }
         } catch {}
+
+        // Listener en tiempo real: refleja cambios de saldo hechos por el
+        // backend (abonos atomicos de arcade-credit) sin necesidad de reabrir.
+        userDocUnsubRef.current = onSnapshot(doc(db, 'usuarios', user.uid), (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+          if (data.coins !== undefined) setCoins(data.coins);
+          if (data.puntos !== undefined) setPoints(data.puntos);
+          if (data.vip !== undefined) setVip(data.vip);
+          saveData({ coins: data.coins ?? 0, points: data.puntos ?? 0, vip: data.vip ?? false });
+        });
       } else {
         setCurrentUser(null);
         setLoggedInState(false);

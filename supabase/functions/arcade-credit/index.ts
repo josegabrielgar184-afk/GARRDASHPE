@@ -42,7 +42,7 @@ function clampInt(v: unknown, max: number): number {
 
 // Inicializa Firebase Admin SDK si el secreto FIREBASE_SERVICE_ACCOUNT_JSON
 // esta configurado. Si no existe, firestoreCredited queda desactivado y el
-// abono real queda pendiente (el cliente lo muestra como "abono pendiente").
+// abono real queda pendiente. El secreto se carga en cada nueva instancia.
 let firebaseApp: any = null;
 let firestore: any = null;
 let adminAvailable = false;
