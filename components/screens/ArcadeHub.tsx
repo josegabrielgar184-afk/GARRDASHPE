@@ -3,9 +3,98 @@
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import {
-  Zap, Trophy, Coins, ShoppingBag, Star, Gamepad2, Crown, ArrowLeft,
-  Rocket, ShieldAlert, Circle,
+  Trophy, Coins, ShoppingBag, Star, Gamepad2, Crown, ArrowLeft,
+  Zap, ShieldAlert, Circle, Rocket,
 } from 'lucide-react';
+
+interface ArcadeGame {
+  id: string;
+  screen: string;
+  name: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+  iconBg: string;
+  iconBorder: string;
+  border: string;
+  shadow: string;
+  badge: string;
+  badgeCls: string;
+}
+
+// Agregar un juego nuevo = anadir una entrada aqui
+const GAMES: ArcadeGame[] = [
+  {
+    id: 'neon-maze',
+    screen: 'neon-maze',
+    name: 'Laberinto Neon',
+    desc: 'Esquiva zombis y recolecta monedas',
+    icon: Zap,
+    iconColor: 'text-[#00f3ff]',
+    iconBg: 'bg-[#00f3ff]/15',
+    iconBorder: 'border-[#00f3ff]/40',
+    border: 'border-[#00f3ff]/30',
+    shadow: 'shadow-[#00f3ff]/10',
+    badge: 'Arcade',
+    badgeCls: 'bg-[#00f3ff]/10 border-[#00f3ff]/30 text-[#00f3ff]',
+  },
+  {
+    id: 'garrfly',
+    screen: 'garrfly',
+    name: 'Culebrita Neón',
+    desc: 'Crece comiendo monedas doradas',
+    icon: Gamepad2,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/15',
+    iconBorder: 'border-amber-500/40',
+    border: 'border-amber-500/30',
+    shadow: 'shadow-amber-500/10',
+    badge: 'Habilidad',
+    badgeCls: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+  },
+  {
+    id: 'zrunner',
+    screen: 'zrunner',
+    name: 'Z-Runner',
+    desc: 'Carrera en 3 carriles sin chocar',
+    icon: ShieldAlert,
+    iconColor: 'text-red-400',
+    iconBg: 'bg-red-500/15',
+    iconBorder: 'border-red-500/40',
+    border: 'border-red-500/30',
+    shadow: 'shadow-red-500/10',
+    badge: 'Reflejos',
+    badgeCls: 'bg-red-500/10 border-red-500/30 text-red-400',
+  },
+  {
+    id: 'garrblade',
+    screen: 'garrblade',
+    name: 'GarrBlade',
+    desc: 'Sube plataformas esquivando barriles',
+    icon: Rocket,
+    iconColor: 'text-purple-400',
+    iconBg: 'bg-purple-500/15',
+    iconBorder: 'border-purple-500/40',
+    border: 'border-purple-500/30',
+    shadow: 'shadow-purple-500/10',
+    badge: 'Precisión',
+    badgeCls: 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+  },
+  {
+    id: 'canicas',
+    screen: 'canicas',
+    name: 'Canicas Explosivas',
+    desc: 'Junta grupos de 3 o más iguales',
+    icon: Circle,
+    iconColor: 'text-[#ff2d95]',
+    iconBg: 'bg-[#ff2d95]/15',
+    iconBorder: 'border-[#ff2d95]/40',
+    border: 'border-[#ff2d95]/30',
+    shadow: 'shadow-[#ff2d95]/10',
+    badge: 'Puntería',
+    badgeCls: 'bg-[#ff2d95]/10 border-[#ff2d95]/30 text-[#ff2d95]',
+  },
+];
 
 export function ArcadeHub() {
   const { setScreen, userRole, coins, points, playerName } = useGame();
@@ -76,195 +165,44 @@ export function ArcadeHub() {
         </div>
       </div>
 
-      {/* Main content: Exclusivo Minijuegos Arcade */}
-      <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-24 space-y-4">
-        {/* Card 1: Laberinto Neon */}
-        <button
-          onClick={() => setScreen('neon-maze')}
-          className="w-full rounded-3xl bg-gradient-to-br from-[#00f3ff]/10 via-[#0a0e17] to-[#ffb700]/5 border-2 border-[#00f3ff]/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-[#00f3ff]/10"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-[#00f3ff] text-[10px] font-black tracking-widest uppercase mb-1">
-                Disponible
-              </p>
-              <h2
-                className="text-white font-black text-xl"
-                style={{ textShadow: '0 0 15px rgba(0,243,255,0.4)' }}
+      {/* Cuadricula compacta de minijuegos: 2 por fila en celular, hasta 4 en pantallas grandes */}
+      <div className="relative z-10 flex-1 overflow-y-auto no-scrollbar px-4 pb-24">
+        <p className="text-white/30 text-[10px] font-black tracking-widest uppercase mb-2 px-1">
+          Minijuegos ({GAMES.length})
+        </p>
+        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 lg:grid-cols-4 gap-3">
+          {GAMES.map((game) => {
+            const Icon = game.icon;
+            return (
+              <button
+                key={game.id}
+                onClick={() => setScreen(game.screen as never)}
+                className={`group rounded-2xl bg-gradient-to-br from-white/[0.04] via-[#0a0e17] to-black/40 border ${game.border} p-3 text-left active:scale-[0.97] transition-transform shadow-lg ${game.shadow}`}
               >
-                LABERINTO NEON
-              </h2>
-              <p className="text-white/40 text-xs mt-1">
-                Esquiva zombis y recolecta monedas doradas
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-[#00f3ff]/15 border border-[#00f3ff]/40 flex items-center justify-center shrink-0">
-              <Zap className="w-6 h-6 text-[#00f3ff]" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="px-2 py-0.5 rounded-full bg-[#00f3ff]/10 border border-[#00f3ff]/30 text-[#00f3ff] text-[10px] font-bold">
-              ARCADE
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-[#ffb700]/10 border border-[#ffb700]/30 text-[#ffb700] text-[10px] font-bold">
-              +100 pts Ranking
-            </span>
-          </div>
-          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-[#00f3ff] to-cyan-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
-            ENTRAR AL LABERINTO
-          </div>
-        </button>
-
-        {/* Card 2: Culebrita Neón (garrfly) */}
-        <button
-          onClick={() => setScreen('garrfly')}
-          className="w-full rounded-3xl bg-gradient-to-br from-amber-500/10 via-[#0a0e17] to-amber-900/20 border-2 border-amber-500/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-amber-500/10"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-amber-400 text-[10px] font-black tracking-widest uppercase mb-1">
-                Disponible
-              </p>
-              <h2
-                className="text-white font-black text-xl"
-                style={{ textShadow: '0 0 15px rgba(245,158,11,0.4)' }}
-              >
-                CULEBRITA NEÓN
-              </h2>
-              <p className="text-white/40 text-xs mt-1">
-                Come monedas doradas y haz crecer tu serpiente
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
-              <Gamepad2 className="w-6 h-6 text-amber-400" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold">
-              HABILIDAD
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[10px] font-bold">
-              +Monedas
-            </span>
-          </div>
-          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
-            JUGAR CULEBRITA
-          </div>
-        </button>
-
-        {/* Card 3: Z-Runner */}
-        <button
-          onClick={() => setScreen('zrunner')}
-          className="w-full rounded-3xl bg-gradient-to-br from-red-500/10 via-[#0a0e17] to-red-900/20 border-2 border-red-500/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-red-500/10"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-red-400 text-[10px] font-black tracking-widest uppercase mb-1">
-                Disponible
-              </p>
-              <h2
-                className="text-white font-black text-xl"
-                style={{ textShadow: '0 0 15px rgba(239,68,68,0.4)' }}
-              >
-                Z-RUNNER
-              </h2>
-              <p className="text-white/40 text-xs mt-1">
-                Carrera continua esquivando hordas en 3 carriles
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-6 h-6 text-red-400" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-bold">
-              REFLEJOS
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-red-400/10 border border-red-400/30 text-red-400 text-[10px] font-bold">
-              +Supervivencia
-            </span>
-          </div>
-          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
-            JUGAR Z-RUNNER
-          </div>
-        </button>
-
-        {/* Card 4: GarrBlade */}
-        <button
-          onClick={() => setScreen('garrblade')}
-          className="w-full rounded-3xl bg-gradient-to-br from-purple-500/10 via-[#0a0e17] to-purple-900/20 border-2 border-purple-500/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-purple-500/10"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-purple-400 text-[10px] font-black tracking-widest uppercase mb-1">
-                Disponible
-              </p>
-              <h2
-                className="text-white font-black text-xl"
-                style={{ textShadow: '0 0 15px rgba(168,85,247,0.4)' }}
-              >
-                GARRBLADE
-              </h2>
-              <p className="text-white/40 text-xs mt-1">
-                Clava dagas neón en la rueda sin chocar
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shrink-0">
-              <Rocket className="w-6 h-6 text-purple-400" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-[10px] font-bold">
-              PRECISIÓN
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-purple-400/10 border border-purple-400/30 text-purple-400 text-[10px] font-bold">
-              +Puntos
-            </span>
-          </div>
-          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-400 text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
-            JUGAR GARRBLADE
-          </div>
-        </button>
-
-        {/* Card 5: Canicas Explosivas (prototipo) */}
-        <button
-          onClick={() => setScreen('canicas')}
-          className="w-full rounded-3xl bg-gradient-to-br from-[#ff2d95]/10 via-[#0a0e17] to-[#ffb700]/10 border-2 border-[#ff2d95]/30 p-5 text-left active:scale-[0.98] transition-transform shadow-lg shadow-[#ff2d95]/10"
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-[#ff2d95] text-[10px] font-black tracking-widest uppercase mb-1">
-                Prototipo
-              </p>
-              <h2
-                className="text-white font-black text-xl"
-                style={{ textShadow: '0 0 15px rgba(255,45,149,0.4)' }}
-              >
-                CANICAS EXPLOSIVAS
-              </h2>
-              <p className="text-white/40 text-xs mt-1">
-                Dispara canicas y junta grupos de 3 o más iguales
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-[#ff2d95]/20 border border-[#ff2d95]/40 flex items-center justify-center shrink-0">
-              <Circle className="w-6 h-6 text-[#ff2d95]" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="px-2 py-0.5 rounded-full bg-[#ff2d95]/10 border border-[#ff2d95]/30 text-[#ff2d95] text-[10px] font-bold">
-              PUNTERÍA
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-[#ffb700]/10 border border-[#ffb700]/30 text-[#ffb700] text-[10px] font-bold">
-              +Puntos
-            </span>
-          </div>
-          <div className="w-full py-3 rounded-xl bg-gradient-to-r from-[#ff2d95] to-[#ffb700] text-black font-black text-center text-xs tracking-wide active:scale-95 transition-transform">
-            JUGAR CANICAS
-          </div>
-        </button>
+                <div className={`w-11 h-11 rounded-xl ${game.iconBg} border ${game.iconBorder} flex items-center justify-center mb-2.5`}>
+                  <Icon className={`w-6 h-6 ${game.iconColor}`} />
+                </div>
+                <h2 className="text-white font-black text-[13px] leading-tight mb-1">
+                  {game.name.toUpperCase()}
+                </h2>
+                <p className="text-white/40 text-[10px] leading-snug mb-2.5">
+                  {game.desc}
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-bold ${game.badgeCls}`}>
+                    {game.badge}
+                  </span>
+                  <span className={`text-[10px] font-black ${game.iconColor} opacity-70 group-active:opacity-100`}>
+                    JUGAR ▸
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Footer: quick access buttons */}
-        <div className="grid grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-4 gap-3 pt-5">
           <button
             onClick={() => setScreen('shop')}
             className="flex flex-col items-center gap-1.5 rounded-2xl bg-black/30 border border-white/10 p-3 hover:border-[#00f3ff]/30 transition-colors active:scale-95"
@@ -286,7 +224,7 @@ export function ArcadeHub() {
             <Star className="w-6 h-6 text-amber-400" />
             <span className="text-white/60 text-[10px] font-bold">Ruleta</span>
           </button>
-          {userRole === 'admin' && (
+          {userRole === 'admin' ? (
             <button
               onClick={() => setScreen('admin')}
               className="flex flex-col items-center gap-1.5 rounded-2xl bg-black/30 border border-white/10 p-3 hover:border-amber-400/30 transition-colors active:scale-95"
@@ -294,6 +232,8 @@ export function ArcadeHub() {
               <Crown className="w-6 h-6 text-amber-400" />
               <span className="text-white/60 text-[10px] font-bold">Admin</span>
             </button>
+          ) : (
+            <div />
           )}
         </div>
       </div>

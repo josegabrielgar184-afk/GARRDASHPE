@@ -9,6 +9,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
 
 const GRID_SIZE = 18;
 const COLS = 18;
@@ -107,10 +108,13 @@ export function GarrFly() {
     initGame();
   }, [initGame]);
 
+  const lastMusicStartRef = useRef(0);
+
   const changeDirection = useCallback((newDir: Direction) => {
     if (!gameStartedRef.current) {
       gameStartedRef.current = true;
       setGameStarted(true);
+      startGameMusic('garrfly');
       lastPlayTimeSyncRef.current = Date.now();
     }
 
@@ -174,6 +178,8 @@ export function GarrFly() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      stopGameMusic();
+      playGameOver();
       if (isOnline && gameStartedRef.current) {
         addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
         lastPlayTimeSyncRef.current = Date.now();
@@ -189,6 +195,10 @@ export function GarrFly() {
   };
 
   useEffect(() => {
+    return () => { stopGameMusic(); abandonSession(); };
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -199,6 +209,11 @@ export function GarrFly() {
         lastPlayTimeSyncRef.current = Date.now();
         return;
       }
+      if (!gameStartedRef.current && lastMusicStartRef.current === 0) {
+        lastMusicStartRef.current = 1;
+        startGameMusic('garrfly');
+      }
+      if (gameOverRef.current) stopGameMusic();
 
       if (isOnline && gameStartedRef.current && Date.now() - lastPlayTimeSyncRef.current > 10000) {
         addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
@@ -227,12 +242,14 @@ export function GarrFly() {
         if (dirRef.current === 'RIGHT') head.x += 1;
 
         if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+          playHit();
           triggerGameOver();
           return;
         }
 
         for (const segment of snakeRef.current) {
           if (segment.x === head.x && segment.y === head.y) {
+            playHit();
             triggerGameOver();
             return;
           }
@@ -241,6 +258,7 @@ export function GarrFly() {
         snakeRef.current.unshift(head);
 
         if (head.x === coinRef.current.x && head.y === coinRef.current.y) {
+          playCoin();
           scoreRef.current += 100;
           coinsRef.current += 1;
           setScore(scoreRef.current);
@@ -299,7 +317,7 @@ export function GarrFly() {
       }
     }, INITIAL_SPEED);
 
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); stopGameMusic(); };
   }, [addCoins, spawnCoin, addPlayTime, isOnline]);
 
   const handleRevive = () => {

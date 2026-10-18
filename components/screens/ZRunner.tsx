@@ -9,6 +9,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
 
 const W = 360;
 const H = 540;
@@ -129,6 +130,7 @@ export function ZRunner() {
     if (!gameStartedRef.current) {
       gameStartedRef.current = true;
       setGameStarted(true);
+      startGameMusic('zrunner');
       lastPlayTimeSyncRef.current = Date.now();
     }
   }, []);
@@ -186,6 +188,8 @@ export function ZRunner() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      stopGameMusic();
+      playGameOver();
       if (isOnline && gameStartedRef.current) {
         addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
         lastPlayTimeSyncRef.current = Date.now();
@@ -285,6 +289,7 @@ export function ZRunner() {
 
           if (!coin.collected && Math.abs(coin.y - PLAYER_Y) < 26 && laneRef.current === coin.lane) {
             coin.collected = true;
+            playCoin();
             coinsRef.current += 1;
             setCoinsEarned(coinsRef.current);
             createSparks(cx, PLAYER_Y, '#ffb700', 8);
@@ -303,6 +308,7 @@ export function ZRunner() {
             const isSafeByJump = obs.type === 'laser' && jumpOffsetRef.current < -18;
 
             if (!isSafeByJump) {
+              playHit();
               createSparks(playerXRef.current, PLAYER_Y, '#ef4444', 20);
               triggerGameOver();
             }
@@ -373,8 +379,12 @@ export function ZRunner() {
     };
 
     rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => { cancelAnimationFrame(rafRef.current); stopGameMusic(); };
   }, [addCoins, addPlayTime, isOnline]);
+
+  useEffect(() => {
+    return () => { stopGameMusic(); abandonSession(); };
+  }, []);
 
   const handleRevive = () => {
     gameOverRef.current = false;

@@ -9,6 +9,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { playCoin, playHit, playPickup, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
 
 const W = 360;
 const H = 540;
@@ -185,6 +186,8 @@ export function GarrBlade() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      stopGameMusic();
+      playGameOver();
       if (isOnline) addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
       flushPlayTime();
       lastPlayTimeSyncRef.current = Date.now();
@@ -213,6 +216,12 @@ export function GarrBlade() {
       if (isOnline && Date.now() - lastPlayTimeSyncRef.current > 10000) {
         addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
         lastPlayTimeSyncRef.current = Date.now();
+      }
+
+      // La musica arranca con el primer movimiento del jugador
+      if (!musicStartedRef.current && (vxRef.current !== 0 || !isGroundedRef.current)) {
+        musicStartedRef.current = true;
+        startGameMusic('garrblade');
       }
 
       ctx.fillStyle = '#0a0e17';
@@ -272,6 +281,7 @@ export function GarrBlade() {
         const distToPlayer = Math.hypot(pxRef.current - coin.x, pyRef.current - coin.y);
         if (distToPlayer < 18) {
           coin.collected = true;
+          playCoin();
           coinsEarnedRef.current += 1;
           scoreRef.current += 50;
           setCoinsEarned(coinsEarnedRef.current);
@@ -319,6 +329,7 @@ export function GarrBlade() {
       }
 
       if (pyRef.current < H - 440) {
+        playPickup();
         createSparks(pxRef.current, pyRef.current, '#00f3ff', 20);
         scoreRef.current += 300;
         coinsEarnedRef.current += 3;
@@ -378,6 +389,7 @@ export function GarrBlade() {
 
         const dist = Math.hypot(pxRef.current - b.x, pyRef.current - b.y);
         if (dist < b.radius + 10) {
+          playHit();
           createSparks(pxRef.current, pyRef.current, '#ef4444', 18);
           triggerGameOver();
         }
@@ -410,8 +422,14 @@ export function GarrBlade() {
     };
 
     rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => { cancelAnimationFrame(rafRef.current); stopGameMusic(); };
   }, [addCoins, addPlayTime, isOnline]);
+
+  useEffect(() => {
+    return () => { stopGameMusic(); abandonSession(); };
+  }, []);
+
+  const musicStartedRef = useRef(false);
 
   const handleRevive = () => {
     gameOverRef.current = false;

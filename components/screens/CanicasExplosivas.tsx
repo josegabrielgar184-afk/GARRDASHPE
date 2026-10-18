@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap, Volume2, VolumeX, Music, Music2 } from 'lucide-react';
+import { startGameMusic, stopGameMusic } from '@/lib/audio';
 
 const W = 360;
 const H = 480;
@@ -208,7 +209,25 @@ export function CanicasExplosivas() {
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
   const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number } | null>(null);
-  const [soundOn, setSoundOn] = useState(true);
+  const [soundOn, setSoundOn] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('canicas_sfx') !== '0';
+  });
+  const [musicOn, setMusicOn] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('canicas_music') !== '0';
+  });
+  const musicOnRef = useRef(true);
+
+  useEffect(() => {
+    musicOnRef.current = musicOn;
+    localStorage.setItem('canicas_music', musicOn ? '1' : '0');
+  }, [musicOn]);
+
+  useEffect(() => {
+    localStorage.setItem('canicas_sfx', soundOn ? '1' : '0');
+    if (sfxRef.current) sfxRef.current.enabled = soundOn;
+  }, [soundOn]);
 
   const sfx = useCallback(() => {
     if (!sfxRef.current) sfxRef.current = new Sfx();
@@ -236,6 +255,11 @@ export function CanicasExplosivas() {
   const setGameStatus = useCallback((s: Status) => {
     statusRef.current = s;
     setStatus(s);
+    if (s === 'playing') {
+      if (musicOnRef.current) startGameMusic('canicas');
+    } else {
+      stopGameMusic();
+    }
   }, []);
 
   const initGame = useCallback(() => {
@@ -607,6 +631,21 @@ export function CanicasExplosivas() {
     if (nv) sfx().unlock();
   };
 
+  const toggleMusic = () => {
+    const nv = !musicOn;
+    setMusicOn(nv);
+    musicOnRef.current = nv;
+    if (!nv) {
+      stopGameMusic();
+    } else if (statusRef.current === 'playing') {
+      startGameMusic('canicas');
+    }
+  };
+
+  useEffect(() => {
+    return () => stopGameMusic();
+  }, []);
+
   const actionBtn =
     'px-6 py-3 rounded-2xl font-black text-sm tracking-wide active:scale-95 transition-transform';
 
@@ -645,6 +684,13 @@ export function CanicasExplosivas() {
             <Zap className="w-3.5 h-3.5 text-[#00e5ff]" />
             <span ref={explHudRef} className="text-[#00e5ff] text-xs font-bold">0</span>
           </span>
+          <button
+            onClick={toggleMusic}
+            className="px-2.5 py-1.5 rounded-full bg-black/60 border border-white/20 active:scale-95"
+            aria-label="Musica"
+          >
+            {musicOn ? <Music className="w-4 h-4 text-[#ffb700]" /> : <Music2 className="w-4 h-4 text-white/40" />}
+          </button>
           <button
             onClick={toggleSound}
             className="px-2.5 py-1.5 rounded-full bg-black/60 border border-white/20 active:scale-95"

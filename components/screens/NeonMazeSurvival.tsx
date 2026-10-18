@@ -9,6 +9,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { playCoin, playPickup, playHit, playGameOver, startGameMusic, stopGameMusic } from '@/lib/audio';
 
 const COLS = 15;
 const ROWS = 21;
@@ -58,6 +59,7 @@ export function NeonMazeSurvival() {
   const [showControlEditor, setShowControlEditor] = useState(false);
   const [ctrlLayouts, setCtrlLayouts] = useState(() => loadControlLayouts().maze);
   const controlEditorRef = useRef(false);
+  const musicStartedRef = useRef(false);
 
   useEffect(() => { controlEditorRef.current = showControlEditor; }, [showControlEditor]);
 
@@ -136,6 +138,8 @@ export function NeonMazeSurvival() {
     if (!gameOverRef.current) {
       gameOverRef.current = true;
       setGameOver(true);
+      stopGameMusic();
+      playGameOver();
       if (isOnline) addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
       flushPlayTime();
       lastPlayTimeSyncRef.current = Date.now();
@@ -168,6 +172,12 @@ export function NeonMazeSurvival() {
       if (isOnline && Date.now() - lastPlayTimeSyncRef.current > 10000) {
         addPlayTime(Date.now() - lastPlayTimeSyncRef.current);
         lastPlayTimeSyncRef.current = Date.now();
+      }
+
+      // La musica arranca con el primer movimiento del jugador (requisito de desbloqueo de audio)
+      if (!musicStartedRef.current && (inputDirRef.current.dx !== 0 || inputDirRef.current.dy !== 0)) {
+        musicStartedRef.current = true;
+        startGameMusic('maze');
       }
 
       const dt = time - lastTime;
@@ -221,6 +231,7 @@ export function NeonMazeSurvival() {
       const coinKey = `${p.x},${p.y}`;
       if (coinPositionsRef.current.has(coinKey)) {
         coinPositionsRef.current.delete(coinKey);
+        playCoin();
         coinsRef.current += 1;
         scoreRef.current += 10;
         setScore(scoreRef.current);
@@ -229,6 +240,7 @@ export function NeonMazeSurvival() {
 
       if (orbRef.current.active && p.x === orbRef.current.x && p.y === orbRef.current.y) {
         orbRef.current.active = false;
+        playPickup();
         overchargeUntilRef.current = Date.now() + 6000;
         setOvercharge(true);
         lastOrbTimeRef.current = Date.now();
@@ -255,6 +267,7 @@ export function NeonMazeSurvival() {
       for (const z of zombiesRef.current) {
         if (z.x === p.x && z.y === p.y) {
           if (isOvercharged) {
+            playPickup();
             scoreRef.current += 100;
             setScore(scoreRef.current);
             z.x = Math.floor(Math.random() * COLS);
@@ -264,6 +277,7 @@ export function NeonMazeSurvival() {
               z.y = Math.floor(Math.random() * ROWS);
             }
           } else {
+            playHit();
             livesRef.current -= 1;
             setLives(livesRef.current);
             if (livesRef.current <= 0) {
@@ -336,8 +350,12 @@ export function NeonMazeSurvival() {
     };
 
     rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => { cancelAnimationFrame(rafRef.current); stopGameMusic(); };
   }, [addCoins, overcharge, addPlayTime, isOnline]);
+
+  useEffect(() => {
+    return () => { stopGameMusic(); abandonSession(); };
+  }, []);
 
   const handleTouch = (e: React.TouchEvent) => {
     e.preventDefault();
