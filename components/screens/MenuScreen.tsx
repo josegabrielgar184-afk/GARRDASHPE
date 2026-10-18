@@ -389,13 +389,13 @@ export function MenuScreen() {
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setShowSettings(false)}>
-          <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
+          <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-6 animate-scale-in flex flex-col max-h-[calc(100dvh-2rem)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-[#d4d8b8] font-bold text-xl flex items-center gap-2"><Settings className="w-5 h-5 text-[#8a9b50]" />Ajustes</h2>
               <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto overscroll-contain flex-1 min-h-0">
               <button onClick={toggleMusic} className="w-full flex items-center justify-between p-3 tac-btn rounded-lg">
                 <div className="flex items-center gap-3">
                   {musicEnabled ? <Volume2 className="w-5 h-5 text-[#8a9b50]" /> : <VolumeX className="w-5 h-5 text-[#6b7280]" />}
@@ -491,7 +491,7 @@ export function MenuScreen() {
               </div>
             </div>
 
-            <p className="mt-6 text-center text-[#6b7280] text-xs">&copy; 2026</p>
+            <p className="mt-3 shrink-0 text-center text-[#6b7280] text-xs">&copy; 2026</p>
           </div>
         </div>
       )}
@@ -615,14 +615,15 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-5 animate-scale-in">
-        <div className="flex items-center justify-between mb-4">
+      <div className="w-full max-w-sm mx-4 tac-panel rounded-lg p-5 animate-scale-in flex flex-col max-h-[calc(100dvh-2rem)]">
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-[#d4d8b8] font-bold text-lg flex items-center gap-2"><Move className="w-5 h-5 text-[#8a9b50]" /> Personalizar Controles</h2>
           <button onClick={handleCancel} className="w-8 h-8 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]"><X className="w-4 h-4" /></button>
         </div>
 
-        <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3">{SCREEN_LABELS[screenId]}</p>
+        <p className="text-center text-[#d4d8b8] text-xs font-bold mb-3 shrink-0">{SCREEN_LABELS[screenId]}</p>
 
+        <div className="overflow-y-auto overscroll-contain flex-1 min-h-0">
         {/* Preview area with ALL controls visible */}
         <div
           ref={previewRef}
@@ -698,9 +699,10 @@ export function ControlEditorModal({ screenId, onClose, onSave, onReset }: { scr
         </div>
 
         <p className="text-[#6b7280] text-[10px] text-center mb-4">Toca un boton para seleccionarlo. Arrastralo para moverlo.</p>
+        </div>
 
         {/* Action buttons */}
-        <div className="space-y-2">
+        <div className="space-y-2 shrink-0">
           <button onClick={handleSave} className="w-full py-3 rounded-xl bg-[#8a9b50]/20 text-[#8a9b50] border border-[#8a9b50]/40 font-bold text-sm hover:bg-[#8a9b50]/30 flex items-center justify-center gap-2">
             <Save className="w-4 h-4" /> Guardar
           </button>

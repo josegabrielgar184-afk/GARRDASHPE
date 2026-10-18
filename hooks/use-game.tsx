@@ -8,7 +8,7 @@ import {
   getCountFromServer,
 } from 'firebase/firestore';
 import { db, auth, verificarYCrearUsuario } from '@/lib/firebase';
-import { pauseAudio, resumeAudio, stopActionMusic, setSfxEnabled } from '@/lib/audio';
+import { pauseAudio, resumeAudio, stopActionMusic, setSfxEnabled, setGameMusicUserEnabled } from '@/lib/audio';
 import type { CanjeRequest, CanjeGameId } from '@/lib/canjes';
 import { CANJE_REWARDS, getRewardById, CORRECTION_TIMEOUT_MS, coinsToUsd } from '@/lib/canjes';
 import {
@@ -852,9 +852,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const ARCADE_SCREEN_IDS = new Set<Screen>(['neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas', 'neonbreaker', 'tower']);
+
+  useEffect(() => {
+    setGameMusicUserEnabled(!muted && musicEnabled);
+  }, [muted, musicEnabled]);
+
+  // Musica del menu: se pausa (conservando posicion) dentro de los minijuegos
+  // de arcade para que no se mezcle con la pista propia del juego.
   useEffect(() => {
     if (!audioRef.current) return;
-    if (muted || !musicEnabled || screen === 'intro' || screen === 'login') {
+    const inArcadeGame = ARCADE_SCREEN_IDS.has(screen);
+    const blocked = muted || !musicEnabled || screen === 'intro' || screen === 'login';
+    if (blocked || inArcadeGame) {
       audioRef.current.pause();
     } else {
       audioRef.current.play().catch(() => {});
@@ -870,7 +880,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = true;
       } else {
         (window as unknown as { isAudioPausedBySystem?: boolean }).isAudioPausedBySystem = false;
-        if (audioRef.current && !muted && musicEnabled && screen !== 'intro' && screen !== 'login') {
+        const inArcadeGame = ARCADE_SCREEN_IDS.has(screen);
+        if (audioRef.current && !muted && musicEnabled && screen !== 'intro' && screen !== 'login' && !inArcadeGame) {
           audioRef.current.play().catch(() => {});
         }
         resumeAudio();
@@ -1516,6 +1527,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const refreshWeeklyRanking = useCallback(async () => {
     try {
+      // Nota: el ranking semanal ordena por usuarios.puntos_semanales, un
+      // acumulado historico que nunca se reinicia, por eso siempre figuran los
+      // mismos lideres. La correccion real (leer scores_weekly de la semana
+      // actual) requiere una regla de lectura Firestore para esa coleccion,
+      // que hoy cae en default deny; pendiente de autorizacion explicita.
       const weeklyQ = query(collection(db, 'usuarios'), orderBy('puntos_semanales', 'desc'), limit(RANKING_PAGE_SIZE));
       const weeklySnap = await getDocs(weeklyQ);
       const weeklyEntries: RankEntry[] = [];

@@ -454,9 +454,19 @@ let gameMusicTimer: ReturnType<typeof setInterval> | null = null;
 let gameMusicGain: GainNode | null = null;
 let gameMusicStep = 0;
 
+// Ajuste global del usuario (silencio o musica desactivada): la musica de
+// minijuegos no arranca y la actual se detiene hasta reactivarse.
+let gameMusicUserEnabled = true;
+
+export function setGameMusicUserEnabled(enabled: boolean) {
+  gameMusicUserEnabled = enabled;
+  if (!enabled) stopGameMusic();
+}
+
 export function startGameMusic(track: MusicTrack, intensity = 0) {
   const ctx = getCtx();
   if (!ctx) return;
+  if (!gameMusicUserEnabled) return;
   if (currentTrack === track && currentIntensity === intensity && gameMusicTimer) return;
   stopGameMusic();
   currentTrack = track;
