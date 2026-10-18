@@ -150,7 +150,9 @@ export function TowerPerfecta() {
     }, 1900);
   };
 
-  // Recompensa por progreso: el servidor calcula y acredita el monto (una vez por partida)
+  // Aprobacion de recompensa en el servidor (registro idempotente con tope diario).
+  // Sin backend autorizado para Firestore, la aprobacion NO se abona al saldo:
+  // el monto aprobado se muestra como pendiente de acreditacion.
   const creditReward = useCallback(async () => {
     if (rewardCreditedRef.current) return;
     rewardCreditedRef.current = true;
@@ -159,10 +161,9 @@ export function TowerPerfecta() {
       perfects: perfectsRef.current,
     });
     if (result.credited > 0) {
-      addCoins(result.credited, 'gameplay');
       pendingRewardRef.current = result.credited;
     }
-  }, [addCoins]);
+  }, []);
 
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;
@@ -590,7 +591,7 @@ export function TowerPerfecta() {
       />
       {pendingReward > 0 && (
         <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
-          <span className="text-amber-400 text-xs font-black">Monedas por progreso: +{pendingReward}</span>
+          <span className="text-amber-400 text-xs font-black">Recompensa aprobada: +{pendingReward} (abono pendiente)</span>
         </div>
       )}
     </div>

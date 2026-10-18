@@ -176,7 +176,6 @@ class Sfx {
   }
 }
 
-import { auth } from '@/lib/firebase';
 import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
 
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
@@ -201,7 +200,7 @@ function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 }
 
 export function CanicasExplosivas() {
-  const { setScreen, addCoins } = useGame();
+  const { setScreen } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const timeHudRef = useRef<HTMLSpanElement>(null);
@@ -638,19 +637,19 @@ export function CanicasExplosivas() {
   // Recompensa real por progreso: el servidor calcula y acredita el monto (una vez por partida)
   const creditGameEndRef = useRef<(() => Promise<void>) | null>(null);
 
+  // Aprobacion de recompensa en el servidor (registro idempotente con tope diario).
+  // Sin backend autorizado para Firestore, la aprobacion NO se abona al saldo:
+  // el monto aprobado se muestra como pendiente de acreditacion.
   const creditGameEnd = useCallback(async () => {
     if (endCreditedRef.current) return;
     endCreditedRef.current = true;
-    const user = auth.currentUser;
-    if (!user) return;
     const result = await requestArcadeCredit('canicas', sessionIdRef.current, {
       explosions: explosionsRef.current,
     });
     if (result.credited > 0) {
-      addCoins(result.credited, 'gameplay');
       setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited } : prev));
     }
-  }, [addCoins]);
+  }, []);
   creditGameEndRef.current = creditGameEnd;
 
   const handleRestart = () => {
@@ -689,7 +688,7 @@ export function CanicasExplosivas() {
         { label: 'Duracion', value: fmtTime(endStats.duration) },
         { label: 'Explosiones validas', value: String(endStats.explosions) },
         { label: 'Puntuacion', value: endStats.score.toLocaleString() },
-        { label: 'Monedas ganadas', value: String(endStats.realCoins ?? 0) },
+        { label: 'Recompensa aprobada', value: String(endStats.realCoins ?? 0) },
       ]
     : [];
 
@@ -863,7 +862,7 @@ export function CanicasExplosivas() {
             </div>
           )}
           <p className="text-white/30 text-[10px] mt-2 max-w-60">
-            Monedas acreditadas por progreso verificado en el servidor.
+            Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.
           </p>
 
           <div className="flex flex-col gap-3 mt-5 w-52">
