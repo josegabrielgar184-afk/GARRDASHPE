@@ -18,9 +18,11 @@ import {
   fetchSuggestions, handleSuggestion, fetchInactiveUsers, fetchActiveUsersNow,
   sendWinBackPush, sendPromoPush,
 } from '@/lib/economy-service';
+import { db } from '@/lib/firebase';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { fetchAnalytics, getModeLabel, formatDuration, type AnalyticsPeriod, type AnalyticsData } from '@/lib/analytics';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'top50' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores';
 
 export function AdminScreen() {
   const {
@@ -47,6 +49,38 @@ export function AdminScreen() {
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [openAuditUid, setOpenAuditUid] = useState<string | null>(null);
+
+  type TopCoinsEntry = { uid: string; nombre: string; coins: number };
+  const [topCoins, setTopCoins] = useState<TopCoinsEntry[]>([]);
+  const [topCoinsLoading, setTopCoinsLoading] = useState(false);
+  const [topCoinsError, setTopCoinsError] = useState<string | null>(null);
+  const [topCoinsUpdatedAt, setTopCoinsUpdatedAt] = useState<Date | null>(null);
+
+  const fetchTopCoins = async () => {
+    setTopCoinsLoading(true);
+    setTopCoinsError(null);
+    try {
+      const snap = await getDocs(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(50)));
+      const entries: TopCoinsEntry[] = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        entries.push({ uid: d.id, nombre: data.nombre ?? data.email?.split('@')[0] ?? 'Jugador', coins: data.coins ?? 0 });
+      });
+      setTopCoins(entries);
+      setTopCoinsUpdatedAt(new Date());
+    } catch {
+      setTopCoinsError('No se pudo cargar el Top 50.');
+    } finally {
+      setTopCoinsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== 'top50') return;
+    fetchTopCoins();
+    const interval = setInterval(fetchTopCoins, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [tab]);
 
   useEffect(() => {
     refreshPendingRequests();
@@ -219,6 +253,7 @@ export function AdminScreen() {
     { id: 'near', label: 'Casi Listos', icon: TrendingUp, group: 'Operaciones' },
     { id: 'users', label: 'Usuarios', icon: Users, group: 'Gestion' },
     { id: 'dusers', label: 'Detallados', icon: List, group: 'Gestion' },
+    { id: 'top50', label: 'Top 50 Monedas', icon: Coins, group: 'Gestion' },
     { id: 'su', label: 'SU', icon: Shield, group: 'Gestion' },
     { id: 'control', label: 'Control', icon: Settings2, group: 'Sistema' },
     { id: 'observer', label: 'Observador', icon: Eye, group: 'Sistema' },
@@ -1073,6 +1108,60 @@ export function AdminScreen() {
                           })()}
                         </div>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Top 50 por monedas Tab */}
+          {tab === 'top50' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-white font-bold text-sm">Top 50 por Monedas ({topCoins.length})</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-white/30">
+                    {topCoinsUpdatedAt ? `Act. ${topCoinsUpdatedAt.toLocaleTimeString('es-ES')}` : ''}
+                  </span>
+                  <button
+                    onClick={fetchTopCoins}
+                    disabled={topCoinsLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/40 text-xs font-bold hover:bg-amber-500/25 disabled:opacity-50"
+                  >
+                    {topCoinsLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Actualizar
+                  </button>
+                </div>
+              </div>
+              <p className="text-white/30 text-[10px]">Se actualiza automaticamente cada 3 minutos mientras esta seccion este abierta.</p>
+              {topCoinsError && (
+                <p className="text-red-400 text-xs">{topCoinsError}</p>
+              )}
+              {topCoinsLoading && topCoins.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-white/30">
+                  <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                  <p className="text-sm">Cargando Top 50...</p>
+                </div>
+              ) : topCoins.length === 0 ? (
+                <p className="text-white/30 text-xs">No hay jugadores para mostrar.</p>
+              ) : (
+                <div className="space-y-2">
+                  {topCoins.map((user, idx) => (
+                    <div
+                      key={user.uid}
+                      className={`flex items-center gap-3 rounded-xl border p-3 transition-all hover:border-amber-500/40 ${
+                        idx < 3 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-card border-border'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 shrink-0">
+                        <span className="text-amber-400 font-bold text-xs">{idx + 1}</span>
+                      </div>
+                      <span className="flex-1 min-w-0 text-white font-bold text-sm truncate">{user.nombre}</span>
+                      <span className="text-amber-400 font-bold text-sm shrink-0">{user.coins.toLocaleString()} monedas</span>
                     </div>
                   ))}
                 </div>
