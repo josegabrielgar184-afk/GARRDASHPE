@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, X-Ayet-Signature",
 };
 
-const AYET_SECRET = "92825296fad7e0d6c7d25d69c1af3b9e";
+// Fail-closed: si falta la variable de entorno, ningún callback se acepta.
+const AYET_SECRET = Deno.env.get("AYET_SECRET") ?? "";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -21,7 +22,7 @@ Deno.serve(async (req: Request) => {
     const signatureHeader = req.headers.get("X-Ayet-Signature") || "";
     const providedSecret = authHeader.replace("Bearer ", "") || signatureHeader || url.searchParams.get("secret") || "";
 
-    if (providedSecret !== AYET_SECRET) {
+    if (!AYET_SECRET || providedSecret !== AYET_SECRET) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

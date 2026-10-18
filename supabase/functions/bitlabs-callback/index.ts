@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const BITLABS_SECRET = "jXWzcobXqHkQvj3rDMCfUBlXlg4fAvfS";
+// Fail-closed: si falta la variable de entorno, ningún callback se acepta.
+const BITLABS_SECRET = Deno.env.get("BITLABS_SECRET") ?? "";
 const BITLABS_API_KEY = "6d280d69-7c5e-4c8a-aab0-d84c1abe9526";
 
 Deno.serve(async (req: Request) => {
@@ -19,7 +20,7 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization") || "";
     const providedSecret = authHeader.replace("Bearer ", "");
 
-    if (providedSecret !== BITLABS_SECRET) {
+    if (!BITLABS_SECRET || providedSecret !== BITLABS_SECRET) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

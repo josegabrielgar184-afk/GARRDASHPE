@@ -1,0 +1,8 @@
+[functions.ayet-callback]
+verify_jwt = false
+
+[functions.bitlabs-callback]
+verify_jwt = false
+
+[functions.validate-vip]
+verify_jwt = false
