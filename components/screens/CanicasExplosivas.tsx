@@ -3,22 +3,46 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle } from 'lucide-react';
+import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap } from 'lucide-react';
 
 const W = 360;
 const H = 480;
 const MARBLE_R = 11;
 const SPACING = MARBLE_R * 2 + 2;
-const CHAIN_COUNT = 28;
-const CHAIN_SPEED = 40;
-const SHOT_SPEED = 400;
-const COLORS = ['#00f3ff', '#ffb700', '#ff2d95'];
+const SHOT_SPEED = 420;
+const CHAIN_CAP = 46;
+const RUN_MIN = 3;
+const COLORS = ['#00e5ff', '#ffb700', '#ff2d95', '#39ff88'];
+const BASE_COLORS = 3;
 
 interface Marble { color: number; dist: number; }
 interface Shot { x: number; y: number; vx: number; vy: number; color: number; }
 interface Particle { x: number; y: number; vx: number; vy: number; color: string; life: number; }
+interface Shockwave { x: number; y: number; r: number; life: number; }
 
 type Status = 'ready' | 'playing' | 'paused' | 'won' | 'lost';
+
+interface Difficulty { speed: number; spawnEvery: number; nColors: number; label: string; }
+
+// Fases: 0-40s facil (cadena lenta) | 40-90s normal | 90-150s dificil | 150s+ experto con rampa gradual acotada
+function difficultyAt(t: number): Difficulty {
+  if (t < 40) return { speed: 24, spawnEvery: 1.7, nColors: 3, label: 'FACIL' };
+  if (t < 90) return { speed: 34, spawnEvery: 1.4, nColors: 3, label: 'NORMAL' };
+  if (t < 150) return { speed: 48, spawnEvery: 1.15, nColors: 4, label: 'DIFICIL' };
+  const over = t - 150;
+  return {
+    speed: Math.min(48 + (over / 90) * 24, 78),
+    spawnEvery: Math.max(1.15 - (over / 90) * 0.2, 0.95),
+    nColors: 4,
+    label: 'EXPERTO',
+  };
+}
+
+const fmtTime = (s: number) => {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+};
 
 const CX = W / 2;
 const CY = H * 0.4;
@@ -58,23 +82,54 @@ function pointAt(dist: number): { x: number; y: number } {
 
 const HOLE = pointAt(PATH_LEN);
 
+// Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
+function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.arc(x + r * 0.26, y + r * 0.3, r * 0.72, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(x - r * 0.34, y - r * 0.4, r * 0.26, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, r - 0.5, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
 export function CanicasExplosivas() {
   const { setScreen } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const timeHudRef = useRef<HTMLSpanElement>(null);
+  const diffHudRef = useRef<HTMLSpanElement>(null);
+  const coinsHudRef = useRef<HTMLSpanElement>(null);
+  const explHudRef = useRef<HTMLSpanElement>(null);
 
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
+  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number } | null>(null);
 
   const marblesRef = useRef<Marble[]>([]);
   const shotRef = useRef<Shot | null>(null);
   const particlesRef = useRef<Particle[]>([]);
+  const wavesRef = useRef<Shockwave[]>([]);
   const currentColorRef = useRef(0);
   const nextColorRef = useRef(1);
   const angleRef = useRef(-Math.PI / 2);
   const aimingRef = useRef(false);
   const scoreRef = useRef(0);
   const statusRef = useRef<Status>('ready');
+  const coinsRef = useRef(0);
+  const explosionsRef = useRef(0);
+  const elapsedRef = useRef(0);
+  const spawnTimerRef = useRef(0);
 
   const setGameStatus = useCallback((s: Status) => {
     statusRef.current = s;
@@ -83,28 +138,33 @@ export function CanicasExplosivas() {
 
   const initGame = useCallback(() => {
     const marbles: Marble[] = [];
-    for (let i = 0; i < CHAIN_COUNT; i++) {
-      marbles.push({ color: Math.floor(Math.random() * COLORS.length), dist: -i * SPACING });
+    // Sin triples iniciales: evita explosiones gratuitas al arrancar
+    let p1 = -1;
+    let p2 = -1;
+    for (let i = 0; i < 28; i++) {
+      let c = Math.floor(Math.random() * BASE_COLORS);
+      while (c === p1 && c === p2) c = Math.floor(Math.random() * BASE_COLORS);
+      p2 = p1;
+      p1 = c;
+      marbles.push({ color: c, dist: -i * SPACING });
     }
     marblesRef.current = marbles;
     shotRef.current = null;
     particlesRef.current = [];
-    currentColorRef.current = Math.floor(Math.random() * COLORS.length);
-    nextColorRef.current = Math.floor(Math.random() * COLORS.length);
+    wavesRef.current = [];
+    currentColorRef.current = Math.floor(Math.random() * BASE_COLORS);
+    nextColorRef.current = Math.floor(Math.random() * BASE_COLORS);
     scoreRef.current = 0;
+    coinsRef.current = 0;
+    explosionsRef.current = 0;
+    elapsedRef.current = 0;
+    spawnTimerRef.current = 0;
     setScore(0);
+    setEndStats(null);
     setGameStatus('ready');
   }, [setGameStatus]);
 
   useEffect(() => { initGame(); }, [initGame]);
-
-  const spawnParticles = useCallback((x: number, y: number, color: string) => {
-    for (let i = 0; i < 14; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = Math.random() * 90 + 30;
-      particlesRef.current.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, color, life: 1 });
-    }
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -115,17 +175,92 @@ export function CanicasExplosivas() {
     let raf = 0;
     let last = performance.now();
 
+    const spawnParticles = (x: number, y: number, color: string) => {
+      for (let i = 0; i < 12; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = Math.random() * 90 + 30;
+        particlesRef.current.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, color, life: 1 });
+      }
+    };
+
+    // Explota todo grupo contiguo de >= 3 canicas del mismo color (incluye cascadas al cerrar huecos)
+    const popGroups = () => {
+      const marbles = marblesRef.current;
+      let groups = 0;
+      let found = true;
+      while (found) {
+        found = false;
+        let i = 0;
+        while (i < marbles.length) {
+          let j = i;
+          while (j + 1 < marbles.length && marbles[j + 1].color === marbles[i].color) j++;
+          const run = j - i + 1;
+          if (run >= RUN_MIN) {
+            const removed = marbles.splice(i, run);
+            groups++;
+            scoreRef.current += run * 100 + (run - RUN_MIN) * 60;
+            coinsRef.current += 1;
+            explosionsRef.current += 1;
+            let cx = 0;
+            let cy = 0;
+            let n = 0;
+            for (const m of removed) {
+              if (m.dist >= 0) {
+                const p = pointAt(m.dist);
+                spawnParticles(p.x, p.y, COLORS[m.color]);
+                cx += p.x;
+                cy += p.y;
+                n++;
+              }
+            }
+            if (n > 0) wavesRef.current.push({ x: cx / n, y: cy / n, r: MARBLE_R, life: 1 });
+            found = true;
+          } else {
+            i = j + 1;
+          }
+        }
+      }
+      if (groups > 0) setScore(scoreRef.current);
+      return groups;
+    };
+
     const update = (dt: number) => {
       const marbles = marblesRef.current;
+      elapsedRef.current += dt;
+      const diff = difficultyAt(elapsedRef.current);
+
       if (marbles.length > 0) {
-        marbles[0].dist += CHAIN_SPEED * dt;
+        marbles[0].dist += diff.speed * dt;
         if (marbles[0].dist >= PATH_LEN) {
+          setEndStats({
+            duration: elapsedRef.current,
+            explosions: explosionsRef.current,
+            coins: coinsRef.current,
+            score: scoreRef.current,
+          });
           setGameStatus('lost');
           return;
         }
         for (let i = 1; i < marbles.length; i++) {
           const desired = marbles[i - 1].dist - SPACING;
           marbles[i].dist += (desired - marbles[i].dist) * Math.min(1, dt * 8);
+        }
+        spawnTimerRef.current += dt;
+        if (spawnTimerRef.current >= diff.spawnEvery) {
+          spawnTimerRef.current = 0;
+          if (marbles.length < CHAIN_CAP) {
+            const tail = marbles[marbles.length - 1];
+            let c = Math.floor(Math.random() * diff.nColors);
+            // Evita triples espontaneos al final de la cadena: solo explota lo que el jugador arma
+            if (
+              marbles.length >= 2 &&
+              tail.color === c &&
+              marbles[marbles.length - 2].color === c
+            ) {
+              c = (c + 1) % diff.nColors;
+            }
+            marbles.push({ color: c, dist: tail.dist - SPACING });
+          }
         }
       }
 
@@ -142,28 +277,22 @@ export function CanicasExplosivas() {
             if (Math.hypot(shot.x - p.x, shot.y - p.y) < MARBLE_R * 2 - 4) {
               shotRef.current = null;
               marbles.splice(k, 0, { color: shot.color, dist: marbles[k].dist });
-              const c = shot.color;
-              let a = k;
-              while (a > 0 && marbles[a - 1].color === c) a--;
-              let b = k;
-              while (b < marbles.length - 1 && marbles[b + 1].color === c) b++;
-              const run = b - a + 1;
-              if (run >= 3) {
-                const removed = marbles.splice(a, run);
-                scoreRef.current += run * 100 + (run - 3) * 50;
-                setScore(scoreRef.current);
-                for (const m of removed) {
-                  if (m.dist >= 0) {
-                    const pp = pointAt(m.dist);
-                    spawnParticles(pp.x, pp.y, COLORS[m.color]);
-                  }
-                }
-                if (marbles.length === 0) setGameStatus('won');
-              }
               break;
             }
           }
         }
+      }
+
+      popGroups();
+      if (marbles.length === 0) {
+        setEndStats({
+          duration: elapsedRef.current,
+          explosions: explosionsRef.current,
+          coins: coinsRef.current,
+          score: scoreRef.current,
+        });
+        setGameStatus('won');
+        return;
       }
 
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
@@ -174,6 +303,12 @@ export function CanicasExplosivas() {
         p.vy *= 0.98;
         p.life -= dt * 1.8;
         if (p.life <= 0) particlesRef.current.splice(i, 1);
+      }
+      for (let i = wavesRef.current.length - 1; i >= 0; i--) {
+        const wv = wavesRef.current[i];
+        wv.r += 65 * dt;
+        wv.life -= dt * 2.2;
+        if (wv.life <= 0) wavesRef.current.splice(i, 1);
       }
     };
 
@@ -215,73 +350,58 @@ export function CanicasExplosivas() {
       for (const m of marblesRef.current) {
         if (m.dist < 0) continue;
         const p = pointAt(m.dist);
-        ctx.fillStyle = COLORS[m.color];
-        ctx.shadowColor = COLORS[m.color];
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, MARBLE_R, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(255,255,255,0.75)';
-        ctx.beginPath();
-        ctx.arc(p.x - 3.5, p.y - 3.5, 3, 0, Math.PI * 2);
-        ctx.fill();
+        drawMarble(ctx, p.x, p.y, MARBLE_R, COLORS[m.color]);
       }
 
       const shot = shotRef.current;
-      if (shot) {
-        ctx.fillStyle = COLORS[shot.color];
-        ctx.shadowColor = COLORS[shot.color];
-        ctx.shadowBlur = 16;
-        ctx.beginPath();
-        ctx.arc(shot.x, shot.y, MARBLE_R, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      }
+      if (shot) drawMarble(ctx, shot.x, shot.y, MARBLE_R, COLORS[shot.color]);
 
       if (aimingRef.current && !shotRef.current) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        const gx = SHOOTER.x + Math.cos(angleRef.current) * 150;
+        const gy = SHOOTER.y + Math.sin(angleRef.current) * 150;
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 8]);
         ctx.beginPath();
         ctx.moveTo(SHOOTER.x, SHOOTER.y);
-        ctx.lineTo(
-          SHOOTER.x + Math.cos(angleRef.current) * 140,
-          SHOOTER.y + Math.sin(angleRef.current) * 140
-        );
+        ctx.lineTo(gx, gy);
         ctx.stroke();
         ctx.setLineDash([]);
+        // Vista previa del color exacto que se disparara
+        drawMarble(ctx, gx, gy, 6, COLORS[currentColorRef.current]);
       }
 
       for (const p of particlesRef.current) {
         ctx.globalAlpha = Math.max(0, p.life);
         ctx.fillStyle = p.color;
-        ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5 * p.life + 0.5, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.globalAlpha = 1;
 
-      ctx.strokeStyle = '#00f3ff';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = '#00f3ff';
-      ctx.shadowBlur = 12;
+      for (const wv of wavesRef.current) {
+        ctx.globalAlpha = Math.max(0, wv.life);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(wv.x, wv.y, wv.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // Anillo neutro del lanzador: no compite con ningun color de canica
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.arc(SHOOTER.x, SHOOTER.y, 22, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.shadowBlur = 0;
 
-      ctx.fillStyle = COLORS[currentColorRef.current];
-      ctx.shadowColor = COLORS[currentColorRef.current];
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(SHOOTER.x, SHOOTER.y, MARBLE_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      ctx.fillStyle = COLORS[nextColorRef.current];
-      ctx.globalAlpha = 0.85;
-      ctx.beginPath();
-      ctx.arc(SHOOTER.x + 34, SHOOTER.y, 7, 0, Math.PI * 2);
-      ctx.fill();
+      // Canica actual: exactamente el color que se dispara
+      drawMarble(ctx, SHOOTER.x, SHOOTER.y, MARBLE_R, COLORS[currentColorRef.current]);
+      // Proxima canica en cola
+      ctx.globalAlpha = 0.7;
+      drawMarble(ctx, SHOOTER.x + 32, SHOOTER.y, 7, COLORS[nextColorRef.current]);
       ctx.globalAlpha = 1;
     };
 
@@ -293,12 +413,17 @@ export function CanicasExplosivas() {
         const pct = Math.min(100, (marblesRef.current[0].dist / PATH_LEN) * 100);
         progressRef.current.style.width = `${pct}%`;
       }
+      const diff = difficultyAt(elapsedRef.current);
+      if (timeHudRef.current) timeHudRef.current.textContent = fmtTime(elapsedRef.current);
+      if (diffHudRef.current) diffHudRef.current.textContent = diff.label;
+      if (coinsHudRef.current) coinsHudRef.current.textContent = String(coinsRef.current);
+      if (explHudRef.current) explHudRef.current.textContent = String(explosionsRef.current);
       draw(now);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [setGameStatus, spawnParticles]);
+  }, [setGameStatus]);
 
   const toCanvas = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -336,7 +461,7 @@ export function CanicasExplosivas() {
       color: currentColorRef.current,
     };
     currentColorRef.current = nextColorRef.current;
-    nextColorRef.current = Math.floor(Math.random() * COLORS.length);
+    nextColorRef.current = Math.floor(Math.random() * difficultyAt(elapsedRef.current).nColors);
   };
 
   const handlePause = () => {
@@ -354,6 +479,15 @@ export function CanicasExplosivas() {
   const actionBtn =
     'px-6 py-3 rounded-2xl font-black text-sm tracking-wide active:scale-95 transition-transform';
 
+  const endRows = endStats
+    ? [
+        { label: 'Duracion', value: fmtTime(endStats.duration) },
+        { label: 'Explosiones validas', value: String(endStats.explosions) },
+        { label: 'Puntuacion', value: endStats.score.toLocaleString() },
+        { label: 'Monedas simuladas', value: String(endStats.coins) },
+      ]
+    : [];
+
   return (
     <div className="h-full flex flex-col bg-[#0a0e17] relative overflow-hidden select-none">
       <MuteButton />
@@ -366,10 +500,19 @@ export function CanicasExplosivas() {
           <ArrowLeft className="w-4 h-4 text-[#ff2d95]" /> Salir
         </button>
 
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 bg-black/60 border border-[#ffb700]/30 rounded-full px-3 py-1">
+        <div className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1 bg-black/60 border border-[#ffb700]/30 rounded-full px-2.5 py-1">
             <Trophy className="w-3.5 h-3.5 text-[#ffb700]" />
             <span className="text-[#ffb700] text-xs font-bold">{score.toLocaleString()}</span>
+          </span>
+          <span className="flex items-center gap-1 bg-black/60 border border-[#39ff88]/30 rounded-full px-2.5 py-1">
+            <Coins className="w-3.5 h-3.5 text-[#39ff88]" />
+            <span className="text-[#39ff88] text-[9px] font-bold uppercase tracking-wider">Sim</span>
+            <span ref={coinsHudRef} className="text-[#39ff88] text-xs font-bold">0</span>
+          </span>
+          <span className="hidden min-[380px]:flex items-center gap-1 bg-black/60 border border-[#00e5ff]/30 rounded-full px-2.5 py-1">
+            <Zap className="w-3.5 h-3.5 text-[#00e5ff]" />
+            <span ref={explHudRef} className="text-[#00e5ff] text-xs font-bold">0</span>
           </span>
           {status === 'playing' && (
             <button
@@ -383,13 +526,15 @@ export function CanicasExplosivas() {
         </div>
       </div>
 
-      <div className="px-4 pt-2">
-        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+      <div className="px-4 pt-2 flex items-center gap-2">
+        <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
           <div
             ref={progressRef}
             className="h-full w-0 bg-gradient-to-r from-[#ff2d95] to-[#ffb700] transition-none"
           />
         </div>
+        <span ref={timeHudRef} className="text-white/50 text-[10px] font-mono shrink-0">0:00</span>
+        <span ref={diffHudRef} className="text-[#00f3ff] text-[9px] font-black tracking-wider shrink-0">FACIL</span>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-2">
@@ -400,6 +545,7 @@ export function CanicasExplosivas() {
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={() => { aimingRef.current = false; }}
           onPointerLeave={() => { aimingRef.current = false; }}
           className="border border-[#ff2d95]/30 rounded-2xl shadow-2xl shadow-[#ff2d95]/10 max-h-[62vh] object-contain bg-black/50 touch-none"
         />
@@ -418,6 +564,9 @@ export function CanicasExplosivas() {
             Arrastra para apuntar y suelta para disparar.<br />
             Junta 3 o más canicas iguales para explotarlas.<br />
             Vacía el camino antes de que llegue al hoyo.
+          </p>
+          <p className="text-white/30 text-[10px] mt-2">
+            La cadena acelera con el tiempo: Facil → Normal → Dificil → Experto
           </p>
           <button
             onClick={() => setGameStatus('playing')}
@@ -483,10 +632,22 @@ export function CanicasExplosivas() {
               </p>
             </>
           )}
-          <p className="text-[#ffb700] font-black text-lg mt-4">
-            {score.toLocaleString()} puntos
+
+          {endStats && (
+            <div className="mt-4 w-60 rounded-2xl bg-black/60 border border-white/10 p-3 space-y-1.5">
+              {endRows.map((row) => (
+                <div key={row.label} className="flex items-center justify-between text-xs">
+                  <span className="text-white/40">{row.label}</span>
+                  <span className="text-white font-bold font-mono">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-white/30 text-[10px] mt-2 max-w-60">
+            Monedas simuladas para evaluacion: no se acreditan monedas reales.
           </p>
-          <div className="flex flex-col gap-3 mt-6 w-52">
+
+          <div className="flex flex-col gap-3 mt-5 w-52">
             <button onClick={handleRestart} className={`${actionBtn} bg-gradient-to-r from-[#ff2d95] to-[#ffb700] text-black flex items-center justify-center gap-2`}>
               <RotateCcw className="w-4 h-4" /> REINICIAR
             </button>
