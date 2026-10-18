@@ -176,6 +176,9 @@ class Sfx {
   }
 }
 
+import { auth } from '@/lib/firebase';
+import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
+
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
 function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
   ctx.fillStyle = color;
@@ -198,7 +201,7 @@ function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 }
 
 export function CanicasExplosivas() {
-  const { setScreen } = useGame();
+  const { setScreen, addCoins } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const timeHudRef = useRef<HTMLSpanElement>(null);
@@ -208,7 +211,7 @@ export function CanicasExplosivas() {
 
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
-  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number } | null>(null);
+  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number } | null>(null);
   const [soundOn, setSoundOn] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('canicas_sfx') !== '0';
@@ -243,6 +246,8 @@ export function CanicasExplosivas() {
   const angleRef = useRef(-Math.PI / 2);
   const aimingRef = useRef(false);
   const scoreRef = useRef(0);
+  const sessionIdRef = useRef(newSessionId());
+  const endCreditedRef = useRef(false);
   const statusRef = useRef<Status>('ready');
   const coinsRef = useRef(0);
   const explosionsRef = useRef(0);
@@ -287,6 +292,8 @@ export function CanicasExplosivas() {
     spawnTimerRef.current = 0;
     recoilRef.current = 0;
     lastDiffRef.current = 'FACIL';
+    sessionIdRef.current = newSessionId();
+    endCreditedRef.current = false;
     setScore(0);
     setEndStats(null);
     setGameStatus('ready');
@@ -375,6 +382,7 @@ export function CanicasExplosivas() {
           });
           setGameStatus('lost');
           sfx().lose();
+          void creditGameEndRef.current?.();
           return;
         }
         for (let i = 1; i < marbles.length; i++) {
@@ -434,6 +442,7 @@ export function CanicasExplosivas() {
         });
         setGameStatus('won');
         sfx().win();
+        void creditGameEndRef.current?.();
         return;
       }
 
@@ -626,6 +635,24 @@ export function CanicasExplosivas() {
     }
   };
 
+  // Recompensa real por progreso: el servidor calcula y acredita el monto (una vez por partida)
+  const creditGameEndRef = useRef<(() => Promise<void>) | null>(null);
+
+  const creditGameEnd = useCallback(async () => {
+    if (endCreditedRef.current) return;
+    endCreditedRef.current = true;
+    const user = auth.currentUser;
+    if (!user) return;
+    const result = await requestArcadeCredit('canicas', sessionIdRef.current, {
+      explosions: explosionsRef.current,
+    });
+    if (result.credited > 0) {
+      addCoins(result.credited, 'gameplay');
+      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited } : prev));
+    }
+  }, [addCoins]);
+  creditGameEndRef.current = creditGameEnd;
+
   const handleRestart = () => {
     sfx().unlock();
     initGame();
@@ -662,7 +689,7 @@ export function CanicasExplosivas() {
         { label: 'Duracion', value: fmtTime(endStats.duration) },
         { label: 'Explosiones validas', value: String(endStats.explosions) },
         { label: 'Puntuacion', value: endStats.score.toLocaleString() },
-        { label: 'Monedas simuladas', value: String(endStats.coins) },
+        { label: 'Monedas ganadas', value: String(endStats.realCoins ?? 0) },
       ]
     : [];
 
@@ -685,7 +712,7 @@ export function CanicasExplosivas() {
           </span>
           <span className="flex items-center gap-1 bg-black/60 border border-[#39ff88]/30 rounded-full px-2.5 py-1">
             <Coins className="w-3.5 h-3.5 text-[#39ff88]" />
-            <span className="text-[#39ff88] text-[9px] font-bold uppercase tracking-wider">Sim</span>
+            <span className="text-[#39ff88] text-[9px] font-bold uppercase tracking-wider">Run</span>
             <span ref={coinsHudRef} className="text-[#39ff88] text-xs font-bold">0</span>
           </span>
           <span className="hidden min-[380px]:flex items-center gap-1 bg-black/60 border border-[#00e5ff]/30 rounded-full px-2.5 py-1">
@@ -836,7 +863,7 @@ export function CanicasExplosivas() {
             </div>
           )}
           <p className="text-white/30 text-[10px] mt-2 max-w-60">
-            Monedas simuladas para evaluacion: no se acreditan monedas reales.
+            Monedas acreditadas por progreso verificado en el servidor.
           </p>
 
           <div className="flex flex-col gap-3 mt-5 w-52">

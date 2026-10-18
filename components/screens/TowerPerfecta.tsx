@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
 import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Sparkles } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { towerCoins } from '@/lib/arcade-rewards';
+import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
 import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 
 const W = 360;
@@ -57,6 +57,7 @@ export function TowerPerfecta() {
   const perfectsRef = useRef(0);
   const rewardCreditedRef = useRef(false);
   const pendingRewardRef = useRef(0);
+  const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
   const stabilizeUsedRef = useRef(false);
   const gameOverRef = useRef(false);
@@ -102,6 +103,7 @@ export function TowerPerfecta() {
     perfectsRef.current = 0;
     rewardCreditedRef.current = false;
     pendingRewardRef.current = 0;
+    sessionIdRef.current = newSessionId();
     setPendingReward(0);
     stabilizeUsedRef.current = false;
     continueUsedRef.current = false;
@@ -148,22 +150,31 @@ export function TowerPerfecta() {
     }, 1900);
   };
 
+  // Recompensa por progreso: el servidor calcula y acredita el monto (una vez por partida)
+  const creditReward = useCallback(async () => {
+    if (rewardCreditedRef.current) return;
+    rewardCreditedRef.current = true;
+    const result = await requestArcadeCredit('tower', sessionIdRef.current, {
+      blocks_placed: blocksPlacedRef.current,
+      perfects: perfectsRef.current,
+    });
+    if (result.credited > 0) {
+      addCoins(result.credited, 'gameplay');
+      pendingRewardRef.current = result.credited;
+    }
+  }, [addCoins]);
+
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;
     gameOverRef.current = true;
     stopGameMusic();
     playGameOver();
-    // Recompensa por progreso: una sola vez por partida (bloques colocados + perfectos)
-    if (!rewardCreditedRef.current) {
-      rewardCreditedRef.current = true;
-      const reward = towerCoins(blocksPlacedRef.current, perfectsRef.current);
-      if (reward > 0) { addCoins(reward, 'gameplay'); pendingRewardRef.current = reward; }
-    }
+    void creditReward();
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setPendingReward(pendingRewardRef.current);
     setGameOver(true);
-  }, [addCoins]);
+  }, [creditReward]);
 
   const dropBlock = useCallback(() => {
     const moving = movingRef.current;

@@ -6,3 +6,7 @@ verify_jwt = false
 
 [functions.validate-vip]
 verify_jwt = false
+
+[functions.arcade-credit]
+verify_jwt = false
+

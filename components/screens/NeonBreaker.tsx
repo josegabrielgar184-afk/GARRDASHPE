@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
 import { ArrowLeft, Pause, Play, RotateCcw, Trophy } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { neonBreakerCoins } from '@/lib/arcade-rewards';
+import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
 import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 
 const W = 360;
@@ -138,6 +138,7 @@ export function NeonBreaker() {
   const levelsClearedRef = useRef(0);
   const rewardCreditedRef = useRef(false);
   const pendingRewardRef = useRef(0);
+  const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
@@ -217,6 +218,7 @@ export function NeonBreaker() {
     levelsClearedRef.current = 0;
     rewardCreditedRef.current = false;
     pendingRewardRef.current = 0;
+    sessionIdRef.current = newSessionId();
     setPendingReward(0);
     continueUsedRef.current = false;
     setScore(0);
@@ -278,24 +280,35 @@ export function NeonBreaker() {
     }
   };
 
+  // Recompensa por progreso: el servidor calcula y acredita el monto (una vez por partida)
+  const creditReward = useCallback(async () => {
+    if (rewardCreditedRef.current) return;
+    rewardCreditedRef.current = true;
+    const result = await requestArcadeCredit('neonbreaker', sessionIdRef.current, {
+      blocks_destroyed: blocksDestroyedRef.current,
+      levels_cleared: levelsClearedRef.current,
+      max_level: levelRef.current,
+    });
+    if (result.credited > 0) {
+      addCoins(result.credited, 'gameplay');
+      pendingRewardRef.current = result.credited;
+      setPendingReward(result.credited);
+    }
+  }, [addCoins]);
+
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;
     gameOverRef.current = true;
     stopGameMusic();
     playGameOver();
-    // Recompensa por progreso: una sola vez por partida (bloques + niveles)
-    if (!rewardCreditedRef.current) {
-      rewardCreditedRef.current = true;
-      const reward = neonBreakerCoins(blocksDestroyedRef.current, levelsClearedRef.current, levelRef.current);
-      if (reward > 0) { addCoins(reward, 'gameplay'); pendingRewardRef.current = reward; }
-    }
+    void creditReward();
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setGameOver(true);
     setRunning(false);
     runningRef.current = false;
     setPendingReward(pendingRewardRef.current);
-  }, [addCoins]);
+  }, [creditReward]);
 
   const triggerVictory = useCallback(() => {
     gameOverRef.current = true;
@@ -303,11 +316,7 @@ export function NeonBreaker() {
     playVictory();
     scoreRef.current += 1000;
     setScore(scoreRef.current);
-    if (!rewardCreditedRef.current) {
-      rewardCreditedRef.current = true;
-      const reward = neonBreakerCoins(blocksDestroyedRef.current, levelsClearedRef.current, levelRef.current);
-      if (reward > 0) { addCoins(reward, 'gameplay'); pendingRewardRef.current = reward; }
-    }
+    void creditReward();
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setVictory(true);
@@ -315,7 +324,7 @@ export function NeonBreaker() {
     setRunning(false);
     runningRef.current = false;
     setPendingReward(pendingRewardRef.current);
-  }, [addCoins]);
+  }, [creditReward]);
 
   // ── Bucle principal ──
   useEffect(() => {
