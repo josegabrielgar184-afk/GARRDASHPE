@@ -307,7 +307,7 @@ export function isMusicPlaying() {
 }
 
 // ── Musica de fondo por minijuego (procedural, sin archivos ni dependencias) ──
-type MusicTrack = 'garrfly' | 'maze' | 'zrunner' | 'garrblade' | 'canicas';
+type MusicTrack = 'garrfly' | 'maze' | 'zrunner' | 'garrblade' | 'canicas' | 'neonbreaker' | 'tower';
 
 interface TrackDef {
   stepMs: number;
@@ -351,6 +351,19 @@ const TRACKS: Record<MusicTrack, TrackDef> = {
     stepMs: 260, leadWave: 'square', volume: 0.08,
     bass: [130.81, 130.81, 174.61, 130.81, 155.56, 155.56, 196, 174.61],
     lead: [523.25, 659.25, 783.99, 659.25, 622.25, 698.46, 783.99, 659.25],
+  },
+  // Rompebloques: energico, con percusion marcada
+  neonbreaker: {
+    stepMs: 220, leadWave: 'square', volume: 0.07,
+    bass: [82.41, 82.41, 110, 82.41, 98, 98, 123.47, 110],
+    lead: [329.63, 415.3, 493.88, 415.3, 440, 493.88, 587.33, 493.88],
+    drums: [1, 0, 0.7, 0.4, 1, 0, 0.7, 0.4],
+  },
+  // Torre Perfecta: sereno, concentracion
+  tower: {
+    stepMs: 300, leadWave: 'sine', volume: 0.06,
+    bass: [87.31, 0, 98, 0, 87.31, 0, 110, 98],
+    lead: [349.23, 440, 0, 440, 392, 0, 440, 349.23],
   },
 };
 

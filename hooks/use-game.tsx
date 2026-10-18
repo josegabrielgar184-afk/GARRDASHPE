@@ -69,6 +69,8 @@ export type Screen =
   | 'zrunner'
   | 'garrblade'
   | 'canicas'
+  | 'neonbreaker'
+  | 'tower'
   | 'creator';
 
 export interface UpgradeState {

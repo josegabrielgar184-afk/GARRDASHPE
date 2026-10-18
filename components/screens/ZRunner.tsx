@@ -434,11 +434,19 @@ export function ZRunner() {
       </div>
 
       {!gameStarted && !gameOver && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-[#00f3ff] font-black text-lg animate-bounce tracking-widest">
-            ¡ESQUIVA Y RECOGE MONEDAS!
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 pointer-events-none px-6">
+          <p className="text-[#00f3ff] font-black text-xl animate-pulse tracking-widest text-center" style={{ textShadow: '0 0 18px rgba(0,243,255,0.7)' }}>
+            Z-RUNNER
           </p>
-          <p className="text-white/50 text-xs mt-1">Desliza para moverte y saltar</p>
+          <div className="px-5 py-3 rounded-2xl bg-black/70 border border-[#00f3ff]/30 text-center backdrop-blur-sm">
+            <p className="text-white/90 font-bold text-xs mb-1">Desliza o usa los botones</p>
+            <div className="flex items-center justify-center gap-3 mt-1.5">
+              <span className="flex items-center gap-1 text-[10px] text-white/60"><span className="w-2.5 h-2.5 rounded-sm bg-red-500 shadow-[0_0_6px_#ef4444]" /> Zombi: esquiva</span>
+              <span className="flex items-center gap-1 text-[10px] text-white/60"><span className="w-2.5 h-2.5 rounded-full bg-[#ffb700] shadow-[0_0_6px_#ffb700]" /> Moneda: recoge</span>
+              <span className="flex items-center gap-1 text-[10px] text-white/60"><span className="w-6 h-1 rounded bg-[#00f3ff] shadow-[0_0_6px_#00f3ff]" /> Láser: salta</span>
+            </div>
+          </div>
+          <p className="text-[#ffb700] font-black text-xs tracking-widest animate-bounce">TOCA PARA EMPEZAR</p>
         </div>
       )}
 

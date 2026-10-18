@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { ArcadeControlBtn, ControlSettingsButton } from '@/components/game/ArcadeControlBtn';
+import { ArcadeDPad } from '@/components/game/ArcadeDPad';
 import { ControlEditorModal } from '@/components/screens/MenuScreen';
 import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move } from 'lucide-react';
@@ -368,11 +369,16 @@ export function GarrFly() {
       </div>
 
       {!gameStarted && !gameOver && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-[#00f3ff] font-black text-lg animate-bounce tracking-widest">
-            ¡DESLIZA O USA LOS BOTONES!
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 pointer-events-none px-6">
+          <p className="text-[#00f3ff] font-black text-xl animate-pulse tracking-widest text-center" style={{ textShadow: '0 0 18px rgba(0,243,255,0.7)' }}>
+            CULEBRITA NEÓN
           </p>
-          <p className="text-white/50 text-xs mt-1">Come monedas neón para crecer</p>
+          <div className="px-5 py-3 rounded-2xl bg-black/70 border border-[#00f3ff]/30 text-center backdrop-blur-sm">
+            <p className="text-white/90 font-bold text-xs mb-1">Desliza o usa la cruceta</p>
+            <p className="text-white/45 text-[11px]">Come monedas doradas para crecer y sumar</p>
+            <p className="text-white/45 text-[11px]">Evita chocar con las paredes y tu cola</p>
+          </div>
+          <p className="text-[#ffb700] font-black text-xs tracking-widest animate-bounce">TOCA PARA EMPEZAR</p>
         </div>
       )}
 
@@ -390,10 +396,12 @@ export function GarrFly() {
       </div>
 
       <div className="flex-1 relative">
-        <ArcadeControlBtn layout={ctrlLayouts.up} icon="up" onClick={() => changeDirection('UP')} />
-        <ArcadeControlBtn layout={ctrlLayouts.left} icon="left" onClick={() => changeDirection('LEFT')} />
-        <ArcadeControlBtn layout={ctrlLayouts.down} icon="down" onClick={() => changeDirection('DOWN')} />
-        <ArcadeControlBtn layout={ctrlLayouts.right} icon="right" onClick={() => changeDirection('RIGHT')} />
+        <ArcadeDPad
+          onUp={() => changeDirection('UP')}
+          onDown={() => changeDirection('DOWN')}
+          onLeft={() => changeDirection('LEFT')}
+          onRight={() => changeDirection('RIGHT')}
+        />
       </div>
 
       <GameOverModal

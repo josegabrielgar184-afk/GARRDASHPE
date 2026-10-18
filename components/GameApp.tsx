@@ -26,6 +26,8 @@ import { GarrFly } from '@/components/screens/GarrFly';
 import { ZRunner } from '@/components/screens/ZRunner';
 import { GarrBlade } from '@/components/screens/GarrBlade';
 import { CanicasExplosivas } from '@/components/screens/CanicasExplosivas';
+import { NeonBreaker } from '@/components/screens/NeonBreaker';
+import { TowerPerfecta } from '@/components/screens/TowerPerfecta';
 import { CreatorsScreen } from '@/components/screens/CreatorsScreen';
 import { AdBanner } from '@/components/game/AdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
@@ -36,10 +38,10 @@ import { AdMob } from '@capacitor-community/admob';
 // AQUI ESTA LA RUTA CORREGIDA APUNTANDO A SCREENS:
 import { VersionChecker } from '@/components/screens/VersionChecker';
 
-const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas'];
+const GAMEPLAY_SCREENS = ['space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas', 'neonbreaker', 'tower'];
 const MENU_SCREENS = ['menu', 'login', 'intro', 'mode-select', 'campaign', 'shop', 'canjes', 'roulette', 'characters', 'ranking', 'offerwall', 'admin', 'operator', 'influencer', 'arcade', 'creator'];
 const INTERSTITIAL_INTERVAL_MS = 5 * 60 * 1000;
-const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas'];
+const CAMPAIGN_SCREENS = ['campaign', 'space-game', 'zombie-game', 'survival', 'neon-maze', 'garrfly', 'zrunner', 'garrblade', 'canicas', 'neonbreaker', 'tower'];
 
 function GameRouter() {
   const { screen } = useGame();
@@ -91,6 +93,10 @@ function GameRouter() {
       return <GarrBlade />;
     case 'canicas':
       return <CanicasExplosivas />;
+    case 'neonbreaker':
+      return <NeonBreaker />;
+    case 'tower':
+      return <TowerPerfecta />;
     case 'creator':
       return <CreatorsScreen />;
     default:
