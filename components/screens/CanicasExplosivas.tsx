@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap } from 'lucide-react';
+import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap, Volume2, VolumeX } from 'lucide-react';
 
 const W = 360;
 const H = 480;
@@ -82,6 +82,99 @@ function pointAt(dist: number): { x: number; y: number } {
 
 const HOLE = pointAt(PATH_LEN);
 
+// Retroceso de la cadena al explotar (en pixeles de trayectoria)
+const RECOIL_BASE = 15;
+const RECOIL_BIG = 23;
+const RECOIL_COMBO = 8;
+const RECOIL_CAP = 60;
+const RECOIL_RATE = 200;
+
+// Sonidos generados con Web Audio API: sin archivos externos ni dependencias
+class Sfx {
+  private ctx: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private active = 0;
+  private lastCoinAt = 0;
+  enabled = true;
+
+  unlock() {
+    if (typeof window === 'undefined') return;
+    if (!this.ctx) {
+      const Ctor = window.AudioContext
+        ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      try {
+        this.ctx = new Ctor();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.32;
+        this.master.connect(this.ctx.destination);
+      } catch {
+        this.ctx = null;
+        this.master = null;
+      }
+      return;
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+  }
+
+  private tone(freqStart: number, freqEnd: number, dur: number, type: OscillatorType, vol: number, delay = 0) {
+    if (!this.ctx || !this.master || !this.enabled || this.active > 12) return;
+    const t0 = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(Math.max(1, freqStart), t0);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t0 + dur);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain);
+    gain.connect(this.master);
+    this.active++;
+    osc.onended = () => { this.active--; };
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.05);
+  }
+
+  shoot() { this.tone(480, 170, 0.08, 'square', 0.2); }
+  explode() {
+    this.tone(320, 70, 0.22, 'triangle', 0.5);
+    this.tone(900, 1500, 0.1, 'sine', 0.16);
+  }
+  explodeBig() {
+    this.tone(260, 48, 0.34, 'triangle', 0.6);
+    this.tone(700, 1600, 0.16, 'sine', 0.22);
+    this.tone(150, 40, 0.3, 'sawtooth', 0.18);
+  }
+  combo() {
+    this.tone(520, 520, 0.07, 'square', 0.22, 0);
+    this.tone(660, 660, 0.07, 'square', 0.22, 0.07);
+    this.tone(880, 880, 0.11, 'square', 0.24, 0.14);
+  }
+  alert() {
+    this.tone(620, 620, 0.09, 'sine', 0.28, 0);
+    this.tone(620, 620, 0.09, 'sine', 0.28, 0.14);
+  }
+  win() {
+    this.tone(523, 523, 0.12, 'sine', 0.38, 0);
+    this.tone(659, 659, 0.12, 'sine', 0.38, 0.11);
+    this.tone(784, 784, 0.12, 'sine', 0.38, 0.22);
+    this.tone(1047, 1047, 0.22, 'sine', 0.42, 0.33);
+  }
+  lose() {
+    this.tone(392, 392, 0.16, 'triangle', 0.38, 0);
+    this.tone(311, 311, 0.16, 'triangle', 0.38, 0.15);
+    this.tone(233, 110, 0.34, 'triangle', 0.42, 0.3);
+  }
+  coin() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    if (t - this.lastCoinAt < 0.07) return;
+    this.lastCoinAt = t;
+    this.tone(1250, 1600, 0.07, 'sine', 0.14);
+  }
+}
+
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
 function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
   ctx.fillStyle = color;
@@ -115,6 +208,12 @@ export function CanicasExplosivas() {
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
   const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number } | null>(null);
+  const [soundOn, setSoundOn] = useState(true);
+
+  const sfx = useCallback(() => {
+    if (!sfxRef.current) sfxRef.current = new Sfx();
+    return sfxRef.current;
+  }, []);
 
   const marblesRef = useRef<Marble[]>([]);
   const shotRef = useRef<Shot | null>(null);
@@ -130,6 +229,9 @@ export function CanicasExplosivas() {
   const explosionsRef = useRef(0);
   const elapsedRef = useRef(0);
   const spawnTimerRef = useRef(0);
+  const recoilRef = useRef(0);
+  const lastDiffRef = useRef('FACIL');
+  const sfxRef = useRef<Sfx | null>(null);
 
   const setGameStatus = useCallback((s: Status) => {
     statusRef.current = s;
@@ -159,6 +261,8 @@ export function CanicasExplosivas() {
     explosionsRef.current = 0;
     elapsedRef.current = 0;
     spawnTimerRef.current = 0;
+    recoilRef.current = 0;
+    lastDiffRef.current = 'FACIL';
     setScore(0);
     setEndStats(null);
     setGameStatus('ready');
@@ -214,6 +318,11 @@ export function CanicasExplosivas() {
               }
             }
             if (n > 0) wavesRef.current.push({ x: cx / n, y: cy / n, r: MARBLE_R, life: 1 });
+            let recoil = run >= 5 ? RECOIL_BIG : RECOIL_BASE;
+            if (groups > 1) recoil += RECOIL_COMBO;
+            recoilRef.current = Math.min(RECOIL_CAP, recoilRef.current + recoil);
+            if (run >= 5) sfx().explodeBig(); else sfx().explode();
+            sfx().coin();
             found = true;
           } else {
             i = j + 1;
@@ -221,6 +330,7 @@ export function CanicasExplosivas() {
         }
       }
       if (groups > 0) setScore(scoreRef.current);
+      if (groups > 1) sfx().combo();
       return groups;
     };
 
@@ -239,11 +349,17 @@ export function CanicasExplosivas() {
             score: scoreRef.current,
           });
           setGameStatus('lost');
+          sfx().lose();
           return;
         }
         for (let i = 1; i < marbles.length; i++) {
           const desired = marbles[i - 1].dist - SPACING;
           marbles[i].dist += (desired - marbles[i].dist) * Math.min(1, dt * 8);
+        }
+        if (recoilRef.current > 0) {
+          const step = Math.min(recoilRef.current, RECOIL_RATE * dt);
+          marbles[0].dist = Math.max(0, marbles[0].dist - step);
+          recoilRef.current -= step;
         }
         spawnTimerRef.current += dt;
         if (spawnTimerRef.current >= diff.spawnEvery) {
@@ -292,6 +408,7 @@ export function CanicasExplosivas() {
           score: scoreRef.current,
         });
         setGameStatus('won');
+        sfx().win();
         return;
       }
 
@@ -414,6 +531,10 @@ export function CanicasExplosivas() {
         progressRef.current.style.width = `${pct}%`;
       }
       const diff = difficultyAt(elapsedRef.current);
+      if (diff.label !== lastDiffRef.current) {
+        lastDiffRef.current = diff.label;
+        if (statusRef.current === 'playing') sfx().alert();
+      }
       if (timeHudRef.current) timeHudRef.current.textContent = fmtTime(elapsedRef.current);
       if (diffHudRef.current) diffHudRef.current.textContent = diff.label;
       if (coinsHudRef.current) coinsHudRef.current.textContent = String(coinsRef.current);
@@ -423,7 +544,7 @@ export function CanicasExplosivas() {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [setGameStatus]);
+  }, [setGameStatus, sfx]);
 
   const toCanvas = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
@@ -436,6 +557,7 @@ export function CanicasExplosivas() {
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    sfx().unlock();
     if (statusRef.current !== 'playing' || shotRef.current) return;
     aimingRef.current = true;
     const p = toCanvas(e.clientX, e.clientY);
@@ -460,6 +582,7 @@ export function CanicasExplosivas() {
       vy: Math.sin(a) * SHOT_SPEED,
       color: currentColorRef.current,
     };
+    sfx().shoot();
     currentColorRef.current = nextColorRef.current;
     nextColorRef.current = Math.floor(Math.random() * difficultyAt(elapsedRef.current).nColors);
   };
@@ -472,8 +595,16 @@ export function CanicasExplosivas() {
   };
 
   const handleRestart = () => {
+    sfx().unlock();
     initGame();
     setGameStatus('playing');
+  };
+
+  const toggleSound = () => {
+    const nv = !soundOn;
+    setSoundOn(nv);
+    if (sfxRef.current) sfxRef.current.enabled = nv;
+    if (nv) sfx().unlock();
   };
 
   const actionBtn =
@@ -514,6 +645,13 @@ export function CanicasExplosivas() {
             <Zap className="w-3.5 h-3.5 text-[#00e5ff]" />
             <span ref={explHudRef} className="text-[#00e5ff] text-xs font-bold">0</span>
           </span>
+          <button
+            onClick={toggleSound}
+            className="px-2.5 py-1.5 rounded-full bg-black/60 border border-white/20 active:scale-95"
+            aria-label="Sonido"
+          >
+            {soundOn ? <Volume2 className="w-4 h-4 text-[#39ff88]" /> : <VolumeX className="w-4 h-4 text-white/40" />}
+          </button>
           {status === 'playing' && (
             <button
               onClick={handlePause}
@@ -569,7 +707,7 @@ export function CanicasExplosivas() {
             La cadena acelera con el tiempo: Facil → Normal → Dificil → Experto
           </p>
           <button
-            onClick={() => setGameStatus('playing')}
+            onClick={() => { sfx().unlock(); setGameStatus('playing'); }}
             className={`${actionBtn} mt-6 bg-gradient-to-r from-[#ff2d95] to-[#ffb700] text-black`}
           >
             EMPEZAR
