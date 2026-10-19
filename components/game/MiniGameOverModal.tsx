@@ -24,13 +24,16 @@ interface MiniGameOverModalProps {
   // Recompensa de monedas acreditada por el servidor.
   rewardStatus?: 'idle' | 'loading' | 'credited' | 'pending' | 'failed' | 'none';
   rewardAmount?: number;
+  // Cierto cuando el tope diario redujo (no bloqueo) la recompensa.
+  rewardCapped?: boolean;
+  capLimit?: number;
 }
 
 export function MiniGameOverModal({
   open, score, highScore, gamesPlayed, durationSec,
   onRestart, onExit, canContinue, onContinue,
   continueText = 'Ver anuncio para continuar', userRole = 'user', vip = false,
-  rewardStatus = 'idle', rewardAmount = 0,
+  rewardStatus = 'idle', rewardAmount = 0, rewardCapped = false, capLimit,
 }: MiniGameOverModalProps) {
   const [showAd, setShowAd] = useState(false);
   const [continueUsed, setContinueUsed] = useState(false);
@@ -78,31 +81,38 @@ export function MiniGameOverModal({
         </div>
 
         {rewardStatus !== 'idle' && (
-          <div className={`mb-4 rounded-2xl border p-3 flex items-center justify-center gap-2 ${
-            rewardStatus === 'credited' ? 'bg-green-500/10 border-green-500/40'
-            : rewardStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/40'
-            : rewardStatus === 'failed' ? 'bg-red-500/10 border-red-500/40'
-            : rewardStatus === 'loading' ? 'bg-white/5 border-white/10'
-            : 'bg-white/5 border-white/10'
-          }`}>
-            <Coins className={`w-4 h-4 ${
-              rewardStatus === 'credited' ? 'text-green-400'
-              : rewardStatus === 'pending' ? 'text-amber-400'
-              : rewardStatus === 'failed' ? 'text-red-400'
-              : 'text-white/50'
-            }`} />
-            <span className={`text-sm font-black ${
-              rewardStatus === 'credited' ? 'text-green-400'
-              : rewardStatus === 'pending' ? 'text-amber-400'
-              : rewardStatus === 'failed' ? 'text-red-400'
-              : 'text-white/60'
+          <div className="mb-4">
+            <div className={`rounded-2xl border p-3 flex items-center justify-center gap-2 ${
+              rewardStatus === 'credited' ? 'bg-green-500/10 border-green-500/40'
+              : rewardStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/40'
+              : rewardStatus === 'failed' ? 'bg-red-500/10 border-red-500/40'
+              : rewardStatus === 'loading' ? 'bg-white/5 border-white/10'
+              : 'bg-white/5 border-white/10'
             }`}>
-              {rewardStatus === 'loading' && 'Calculando recompensa...'}
-              {rewardStatus === 'credited' && `+${rewardAmount} monedas acreditadas`}
-              {rewardStatus === 'pending' && `${rewardAmount} monedas pendientes`}
-              {rewardStatus === 'failed' && 'No se pudo acreditar la recompensa'}
-              {rewardStatus === 'none' && 'Sin recompensa esta partida'}
-            </span>
+              <Coins className={`w-4 h-4 ${
+                rewardStatus === 'credited' ? 'text-green-400'
+                : rewardStatus === 'pending' ? 'text-amber-400'
+                : rewardStatus === 'failed' ? 'text-red-400'
+                : 'text-white/50'
+              }`} />
+              <span className={`text-sm font-black ${
+                rewardStatus === 'credited' ? 'text-green-400'
+                : rewardStatus === 'pending' ? 'text-amber-400'
+                : rewardStatus === 'failed' ? 'text-red-400'
+                : 'text-white/60'
+              }`}>
+                {rewardStatus === 'loading' && 'Calculando recompensa...'}
+                {rewardStatus === 'credited' && `+${rewardAmount} monedas acreditadas`}
+                {rewardStatus === 'pending' && `${rewardAmount} monedas pendientes`}
+                {rewardStatus === 'failed' && 'No se pudo acreditar la recompensa'}
+                {rewardStatus === 'none' && 'Sin recompensa esta partida'}
+              </span>
+            </div>
+            {rewardCapped && capLimit && (
+              <p className="text-amber-400/80 text-[10px] mt-1.5">
+                Tope diario alcanzado ({capLimit}/juego). La recompensa se redujo al cupo restante.
+              </p>
+            )}
           </div>
         )}
 

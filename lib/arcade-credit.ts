@@ -11,6 +11,7 @@ export interface CreditResult {
   credited: number;
   duplicate?: boolean;
   capped?: boolean;
+  cap_limit?: number;
   firestore_credited?: boolean;
 }
 
@@ -43,6 +44,7 @@ export async function requestArcadeCredit(
         credited: data.credited,
         duplicate: data.duplicate === true,
         capped: data.capped === true,
+        cap_limit: typeof data.cap_limit === 'number' ? data.cap_limit : undefined,
         firestore_credited: data.firestore_credited === true,
       };
     }
@@ -68,12 +70,9 @@ export function estimateNeonBreakerCoins(blocksDestroyed: number, levelsCleared:
   return Math.min(cap, blockCoins + levelCoins);
 }
 
-export function estimateTowerCoins(blocksPlaced: number, perfects: number): number {
+export function estimateTowerCoins(blocksPlaced: number): number {
   if (blocksPlaced <= 0) return 0;
-  const base = Math.floor(blocksPlaced / 2);
-  const perfectBonus = perfects * 2;
-  const diminishing = blocksPlaced > 40 ? Math.floor((blocksPlaced - 40) / 4) : 0;
-  return Math.min(60, base + perfectBonus + diminishing);
+  return Math.floor(blocksPlaced / 2);
 }
 
 export function estimateCanicasCoins(explosions: number): number {

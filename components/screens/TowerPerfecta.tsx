@@ -63,6 +63,7 @@ export function TowerPerfecta() {
   const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
   const [rewardStatus, setRewardStatus] = useState<RewardStatus>('idle');
   const [liveCoins, setLiveCoins] = useState(0);
+  const [rewardCapped, setRewardCapped] = useState(false);
   const stabilizeUsedRef = useRef(false);
   const gameOverRef = useRef(false);
   const pausedRef = useRef(false);
@@ -112,6 +113,7 @@ export function TowerPerfecta() {
     setRewardStatus('idle');
     setRewardCreditedFs(false);
     setLiveCoins(0);
+    setRewardCapped(false);
     stabilizeUsedRef.current = false;
     continueUsedRef.current = false;
     gameOverRef.current = false;
@@ -174,8 +176,12 @@ export function TowerPerfecta() {
       setPendingReward(result.credited);
       setRewardCreditedFs(result.firestore_credited === true);
       setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
-    } else if (result.duplicate || result.capped) {
+      setRewardCapped(result.capped === true);
+    } else if (result.duplicate) {
       setRewardStatus('none');
+    } else if (result.capped) {
+      setRewardStatus('none');
+      setRewardCapped(true);
     } else {
       setRewardStatus('failed');
     }
@@ -257,7 +263,7 @@ export function TowerPerfecta() {
 
     setScore(scoreRef.current);
     setHeightBlocks(towerRef.current.length - 1);
-    setLiveCoins(estimateTowerCoins(blocksPlacedRef.current, perfectsRef.current));
+    setLiveCoins(estimateTowerCoins(blocksPlacedRef.current));
     // Intensidad musical y ciudad segun altura real de la torre
     setGameMusicIntensity(Math.min(1, towerRef.current.length / 40));
 
@@ -609,6 +615,8 @@ export function TowerPerfecta() {
         vip={vip}
         rewardStatus={rewardStatus}
         rewardAmount={pendingReward}
+        rewardCapped={rewardCapped}
+        capLimit={150}
       />
     </div>
   );

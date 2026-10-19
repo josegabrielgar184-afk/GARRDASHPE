@@ -210,7 +210,7 @@ export function CanicasExplosivas() {
 
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
-  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; firestoreCredited?: boolean; rewardStatus?: RewardStatus } | null>(null);
+  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; firestoreCredited?: boolean; rewardStatus?: RewardStatus; capped?: boolean } | null>(null);
   const [soundOn, setSoundOn] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('canicas_sfx') !== '0';
@@ -649,9 +649,11 @@ export function CanicasExplosivas() {
     });
     if (result.credited > 0) {
       const fsCredited = result.firestore_credited === true;
-      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: fsCredited ? 'credited' : 'pending' } : prev));
-    } else if (result.duplicate || result.capped) {
+      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: fsCredited ? 'credited' : 'pending', capped: result.capped === true } : prev));
+    } else if (result.duplicate) {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none' } : prev));
+    } else if (result.capped) {
+      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none', capped: true } : prev));
     } else {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'failed' } : prev));
     }
@@ -890,6 +892,11 @@ export function CanicasExplosivas() {
             {endStats?.rewardStatus === 'none' && 'Sin recompensa esta partida (partida duplicada o tope diario alcanzado).'}
             {endStats?.rewardStatus === undefined && 'Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.'}
           </p>
+          {endStats?.capped && (
+            <p className="text-amber-400/80 text-[10px] mt-1 max-w-60">
+              Tope diario alcanzado (150/juego). La recompensa se redujo al cupo restante.
+            </p>
+          )}
 
           <div className="flex flex-col gap-3 mt-5 w-52">
             <button onClick={handleRestart} className={`${actionBtn} bg-gradient-to-r from-[#ff2d95] to-[#ffb700] text-black flex items-center justify-center gap-2`}>

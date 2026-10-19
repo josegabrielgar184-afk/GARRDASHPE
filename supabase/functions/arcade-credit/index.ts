@@ -21,12 +21,12 @@ function neonBreakerCoins(blocksDestroyed: number, levelsCleared: number, maxLev
   return Math.min(cap, blockCoins + levelCoins);
 }
 
-function towerCoins(blocksPlaced: number, perfects: number): number {
+// Torre Perfecta: 1 moneda por cada 2 bloques colocados correctamente.
+// Los perfectos ya cuentan como bloques colocados (incluidos en blocksPlaced),
+// por lo que no suman bonus aparte. El tope diario protege contra abuso.
+function towerCoins(blocksPlaced: number): number {
   if (blocksPlaced <= 0) return 0;
-  const base = Math.floor(blocksPlaced / 2);
-  const perfectBonus = perfects * 2;
-  const diminishing = blocksPlaced > 40 ? Math.floor((blocksPlaced - 40) / 4) : 0;
-  return Math.min(60, base + perfectBonus + diminishing);
+  return Math.floor(blocksPlaced / 2);
 }
 
 // Canicas: 1 moneda por explosion valida, tope por partida de 20.
@@ -46,6 +46,7 @@ function clampInt(v: unknown, max: number): number {
 let firebaseApp: any = null;
 let firestore: any = null;
 let adminAvailable = false;
+let adminInitError: string | null = null;
 try {
   const saJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON");
   if (saJson) {
@@ -56,9 +57,12 @@ try {
     }, "arcade-credit");
     firestore = admin.getFirestore(firebaseApp);
     adminAvailable = true;
+  } else {
+    adminInitError = "FIREBASE_SERVICE_ACCOUNT_JSON not set";
   }
-} catch {
+} catch (e) {
   adminAvailable = false;
+  adminInitError = String(e);
 }
 
 Deno.serve(async (req: Request) => {
@@ -126,9 +130,8 @@ Deno.serve(async (req: Request) => {
       amount = neonBreakerCoins(blocks, levels, maxLevel);
     } else if (game === "tower") {
       const placed = clampInt(body?.metrics?.blocks_placed, 200);
-      const perfects = clampInt(body?.metrics?.perfects, 200);
-      metrics = { blocks_placed: placed, perfects };
-      amount = towerCoins(placed, perfects);
+      metrics = { blocks_placed: placed };
+      amount = towerCoins(placed);
     } else {
       const explosions = clampInt(body?.metrics?.explosions, 60);
       metrics = { explosions };
@@ -197,16 +200,19 @@ Deno.serve(async (req: Request) => {
     const capJson = await capRes.json();
     const creditedToday = typeof capJson === "number" ? capJson : 0;
     if (creditedToday >= DAILY_CAP_PER_GAME) {
-      return new Response(JSON.stringify({ ok: true, credited: 0, capped: true }), {
+      return new Response(JSON.stringify({ ok: true, credited: 0, capped: true, cap_limit: DAILY_CAP_PER_GAME }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const originalAmount = amount;
     amount = Math.min(amount, DAILY_CAP_PER_GAME - creditedToday);
+    const cappedReduced = amount < originalAmount;
 
     // Si Firebase Admin esta disponible, hace el abono atómico en Firestore:
     // registro idempotente + incremento de saldo en una transaccion.
     let firestoreCredited = false;
+    let firestoreError: string | null = null;
     if (adminAvailable && firestore) {
       try {
         const userRef = firestore.doc(`usuarios/${uid}`);
@@ -215,13 +221,24 @@ Deno.serve(async (req: Request) => {
           const logSnap = await tx.get(logRef);
           if (logSnap.exists) return;
           const userSnap = await tx.get(userRef);
-          if (!userSnap.exists) throw new Error("user_not_found");
-          const currentCoins = userSnap.data()?.coins ?? 0;
-          tx.update(userRef, {
-            coins: currentCoins + amount,
-            coins_from_gameplay: (userSnap.data()?.coins_from_gameplay ?? 0) + amount,
-            lastActive: new Date(),
-          });
+          // Si el documento del usuario no existe todavia en Firestore (p.ej.
+          // verificacionYCrearUsuario fallo o se skipeo), lo creamos con el
+          // saldo inicial en vez de abortar la acreditacion.
+          if (!userSnap.exists) {
+            tx.set(userRef, {
+              uid,
+              coins: 200 + amount,
+              coins_from_gameplay: amount,
+              lastActive: new Date(),
+            });
+          } else {
+            const currentCoins = userSnap.data()?.coins ?? 0;
+            tx.update(userRef, {
+              coins: currentCoins + amount,
+              coins_from_gameplay: (userSnap.data()?.coins_from_gameplay ?? 0) + amount,
+              lastActive: new Date(),
+            });
+          }
           tx.set(logRef, {
             uid,
             game,
@@ -232,9 +249,12 @@ Deno.serve(async (req: Request) => {
           });
         });
         firestoreCredited = true;
-      } catch {
+      } catch (e) {
         firestoreCredited = false;
+        firestoreError = String(e);
       }
+    } else {
+      firestoreError = adminInitError || "admin SDK not available";
     }
 
     // Escribe el registro idempotente en Supabase (ledger + conciliacion).
@@ -273,6 +293,9 @@ Deno.serve(async (req: Request) => {
       ok: true,
       credited: amount,
       firestore_credited: firestoreCredited,
+      capped: cappedReduced,
+      cap_limit: cappedReduced ? DAILY_CAP_PER_GAME : undefined,
+      firestore_error: firestoreError || undefined,
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

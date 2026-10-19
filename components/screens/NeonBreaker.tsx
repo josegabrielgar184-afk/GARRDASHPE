@@ -144,6 +144,7 @@ export function NeonBreaker() {
   const [pendingReward, setPendingReward] = useState(0);
   const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
   const [rewardStatus, setRewardStatus] = useState<RewardStatus>('idle');
+  const [rewardCapped, setRewardCapped] = useState(false);
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -225,6 +226,7 @@ export function NeonBreaker() {
     sessionIdRef.current = newSessionId();
     setPendingReward(0);
     setRewardStatus('idle');
+    setRewardCapped(false);
     setRewardCreditedFs(false);
     continueUsedRef.current = false;
     setScore(0);
@@ -304,8 +306,12 @@ export function NeonBreaker() {
       rewardCreditedFsRef.current = result.firestore_credited === true;
       setRewardCreditedFs(result.firestore_credited === true);
       setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
-    } else if (result.duplicate || result.capped) {
+      setRewardCapped(result.capped === true);
+    } else if (result.duplicate) {
       setRewardStatus('none');
+    } else if (result.capped) {
+      setRewardStatus('none');
+      setRewardCapped(true);
     } else {
       setRewardStatus('failed');
     }
@@ -842,6 +848,8 @@ export function NeonBreaker() {
         vip={vip}
         rewardStatus={rewardStatus}
         rewardAmount={pendingReward}
+        rewardCapped={rewardCapped}
+        capLimit={150}
       />
     </div>
   );
