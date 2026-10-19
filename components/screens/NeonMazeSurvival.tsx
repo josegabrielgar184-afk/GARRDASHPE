@@ -10,6 +10,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, Zap, Heart, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { recordMissionProgress } from '@/lib/missions';
 import { playCoin, playPickup, playHit, playGameOver, startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const COLS = 15;
@@ -150,6 +151,7 @@ export function NeonMazeSurvival() {
       }
       addCoinsToSession(coinsRef.current, 0);
       finishGameSession(scoreRef.current, true);
+      void recordMissionProgress('neon-maze', scoreRef.current);
       creditMonthlyScore('neonline', `nm-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current }, scoreRef.current);
     }
   };

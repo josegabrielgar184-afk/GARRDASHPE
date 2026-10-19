@@ -27,6 +27,7 @@ import { loadControlLayouts, type ControlLayout } from '@/lib/control-layout';
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playGameOver, initAudio } from '@/lib/audio';
 import { getRewardedAdId } from '@/lib/config';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { recordMissionProgress } from '@/lib/missions';
 
 interface Meteor { x: number; y: number; vx: number; vy: number; size: number; rot: number; rotVel: number; hp: number; maxHp: number; active: boolean; reset(): void; }
 interface EnemyShip { x: number; y: number; vx: number; vy: number; angle: number; hp: number; maxHp: number; size: number; shootTimer: number; oscillation: number; active: boolean; reset(): void; }
@@ -389,6 +390,7 @@ export function SpaceGameScreen() {
       flushPlayTime();
       addCoinsToSession(gameCoinsRef.current, 0);
       finishGameSession(Math.floor(scoreRef.current), true);
+      void recordMissionProgress('space-game', Math.floor(scoreRef.current));
       hapticPattern([100, 50, 200]);
       if (!vip && canShowInterstitial()) { setShowInterstitial(true); recordInterstitial(); }
     }

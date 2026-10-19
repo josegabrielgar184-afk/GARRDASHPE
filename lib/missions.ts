@@ -21,21 +21,21 @@ export interface MissionDef {
 }
 
 export const WEEKLY_MISSION: MissionDef = {
-  id: 'survive_60s_all',
-  label: 'Supervivencia semanal',
-  description: 'Alcanza el objetivo en cada modo compatible y reclama 100 monedas',
+  id: 'weekly_all_modes',
+  label: 'Desafío semanal',
+  description: 'Alcanza el puntaje objetivo en cada modo y reclama 100 monedas',
   reward: 100,
   goals: {
-    'space-game': 60,
-    'zombie-game': 60,
+    'space-game': 600,
+    'zombie-game': 50,
     'survival': 60,
-    'neon-maze': 60,
+    'neon-maze': 200,
     'garrfly': 30,
     'neonbreaker': 200,
     'tower': 20,
     'canicas': 10,
   },
-  goalUnit: 's',
+  goalUnit: 'pts',
 };
 
 export interface MissionProgress {

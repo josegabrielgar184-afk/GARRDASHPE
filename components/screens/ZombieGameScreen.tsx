@@ -28,6 +28,7 @@ function randomCoinCap(level: number): number {
 }
 import { playShoot, playExplosion, playBossAlert, playCoin, playHit, playPickup, playBarrelHit, playWeaponEquip, playVictory, playGameOver, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { recordMissionProgress } from '@/lib/missions';
 
 type ZombieType = 'normal' | 'fast' | 'tank' | 'boss';
 type WeaponType = 'pistol' | 'rifle' | 'shotgun' | 'minigun' | 'laser';
@@ -560,6 +561,7 @@ export function ZombieGameScreen() {
       submitZombieScore(killCountRef.current);
       addCoinsToSession(gameCoinsRef.current, 0);
       finishGameSession(killCountRef.current, true, campaignLevelRef.current);
+      void recordMissionProgress('zombie-game', killCountRef.current);
       stopActionMusic();
       playGameOver();
       hapticPattern([100, 50, 200]);

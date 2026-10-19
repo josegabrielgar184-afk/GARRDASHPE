@@ -8,10 +8,11 @@ import { OfflineBanner } from '@/components/game/OfflineBanner';
 import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
-  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell, Users,
+  Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell, Users, Vote,
   Move, RotateCcw, Save, Sliders, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Target,
 } from 'lucide-react';
 import { MissionsPanel } from '@/components/screens/MissionsPanel';
+import { fetchActivePoll, submitVote, type Poll } from '@/lib/polls';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
 } from '@/lib/config';
@@ -37,6 +38,12 @@ export function MenuScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [showControlEditor, setShowControlEditor] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const [activePoll, setActivePoll] = useState<Poll | null>(null);
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [voting, setVoting] = useState(false);
+  const [voteError, setVoteError] = useState<string | null>(null);
+  const [pollDismissed, setPollDismissed] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
 
@@ -96,6 +103,33 @@ export function MenuScreen() {
     setPerfTierState(getPerformanceTier());
     refreshInfluencerInfo();
   }, [refreshInfluencerInfo]);
+
+  useEffect(() => {
+    fetchActivePoll().then((poll) => {
+      if (poll && poll.is_active && poll.my_vote === null) {
+        setActivePoll(poll);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleVote = async () => {
+    if (!activePoll || selectedOption === null) return;
+    setVoting(true);
+    setVoteError(null);
+    const result = await submitVote(activePoll.id, selectedOption);
+    setVoting(false);
+    if (result.ok) {
+      setActivePoll(null);
+      setShowPollModal(false);
+      showToast('¡Voto registrado!');
+    } else if (result.duplicate) {
+      setActivePoll(null);
+      setShowPollModal(false);
+      showToast('Ya votaste en esta encuesta');
+    } else {
+      setVoteError('Error al votar. Intenta de nuevo.');
+    }
+  };
 
   useEffect(() => {
     if (uiTheme === ('custom' as UITheme) && customColor) {
@@ -263,6 +297,22 @@ export function MenuScreen() {
             <span className="text-amber-400/80 text-[10px] font-bold">+100 semanal</span>
           </button>
 
+          {/* Poll notification — discreet, only if active and not voted */}
+          {activePoll && !pollDismissed && (
+            <button
+              onClick={() => setShowPollModal(true)}
+              className="mb-2 w-full tac-panel tac-stencil rounded-lg py-2 px-3 flex items-center justify-between active:scale-[0.98] transition-transform"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-cyan-500/15 flex items-center justify-center border border-cyan-500/30">
+                  <Vote className="w-4 h-4 text-cyan-400" />
+                </div>
+                <span className="text-[#d4d8b8] font-bold text-xs tracking-wider">ENCUESTA</span>
+              </div>
+              <span className="text-cyan-400/80 text-[10px] font-bold">Participar</span>
+            </button>
+          )}
+
           {/* Balance card */}
           <div className="mb-2">
             <div className="tac-panel tac-stencil p-2.5 flex items-center gap-2">
@@ -404,6 +454,51 @@ export function MenuScreen() {
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
 
       <MissionsPanel open={showMissions} onClose={() => setShowMissions(false)} />
+
+      {showPollModal && activePoll && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => { setShowPollModal(false); setVoteError(null); setSelectedOption(null); }}>
+          <div className="w-full max-w-xs mx-4 tac-panel tac-stencil rounded-lg p-5 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Vote className="w-5 h-5 text-cyan-400" />
+                <h2 className="text-[#d4d8b8] font-bold text-sm">Encuesta</h2>
+              </div>
+              <button onClick={() => { setShowPollModal(false); setVoteError(null); setSelectedOption(null); }} className="w-7 h-7 rounded-lg tac-btn flex items-center justify-center text-[#6b7280] hover:text-[#d4d8b8]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[#d4d8b8] font-bold text-sm mb-4 text-center">{activePoll.question}</p>
+            <div className="space-y-2 mb-4">
+              {activePoll.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedOption(i)}
+                  className={`w-full py-2.5 px-3 rounded-lg text-sm font-bold text-left transition-all ${selectedOption === i ? 'bg-cyan-500/20 border border-cyan-400/50 text-[#d4d8b8]' : 'tac-btn border border-transparent text-[#8a9b50] hover:text-[#d4d8b8]'}`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            {voteError && <p className="text-red-400 text-xs font-bold text-center mb-3">{voteError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowPollModal(false); setPollDismissed(true); setVoteError(null); setSelectedOption(null); }}
+                className="flex-1 py-2.5 tac-btn tac-stencil rounded-lg text-[#6b7280] font-bold text-xs"
+              >
+                Ahora no
+              </button>
+              <button
+                onClick={handleVote}
+                disabled={selectedOption === null || voting}
+                className="flex-1 py-2.5 tac-btn-accent tac-stencil rounded-lg text-[#fbbf24] font-bold text-xs disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {voting ? <span className="w-3.5 h-3.5 border-2 border-[#fbbf24] border-t-transparent rounded-full animate-spin" /> : <Vote className="w-3.5 h-3.5" />}
+                Participar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setShowSettings(false)}>

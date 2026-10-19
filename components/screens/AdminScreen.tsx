@@ -12,17 +12,18 @@ import {
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff,
   RefreshCw, AlertCircle, XCircle, Loader2, Key, List, Mail, Gamepad2, Timer, IdCard,
-  MessageSquare, Send, Megaphone, Radio, Check, X, Search,
+  MessageSquare, Send, Megaphone, Radio, Check, X, Search, Vote,
 } from 'lucide-react';
 import {
   fetchSuggestions, handleSuggestion, fetchInactiveUsers, fetchActiveUsersNow,
   sendWinBackPush, sendPromoPush,
 } from '@/lib/economy-service';
+import { fetchAdminPolls, createPoll, closePoll, deletePoll, type AdminPoll } from '@/lib/polls';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { fetchAnalytics, getModeLabel, formatDuration, type AnalyticsPeriod, type AnalyticsData } from '@/lib/analytics';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'top50' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores' | 'seguridad';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'top50' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores' | 'seguridad' | 'polls';
 
 export function AdminScreen() {
   const {
@@ -266,6 +267,7 @@ export function AdminScreen() {
     { id: 'telemetry', label: 'Telemetria', icon: Radio, group: 'Sistema' },
     { id: 'winback', label: 'Win-Back', icon: UserX, group: 'Sistema' },
     { id: 'promos', label: 'Promos', icon: Megaphone, group: 'Sistema' },
+    { id: 'polls', label: 'Encuestas', icon: Vote, group: 'Gestion' },
     { id: 'seguridad', label: 'Seguridad', icon: Shield, group: 'Sistema' },
   ];
 
@@ -1392,6 +1394,8 @@ export function AdminScreen() {
               onRefresh={refreshAdminCreators}
             />
           )}
+
+          {tab === 'polls' && <AdminPollsTab />}
 
           {tab === 'seguridad' && <AdminSeguridadTab isAdminByClaim={isAdminByClaim} />}
         </div>
@@ -2568,6 +2572,189 @@ function AdminSeguridadTab({ isAdminByClaim }: { isAdminByClaim: boolean }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function AdminPollsTab() {
+  const [polls, setPolls] = useState<AdminPoll[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState<string[]>(['', '']);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const data = await fetchAdminPolls();
+    setPolls(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleCreate = async () => {
+    setError(null);
+    const q = question.trim();
+    const opts = options.map(o => o.trim()).filter(Boolean);
+    if (!q) { setError('Escribe una pregunta'); return; }
+    if (opts.length < 2) { setError('Minimo 2 respuestas'); return; }
+    setCreating(true);
+    const result = await createPoll(q, opts);
+    setCreating(false);
+    if (!result.ok) { setError(result.error || 'Error'); return; }
+    setQuestion('');
+    setOptions(['', '']);
+    await load();
+  };
+
+  const handleClose = async (id: string) => {
+    setActionLoading(id);
+    await closePoll(id);
+    setActionLoading(null);
+    await load();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Eliminar esta encuesta?')) return;
+    setActionLoading(id);
+    await deletePoll(id);
+    setActionLoading(null);
+    await load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Vote className="w-5 h-5 text-cyan-400" />
+          <h3 className="text-white font-bold text-sm">Encuestas</h3>
+        </div>
+        <button onClick={load} className="text-white/50 hover:text-white text-xs flex items-center gap-1">
+          <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+        </button>
+      </div>
+
+      <div className="rounded-2xl bg-card border border-cyan-500/30 p-4 shadow-lg space-y-3">
+        <p className="text-white font-bold text-xs">Crear nueva encuesta</p>
+        <p className="text-white/40 text-[10px]">Al publicar, la encuesta activa anterior se cierra. Solo una activa a la vez.</p>
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Pregunta para los jugadores"
+          className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+        />
+        <div className="space-y-2">
+          {options.map((opt, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                type="text"
+                value={opt}
+                onChange={(e) => setOptions(prev => prev.map((o, idx) => idx === i ? e.target.value : o))}
+                placeholder={`Respuesta ${i + 1}`}
+                className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+              />
+              {options.length > 2 && (
+                <button
+                  onClick={() => setOptions(prev => prev.filter((_, idx) => idx !== i))}
+                  className="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 text-sm"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          {options.length < 5 && (
+            <button
+              onClick={() => setOptions(prev => [...prev, ''])}
+              className="w-full py-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-xs font-bold"
+            >
+              + Agregar respuesta
+            </button>
+          )}
+        </div>
+        {error && <p className="text-red-400 text-xs font-bold">{error}</p>}
+        <button
+          onClick={handleCreate}
+          disabled={creating}
+          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Vote className="w-4 h-4" />}
+          Publicar encuesta
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+        </div>
+      ) : polls.length === 0 ? (
+        <div className="text-center py-8">
+          <Vote className="w-10 h-10 text-white/20 mx-auto mb-3" />
+          <p className="text-white/40 text-sm">No hay encuestas</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {polls.map((poll) => {
+            const maxVotes = Math.max(1, ...poll.votes_breakdown);
+            return (
+              <div key={poll.id} className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <p className="text-white font-bold text-sm">{poll.question}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {poll.is_active ? (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/40">ACTIVA</span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/50">CERRADA</span>
+                      )}
+                      <span className="text-white/30 text-[10px]">{new Date(poll.created_at).toLocaleDateString('es-ES')}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {poll.is_active && (
+                      <button
+                        onClick={() => handleClose(poll.id)}
+                        disabled={actionLoading === poll.id}
+                        className="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold"
+                      >
+                        Cerrar
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(poll.id)}
+                      disabled={actionLoading === poll.id}
+                      className="px-2 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 text-[10px] font-bold"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {poll.options.map((opt, i) => {
+                    const votes = poll.votes_breakdown[i] || 0;
+                    const pct = poll.total_votes > 0 ? Math.round((votes / poll.total_votes) * 100) : 0;
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="text-white/70 font-bold">{opt}</span>
+                          <span className="text-white/50">{votes} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                          <div className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all" style={{ width: `${(votes / maxVotes) * 100}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-white/30 text-[10px] mt-2 text-center">Total: {poll.total_votes} votos</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

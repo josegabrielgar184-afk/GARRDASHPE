@@ -10,6 +10,7 @@ import { loadControlLayouts } from '@/lib/control-layout';
 import { ArrowLeft, Coins, Trophy, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move } from 'lucide-react';
 import { GameOverModal } from '@/components/game/GameOverModal';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { recordMissionProgress } from '@/lib/missions';
 import { playCoin, playHit, playGameOver, startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const GRID_SIZE = 18;
@@ -192,6 +193,7 @@ export function GarrFly() {
       }
       addCoinsToSession(coinsRef.current, 0);
       finishGameSession(scoreRef.current, true);
+      void recordMissionProgress('garrfly', scoreRef.current);
       creditMonthlyScore('garrfly', `gf-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current }, scoreRef.current);
     }
   };

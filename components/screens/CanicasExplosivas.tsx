@@ -179,6 +179,7 @@ class Sfx {
 import { requestArcadeCredit, newSessionId, type RewardStatus } from '@/lib/arcade-credit';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { registerGameFinished } from '@/lib/ad-frequency';
+import { recordMissionProgress } from '@/lib/missions';
 
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
 function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
@@ -674,6 +675,7 @@ export function CanicasExplosivas() {
     } else {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'failed' } : prev));
     }
+    void recordMissionProgress('canicas', explosionsRef.current);
   }, [addCoins, creditMonthlyScore]);
   creditGameEndRef.current = creditGameEnd;
 

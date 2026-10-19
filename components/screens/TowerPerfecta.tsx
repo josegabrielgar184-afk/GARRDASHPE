@@ -10,6 +10,7 @@ import { requestArcadeCredit, newSessionId, estimateTowerCoins, type RewardStatu
 import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { registerGameFinished } from '@/lib/ad-frequency';
+import { recordMissionProgress } from '@/lib/missions';
 
 const W = 360;
 const H = 480;
@@ -194,6 +195,7 @@ export function TowerPerfecta() {
     } else {
       setRewardStatus('failed');
     }
+    void recordMissionProgress('tower', blocksPlacedRef.current);
   }, [addCoins]);
 
   const triggerGameOver = useCallback(() => {

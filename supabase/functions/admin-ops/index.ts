@@ -67,6 +67,25 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// --- Supabase service role for polls ---
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+async function supabaseAdmin(method: string, path: string, body?: any): Promise<any> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: method === "POST" ? "return=representation,resolution=merge-duplicates" : "return=representation",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Supabase ${method} ${path}: ${res.status}`);
+  return await res.json();
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
@@ -335,6 +354,40 @@ Deno.serve(async (req: Request) => {
           admin: caller.claims[ADMIN_CLAIM] === true,
           testAccount: caller.claims.testAccount === true,
         });
+      }
+
+      case "polls_list": {
+        const polls = await supabaseAdmin("GET", "polls?select=id,question,options,votes,is_active,created_at,closed_at&order=created_at.desc&limit=50");
+        return json({ ok: true, polls });
+      }
+
+      case "polls_create": {
+        const question: string = typeof body?.question === "string" ? body.question.trim() : "";
+        const options: string[] = Array.isArray(body?.options) ? body.options.map((o: any) => String(o).trim()).filter(Boolean) : [];
+        if (!question || options.length < 2 || options.length > 5) {
+          return json({ error: "Pregunta y 2-5 respuestas requeridas" }, 400);
+        }
+        // Close any existing active poll first
+        await supabaseAdmin("PATCH", "polls?is_active=eq.true", { is_active: false, closed_at: new Date().toISOString() });
+        const created = await supabaseAdmin("POST", "polls", { question, options, votes: [], is_active: true });
+        return json({ ok: true, poll: created });
+      }
+
+      case "polls_close": {
+        const pollId: string = typeof body?.poll_id === "string" ? body.poll_id : "";
+        if (!pollId) return json({ error: "poll_id requerido" }, 400);
+        await supabaseAdmin("PATCH", `polls?id=eq.${encodeURIComponent(pollId)}`, { is_active: false, closed_at: new Date().toISOString() });
+        return json({ ok: true });
+      }
+
+      case "polls_delete": {
+        const pollId: string = typeof body?.poll_id === "string" ? body.poll_id : "";
+        if (!pollId) return json({ error: "poll_id requerido" }, 400);
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/polls?id=eq.${encodeURIComponent(pollId)}`, {
+          method: "DELETE",
+          headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+        });
+        return json({ ok: res.ok });
       }
 
       default:

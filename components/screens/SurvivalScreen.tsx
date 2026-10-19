@@ -18,6 +18,7 @@ import {
 import { ObjectPool, FPSMonitor } from '@/lib/game-performance';
 import { playShoot, playExplosion, playCoin, playHit, playBarrelHit, playPickup, initAudio, startActionMusic, stopActionMusic } from '@/lib/audio';
 import { initSessionStats, finishGameSession, abandonSession, addCoinsToSession } from '@/lib/session-stats';
+import { recordMissionProgress } from '@/lib/missions';
 import { RewardAdModal } from '@/components/game/RewardAdModal';
 import { getRewardedAdId } from '@/lib/config';
 import { isRewardedContinueEnabled } from '@/lib/continue-policy';
@@ -207,6 +208,7 @@ export function SurvivalScreen() {
       submitSurvivalScore(survivalTimeRef.current);
       addCoinsToSession(coinsEarnedRef.current, 0);
       finishGameSession(Math.floor(survivalTimeRef.current / 1000), true);
+      void recordMissionProgress('survival', Math.floor(survivalTimeRef.current / 1000));
       stopActionMusic();
       hapticPattern([100, 50, 200]);
     }

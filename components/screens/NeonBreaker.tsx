@@ -10,6 +10,7 @@ import { requestArcadeCredit, newSessionId, estimateNeonBreakerCoins, type Rewar
 import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { registerGameFinished } from '@/lib/ad-frequency';
+import { recordMissionProgress } from '@/lib/missions';
 
 const W = 360;
 const H = 480;
@@ -327,6 +328,7 @@ export function NeonBreaker() {
     } else {
       setRewardStatus('failed');
     }
+    void recordMissionProgress('neonbreaker', blocksDestroyedRef.current);
   }, [addCoins]);
 
   const triggerGameOver = useCallback(() => {
