@@ -303,9 +303,13 @@ export function NeonBreaker() {
     if (result.credited > 0) {
       pendingRewardRef.current = result.credited;
       setPendingReward(result.credited);
-      rewardCreditedFsRef.current = result.firestore_credited === true;
-      setRewardCreditedFs(result.firestore_credited === true);
-      setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
+      const fsCredited = result.firestore_credited === true;
+      rewardCreditedFsRef.current = fsCredited;
+      setRewardCreditedFs(fsCredited);
+      if (!fsCredited) {
+        addCoins(result.credited, 'gameplay');
+      }
+      setRewardStatus('credited');
       setRewardCapped(result.capped === true);
     } else if (result.duplicate) {
       setRewardStatus('none');
@@ -315,7 +319,7 @@ export function NeonBreaker() {
     } else {
       setRewardStatus('failed');
     }
-  }, []);
+  }, [addCoins]);
 
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;

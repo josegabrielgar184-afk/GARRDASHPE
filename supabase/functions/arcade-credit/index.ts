@@ -40,29 +40,42 @@ function clampInt(v: unknown, max: number): number {
   return Math.max(0, Math.min(max, n));
 }
 
-// Inicializa Firebase Admin SDK si el secreto FIREBASE_SERVICE_ACCOUNT_JSON
-// esta configurado. Si no existe, firestoreCredited queda desactivado y el
-// abono real queda pendiente. El secreto se carga en cada nueva instancia.
+// Inicializa Firebase Admin SDK de forma perezosa (lazy). La inicializacion a
+// nivel de modulo puede fallar en cold starts (import de npm, parse de JSON,
+// cert). Con lazy init, cada request reintenta hasta que tenga exito.
 let firebaseApp: any = null;
 let firestore: any = null;
 let adminAvailable = false;
 let adminInitError: string | null = null;
-try {
-  const saJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON");
-  if (saJson) {
+
+async function ensureFirebaseAdmin(): Promise<boolean> {
+  if (adminAvailable && firestore) return true;
+  try {
+    const saJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON");
+    if (!saJson) {
+      adminInitError = "FIREBASE_SERVICE_ACCOUNT_JSON not set";
+      return false;
+    }
     const creds = JSON.parse(saJson);
     const admin = await import("npm:firebase-admin@12.7.0");
-    firebaseApp = admin.initializeApp({
-      credential: admin.credential.cert(creds),
-    }, "arcade-credit");
+    // Reutiliza la app si ya existe (evita error de doble inicializacion).
+    try {
+      firebaseApp = admin.app("arcade-credit");
+    } catch {
+      firebaseApp = admin.initializeApp(
+        { credential: admin.credential.cert(creds) },
+        "arcade-credit",
+      );
+    }
     firestore = admin.getFirestore(firebaseApp);
     adminAvailable = true;
-  } else {
-    adminInitError = "FIREBASE_SERVICE_ACCOUNT_JSON not set";
+    adminInitError = null;
+    return true;
+  } catch (e) {
+    adminAvailable = false;
+    adminInitError = String(e);
+    return false;
   }
-} catch (e) {
-  adminAvailable = false;
-  adminInitError = String(e);
 }
 
 Deno.serve(async (req: Request) => {
@@ -213,7 +226,8 @@ Deno.serve(async (req: Request) => {
     // registro idempotente + incremento de saldo en una transaccion.
     let firestoreCredited = false;
     let firestoreError: string | null = null;
-    if (adminAvailable && firestore) {
+    const adminReady = await ensureFirebaseAdmin();
+    if (adminReady && firestore) {
       try {
         const userRef = firestore.doc(`usuarios/${uid}`);
         const logRef = firestore.collection("arcade_credit_log_firestore").doc(`${uid}_${game}_${sessionId}`);
