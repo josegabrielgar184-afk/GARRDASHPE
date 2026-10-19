@@ -4,16 +4,17 @@ import { useEffect, useState, useRef } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { SuggestionButton, SuggestionModal } from '@/components/game/SuggestionModal';
-import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown, Crown, Calendar, Globe, User, Heart, Baby, Infinity as InfinityIcon } from 'lucide-react';
+import { ArrowLeft, Trophy, Medal, RefreshCw, Rocket, Skull, Radio, ChevronDown, Crown, Calendar, Globe, User, Heart, Baby, Infinity as InfinityIcon, Sparkles } from 'lucide-react';
 
 export function RankingScreen() {
   const {
     setScreen, spaceRanking, zombieRanking, weeklyRanking, survivalRanking, refreshRanking, refreshWeeklyRanking,
     loadMoreRanking, hasMoreRanking, playerName, currentUserRank, currentUserScore,
-    rankingTab, setRankingTab, weeklyQueryError,
+    rankingTab, setRankingTab, weeklyQueryError, globalQueryError,
+    monthlyRanking, myMonthlyTotal, lastMonthlyGain, dismissMonthlyGain, refreshMonthlyRanking,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
-  const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival'>('weekly');
+  const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival' | 'mensual'>('weekly');
   const [gameTab, setGameTab] = useState<'space' | 'zombie'>('space');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -33,6 +34,10 @@ export function RankingScreen() {
 }, [mainTab, weeklyRanking]);
 
   useEffect(() => {
+    if (mainTab === 'mensual') refreshMonthlyRanking();
+  }, [mainTab, refreshMonthlyRanking]);
+
+  useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const check = () => {
@@ -43,7 +48,8 @@ export function RankingScreen() {
     return () => el.removeEventListener('scroll', check);
   }, [loading, mainTab, gameTab]);
 
-  const ranking = mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (survivalRanking) : (gameTab === 'space' ? spaceRanking : zombieRanking);
+  const monthlyEntries = monthlyRanking.map((e) => ({ name: e.player_name, score: e.total_points, uid: e.uid, level: undefined as number | undefined }));
+  const ranking = mainTab === 'mensual' ? monthlyEntries : mainTab === 'weekly' ? weeklyRanking : mainTab === 'survival' ? (survivalRanking) : (gameTab === 'space' ? spaceRanking : zombieRanking);
   const getMedalColor = (i: number) => i === 0 ? 'text-amber-400' : i === 1 ? 'text-slate-300' : i === 2 ? 'text-amber-700' : 'text-white/30';
 
   const handleLoadMore = async () => {
@@ -66,6 +72,20 @@ export function RankingScreen() {
     <div className="h-full flex flex-col bg-gradient-to-b from-background via-background to-secondary/20">
       <MuteButton />
       <SuggestionButton onClick={() => setShowSuggestion(true)} />
+
+      {lastMonthlyGain && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 max-w-[90vw] animate-fade-in">
+          <div className={`rounded-xl px-4 py-2.5 border shadow-lg flex items-center gap-2 ${lastMonthlyGain.points > 0 ? 'bg-fuchsia-900/80 border-fuchsia-500/50' : 'bg-slate-900/80 border-slate-600/50'}`}>
+            <Sparkles className={`w-4 h-4 ${lastMonthlyGain.points > 0 ? 'text-fuchsia-300' : 'text-slate-400'}`} />
+            {lastMonthlyGain.points > 0 ? (
+              <p className="text-white text-sm font-bold">+{lastMonthlyGain.points} pts mensuales <span className="text-white/50 font-normal">({lastMonthlyGain.mode})</span>{lastMonthlyGain.capped ? ' · tope diario' : ''}</p>
+            ) : (
+              <p className="text-white/70 text-sm">Tope diario alcanzado en {lastMonthlyGain.mode}</p>
+            )}
+            <button onClick={dismissMonthlyGain} className="text-white/40 hover:text-white ml-1 text-xs">ok</button>
+          </div>
+        </div>
+      )}
 
       <div className="safe-top-lg px-6 pb-4 flex-shrink-0">
         <div className="flex items-center gap-3 mb-4">
@@ -91,6 +111,9 @@ export function RankingScreen() {
             <button onClick={() => setMainTab('global')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 ${mainTab === 'global' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-card border border-border text-white/50'}`}>
               <Globe className="w-3.5 h-3.5" />Global
             </button>
+            <button onClick={() => setMainTab('mensual')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 ${mainTab === 'mensual' ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/40 shadow-lg shadow-fuchsia-500/10' : 'bg-card border border-border text-white/50'}`}>
+              <Sparkles className="w-3.5 h-3.5" />Mensual
+            </button>
             <button onClick={() => setMainTab('survival')} className={`flex-1 py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 ${mainTab === 'survival' ? 'bg-red-500/20 text-red-400 border border-red-500/40 shadow-lg shadow-red-500/10' : 'bg-card border border-border text-white/50'}`}>
               <InfinityIcon className="w-3.5 h-3.5" />Superv.
             </button>
@@ -107,6 +130,11 @@ export function RankingScreen() {
             </div>
           )}
 
+          {mainTab === 'mensual' && (
+            <div className="text-center mb-3">
+              <p className="text-fuchsia-400/60 text-xs flex items-center justify-center gap-1"><Sparkles className="w-3 h-3" /> TOP MENSUAL · Suma puntos en todos los modos · Reinicia cada 1ro de mes</p>
+            </div>
+          )}
           {mainTab === 'survival' && (
             <div className="text-center mb-3">
               <p className="text-red-400/60 text-xs flex items-center justify-center gap-1"><Skull className="w-3 h-3" /> Ranking del Camino del Vicio - Mejores tiempos de supervivencia</p>
@@ -128,7 +156,13 @@ export function RankingScreen() {
               <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mb-3" />
               <p className="text-white/40 text-sm">Consultando Firebase...</p>
             </div>
-) : ranking.length === 0 ? (
+          ) : mainTab === 'global' && globalQueryError ? (
+            <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+              <Trophy className="w-10 h-10 text-red-400/40 mb-3" />
+              <p className="text-red-400 text-sm font-bold mb-1">No se pudo cargar el ranking global</p>
+              <p className="text-red-300/60 text-xs max-w-60">{globalQueryError}</p>
+            </div>
+          ) : ranking.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
               {mainTab === 'weekly' && weeklyQueryError ? (
                 <>

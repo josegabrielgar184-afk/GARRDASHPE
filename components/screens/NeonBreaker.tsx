@@ -104,7 +104,7 @@ const POWER_LABELS: Record<PowerType, string> = {
 };
 
 export function NeonBreaker() {
-  const { setScreen, userRole, vip, addCoins } = useGame();
+  const { setScreen, userRole, vip, addCoins, creditMonthlyScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -323,13 +323,14 @@ export function NeonBreaker() {
     stopGameMusic();
     playGameOver();
     void creditReward();
+    creditMonthlyScore('neonbreaker', `nb-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_destroyed: blocksDestroyedRef.current, levels_cleared: levelsClearedRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setGameOver(true);
     setRunning(false);
     runningRef.current = false;
     setPendingReward(pendingRewardRef.current);
-  }, [creditReward]);
+  }, [creditReward, creditMonthlyScore]);
 
   const triggerVictory = useCallback(() => {
     gameOverRef.current = true;
@@ -338,6 +339,7 @@ export function NeonBreaker() {
     scoreRef.current += 1000;
     setScore(scoreRef.current);
     void creditReward();
+    creditMonthlyScore('neonbreaker', `nb-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_destroyed: blocksDestroyedRef.current, levels_cleared: levelsClearedRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setVictory(true);
@@ -345,7 +347,7 @@ export function NeonBreaker() {
     setRunning(false);
     runningRef.current = false;
     setPendingReward(pendingRewardRef.current);
-  }, [creditReward]);
+  }, [creditReward, creditMonthlyScore]);
 
   // ── Bucle principal ──
   useEffect(() => {

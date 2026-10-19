@@ -27,6 +27,7 @@ import {
 import { MIN_CLAIM_COINS, DIAMOND_CLAIM_KEYS_REQUIRED, CAMPAIGN_KEYS_PER_10_LEVELS, WELCOME_BONUS_COINS, WELCOME_BONUS_KEYS, RECENT_ACTIVITY_REQUIRED_DAYS, RETURN_REWARD_COINS, RETURN_REWARD_THRESHOLD_DAYS, getCampaignKeyPrice as getConfigCampaignKeyPrice, getCampaignCoinReward } from '@/lib/config';
 import { setupDailyNotifications } from '@/lib/notifications';
 import { requestNotificationPermissionAndToken, registerServiceWorker } from '@/lib/push-notifications';
+import { submitMonthlyScore, fetchMonthlyRanking, fetchMonthlyLeader, fetchMyMonthlyTotal, type MonthlyMode, type MonthlyRankEntry } from '@/lib/monthly-score';
 import {
   ADMOB_CONFIG, COINS_PER_USD, SOLES_PER_USD, INACTIVITY_THRESHOLD_DAYS,
   NEAR_CLAIM_THRESHOLD, INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE,
@@ -103,7 +104,7 @@ export interface RankEntry {
   level?: number;
 }
 
-export type RankingTab = 'weekly' | 'global' | 'survival';
+export type RankingTab = 'weekly' | 'global' | 'survival' | 'mensual';
 
 export type ControlSize = 'small' | 'medium' | 'large';
 export type OrientationMode = 'auto' | 'portrait' | 'landscape';
@@ -379,6 +380,14 @@ interface GameState {
   rankingTab: RankingTab;
   setRankingTab: (tab: RankingTab) => void;
   weeklyQueryError: string | null;
+  globalQueryError: string | null;
+  monthlyRanking: MonthlyRankEntry[];
+  monthlyLeader: MonthlyRankEntry | null;
+  myMonthlyTotal: number;
+  lastMonthlyGain: { points: number; mode: string; capped?: boolean } | null;
+  dismissMonthlyGain: () => void;
+  refreshMonthlyRanking: () => Promise<void>;
+  creditMonthlyScore: (mode: MonthlyMode, sessionId: string, metrics: Record<string, number>, rawScore?: number) => Promise<void>;
   allUsersList: Array<{
     uid: string; nombre: string; email: string; coins: number;
     puntos: number; vip: boolean; playerID: string; nickname: string;
@@ -579,6 +588,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [currentUserScore, setCurrentUserScore] = useState<number>(0);
   const [rankingTab, setRankingTab] = useState<RankingTab>('weekly');
   const [weeklyQueryError, setWeeklyQueryError] = useState<string | null>(null);
+  const [monthlyRanking, setMonthlyRanking] = useState<MonthlyRankEntry[]>([]);
+  const [monthlyLeader, setMonthlyLeader] = useState<MonthlyRankEntry | null>(null);
+  const [myMonthlyTotal, setMyMonthlyTotal] = useState(0);
+  const [lastMonthlyGain, setLastMonthlyGain] = useState<{ points: number; mode: string; capped?: boolean } | null>(null);
+  const [globalQueryError, setGlobalQueryError] = useState<string | null>(null);
   const [allUsersList, setAllUsersList] = useState<Array<{
     uid: string; nombre: string; email: string; coins: number;
     puntos: number; vip: boolean; playerID: string; nickname: string;
@@ -716,6 +730,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         }
 
         setupDailyNotifications();
+        refreshMonthlyRanking();
 
         try {
           const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
@@ -867,6 +882,26 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // TOP 1 MENSUAL: el lider del mes actual reemplaza al dato historico en la
+  // pantalla principal. absoluteRecord (record historico) se conserva aparte
+  // y no se modifica aqui. Recarga cada 60s para mantenerse fresco.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const leader = await fetchMonthlyLeader();
+        if (cancelled || !leader || leader.total_points <= 0) return;
+        setTopPlayerName(leader.player_name || 'Jugador');
+        setTopPlayerScore(leader.total_points);
+        setTopPlayerAvatar(undefined);
+        cacheSet('topMonthly', { name: leader.player_name, score: leader.total_points }, 5 * 60 * 1000);
+      } catch {}
+    };
+    load();
+    const interval = setInterval(load, 60 * 1000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
   useEffect(() => {
@@ -1320,6 +1355,36 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [spendCoins, upgrades]);
 
+  const refreshMonthlyRanking = useCallback(async () => {
+    try {
+      const [rows, leader] = await Promise.all([fetchMonthlyRanking(50), fetchMonthlyLeader()]);
+      setMonthlyRanking(rows);
+      setMonthlyLeader(leader);
+      const user = auth.currentUser;
+      if (user) {
+        const mine = await fetchMyMonthlyTotal(user.uid);
+        setMyMonthlyTotal(mine?.total_points ?? 0);
+      }
+    } catch {}
+  }, []);
+
+  const dismissMonthlyGain = useCallback(() => setLastMonthlyGain(null), []);
+
+  const creditMonthlyScore = useCallback(async (
+    mode: MonthlyMode,
+    sessionId: string,
+    metrics: Record<string, number>,
+    rawScore = 0,
+  ) => {
+    const result = await submitMonthlyScore(mode, sessionId, metrics, rawScore);
+    if (result.ok && result.credited > 0) {
+      setLastMonthlyGain({ points: result.credited, mode, capped: result.capped });
+      refreshMonthlyRanking();
+    } else if (result.ok && result.capped && result.credited === 0) {
+      setLastMonthlyGain({ points: 0, mode, capped: true });
+    }
+  }, [refreshMonthlyRanking]);
+
   const completeLevel = useCallback((level: number, stars: number, coinsEarned: number) => {
     const isFirstClear = !campaignProgress.stars[level];
     // Recompensa de monedas SOLO en primera victoria del nivel (persistido en stars:
@@ -1346,10 +1411,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
             lastActive: serverTimestamp(),
           }).catch(() => {});
         } catch {}
+        creditMonthlyScore('campaign', `cp-${user.uid}-${level}-${Date.now().toString(36)}`, { level, stars }, level * 100 + stars * 50);
       }
       return next;
     });
-  }, [campaignProgress.stars, addCoins]);
+  }, [campaignProgress.stars, addCoins, creditMonthlyScore]);
 
   const getCurrentCampaignLevel = useCallback(() => campaignProgress.currentLevel, [campaignProgress.currentLevel]);
 
@@ -1497,9 +1563,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       });
       if (user) {
         try { updateDoc(doc(db, 'usuarios', user.uid), { lastActive: serverTimestamp() }).catch(() => {}); } catch {}
+        creditMonthlyScore('survival', `sv-${uid}-${Date.now().toString(36)}`, { time_ms: timeMs }, Math.floor(timeMs));
       }
     } catch {}
-  }, [isOnline, survivalBestTime, playerName, email]);
+  }, [isOnline, survivalBestTime, playerName, email, creditMonthlyScore]);
 
   const dismissWelcomeBonus = useCallback(() => setShowWelcomeBonus(false), []);
   const dismissReturnReward = useCallback(() => setShowReturnReward(false), []);
@@ -1611,13 +1678,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       const spaceQ = query(collection(db, 'usuarios'), orderBy('puntos_espacio', 'desc'), limit(RANKING_PAGE_SIZE));
       unsubs.push(onSnapshot(spaceQ, (snap) => {
+        setGlobalQueryError(null);
         const entries: RankEntry[] = [];
         snap.forEach((d) => {
           const data = d.data();
           entries.push({ name: data.nombre || data.email?.split('@')[0] || 'Jugador', score: data.puntos_espacio ?? 0, uid: d.id });
         });
         setSpaceRanking(fillWithBots(entries, 'space'));
-      }, () => setSpaceRanking(fillWithBots([], 'space'))));
+      }, (err) => {
+        const code = (err as { code?: string }).code ?? '';
+        let msg = err instanceof Error ? err.message : String(err);
+        if (code === 'failed-precondition') {
+          msg = 'Falta indice en Firestore para puntos_espacio. Crea el indice desde la consola de Firebase.';
+        } else if (code === 'permission-denied') {
+          msg = 'Permiso denegado: las reglas de Firestore bloquean la lectura de usuarios.';
+        }
+        setGlobalQueryError(msg);
+        setSpaceRanking(fillWithBots([], 'space'));
+      }));
 
       const zombieQ = query(collection(db, 'usuarios'), orderBy('puntos_zombies', 'desc'), limit(RANKING_PAGE_SIZE));
       unsubs.push(onSnapshot(zombieQ, (snap) => {
@@ -1778,8 +1856,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         });
       }
       cacheInvalidatePattern('ranking');
+      if (user) {
+        creditMonthlyScore('space', `sp-${uid}-${Date.now().toString(36)}`, { score }, Math.floor(score));
+      }
     } catch { endGameBatch(); }
-  }, [email, playerName, absoluteRecord, isOnline, coins, endGameBatch]);
+  }, [email, playerName, absoluteRecord, isOnline, coins, endGameBatch, creditMonthlyScore]);
 
   const submitZombieScore = useCallback(async (score: number) => {
     if (!isOnline) return;
@@ -1824,8 +1905,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         });
       }
       cacheInvalidatePattern('ranking');
+      if (user) {
+        creditMonthlyScore('zombie', `zb-${uid}-${Date.now().toString(36)}`, { kills: score }, Math.floor(score));
+      }
     } catch { endGameBatch(); }
-  }, [email, playerName, absoluteRecord, isOnline, endGameBatch]);
+  }, [email, playerName, absoluteRecord, isOnline, endGameBatch, creditMonthlyScore]);
 
   const canShowInterstitial = useCallback(() => {
     const now = Date.now();
@@ -3886,7 +3970,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     influencerInfo, refreshInfluencerInfo, requestInfluencerWithdraw,
     adminManualIncome, adminDeleteIncome, adminIncomeRecords, refreshAdminIncomeRecords,
     adminSetExchangeLimit, adminBanUser, adminPanicButton,
-    transactionLight, currentUserRank, currentUserScore, rankingTab, setRankingTab, weeklyQueryError, allUsersList,
+    transactionLight, currentUserRank, currentUserScore, rankingTab, setRankingTab, weeklyQueryError, globalQueryError,
+    monthlyRanking, monthlyLeader, myMonthlyTotal, lastMonthlyGain, dismissMonthlyGain, refreshMonthlyRanking, creditMonthlyScore, allUsersList,
     observerMode, toggleObserverMode,
     addPlayTime,
     flushPlayTime,

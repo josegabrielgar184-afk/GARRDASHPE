@@ -34,7 +34,7 @@ interface Particle {
 }
 
 export function TowerPerfecta() {
-  const { setScreen, userRole, vip, addCoins } = useGame();
+  const { setScreen, userRole, vip, addCoins, creditMonthlyScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -193,10 +193,11 @@ export function TowerPerfecta() {
     stopGameMusic();
     playGameOver();
     void creditReward();
+    creditMonthlyScore('tower', `tw-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_placed: blocksPlacedRef.current, perfects: perfectsRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     setGameOver(true);
-  }, [creditReward]);
+  }, [creditReward, creditMonthlyScore]);
 
   const dropBlock = useCallback(() => {
     const moving = movingRef.current;

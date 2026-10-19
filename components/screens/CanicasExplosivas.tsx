@@ -200,7 +200,7 @@ function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 }
 
 export function CanicasExplosivas() {
-  const { setScreen } = useGame();
+  const { setScreen, creditMonthlyScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const timeHudRef = useRef<HTMLSpanElement>(null);
@@ -647,6 +647,7 @@ export function CanicasExplosivas() {
     const result = await requestArcadeCredit('canicas', sessionIdRef.current, {
       explosions: explosionsRef.current,
     });
+    creditMonthlyScore('canicas', `cn-${sessionIdRef.current}`, { score: scoreRef.current, explosions: explosionsRef.current }, scoreRef.current);
     if (result.credited > 0) {
       const fsCredited = result.firestore_credited === true;
       setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: fsCredited ? 'credited' : 'pending', capped: result.capped === true } : prev));

@@ -50,7 +50,7 @@ function canMove(maze: string[], x: number, y: number): boolean {
 }
 
 export function NeonMazeSurvival() {
-  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline } = useGame();
+  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline, creditMonthlyScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
   const [coinsEarned, setCoinsEarned] = useState(0);
@@ -150,6 +150,7 @@ export function NeonMazeSurvival() {
       }
       addCoinsToSession(coinsRef.current, 0);
       finishGameSession(scoreRef.current, true);
+      creditMonthlyScore('neonline', `nm-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current }, scoreRef.current);
     }
   };
 

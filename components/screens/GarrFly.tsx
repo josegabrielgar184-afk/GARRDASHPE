@@ -32,7 +32,7 @@ interface Particle {
 }
 
 export function GarrFly() {
-  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline } = useGame();
+  const { setScreen, addCoins, userRole, vip, addPlayTime, flushPlayTime, isOnline, creditMonthlyScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [score, setScore] = useState(0);
@@ -192,6 +192,7 @@ export function GarrFly() {
       }
       addCoinsToSession(coinsRef.current, 0);
       finishGameSession(scoreRef.current, true);
+      creditMonthlyScore('garrfly', `gf-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current }, scoreRef.current);
     }
   };
 

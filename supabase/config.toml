@@ -13,3 +13,6 @@ verify_jwt = false
 [functions.admin-ops]
 verify_jwt = false
 
+[functions.monthly-score]
+verify_jwt = false
+
