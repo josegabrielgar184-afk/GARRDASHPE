@@ -172,14 +172,10 @@ export function TowerPerfecta() {
     });
     if (result.credited > 0) {
       pendingRewardRef.current = result.credited;
-      const fsCredited = result.firestore_credited === true;
-      rewardCreditedFsRef.current = fsCredited;
+      rewardCreditedFsRef.current = result.firestore_credited === true;
       setPendingReward(result.credited);
-      setRewardCreditedFs(fsCredited);
-      if (!fsCredited) {
-        addCoins(result.credited, 'gameplay');
-      }
-      setRewardStatus('credited');
+      setRewardCreditedFs(result.firestore_credited === true);
+      setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
       setRewardCapped(result.capped === true);
     } else if (result.duplicate) {
       setRewardStatus('none');
@@ -189,7 +185,7 @@ export function TowerPerfecta() {
     } else {
       setRewardStatus('failed');
     }
-  }, [addCoins]);
+  }, []);
 
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;

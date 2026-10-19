@@ -200,7 +200,7 @@ function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 }
 
 export function CanicasExplosivas() {
-  const { setScreen, creditMonthlyScore, addCoins } = useGame();
+  const { setScreen, creditMonthlyScore } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const timeHudRef = useRef<HTMLSpanElement>(null);
@@ -650,10 +650,7 @@ export function CanicasExplosivas() {
     creditMonthlyScore('canicas', `cn-${sessionIdRef.current}`, { score: scoreRef.current, explosions: explosionsRef.current }, scoreRef.current);
     if (result.credited > 0) {
       const fsCredited = result.firestore_credited === true;
-      if (!fsCredited) {
-        addCoins(result.credited, 'gameplay');
-      }
-      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: 'credited', capped: result.capped === true } : prev));
+      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: fsCredited ? 'credited' : 'pending', capped: result.capped === true } : prev));
     } else if (result.duplicate) {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none' } : prev));
     } else if (result.capped) {
@@ -661,7 +658,7 @@ export function CanicasExplosivas() {
     } else {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'failed' } : prev));
     }
-  }, [addCoins]);
+  }, []);
   creditGameEndRef.current = creditGameEnd;
 
   const handleRestart = () => {
@@ -708,7 +705,7 @@ export function CanicasExplosivas() {
             ? 'No acreditada'
             : endStats.rewardStatus === 'none'
             ? 'Sin recompensa'
-            : `${endStats.realCoins ?? 0} monedas`,
+            : `${endStats.realCoins ?? 0} ${endStats.firestoreCredited ? '(acreditado)' : '(pendiente)'}`,
         },
       ]
     : [];

@@ -13,7 +13,6 @@ export interface CreditResult {
   capped?: boolean;
   cap_limit?: number;
   firestore_credited?: boolean;
-  firestore_error?: string;
 }
 
 // Pide al servidor que calcule y acredite la recompensa de una partida.
@@ -47,7 +46,6 @@ export async function requestArcadeCredit(
         capped: data.capped === true,
         cap_limit: typeof data.cap_limit === 'number' ? data.cap_limit : undefined,
         firestore_credited: data.firestore_credited === true,
-        firestore_error: typeof data.firestore_error === 'string' ? data.firestore_error : undefined,
       };
     }
     return { ok: false, credited: 0 };
