@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
-import { ArrowLeft, Pause, Play, RotateCcw, Trophy } from 'lucide-react';
+import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Coins } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
+import { requestArcadeCredit, newSessionId, estimateNeonBreakerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 
 const W = 360;
@@ -118,6 +118,7 @@ export function NeonBreaker() {
   const [powerMsg, setPowerMsg] = useState('');
   const [showInstructions, setShowInstructions] = useState(false);
   const [stats, setStats] = useState(() => getMiniGameStats(GAME_ID));
+  const [liveCoins, setLiveCoins] = useState(0);
 
   const bricksRef = useRef<Brick[]>([]);
   const ballsRef = useRef<Ball[]>([]);
@@ -142,6 +143,7 @@ export function NeonBreaker() {
   const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
   const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
+  const [rewardStatus, setRewardStatus] = useState<RewardStatus>('idle');
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -222,6 +224,8 @@ export function NeonBreaker() {
     pendingRewardRef.current = 0;
     sessionIdRef.current = newSessionId();
     setPendingReward(0);
+    setRewardStatus('idle');
+    setRewardCreditedFs(false);
     continueUsedRef.current = false;
     setScore(0);
     setLives(3);
@@ -288,6 +292,7 @@ export function NeonBreaker() {
   const creditReward = useCallback(async () => {
     if (rewardCreditedRef.current) return;
     rewardCreditedRef.current = true;
+    setRewardStatus('loading');
     const result = await requestArcadeCredit('neonbreaker', sessionIdRef.current, {
       blocks_destroyed: blocksDestroyedRef.current,
       levels_cleared: levelsClearedRef.current,
@@ -298,6 +303,11 @@ export function NeonBreaker() {
       setPendingReward(result.credited);
       rewardCreditedFsRef.current = result.firestore_credited === true;
       setRewardCreditedFs(result.firestore_credited === true);
+      setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
+    } else if (result.duplicate || result.capped) {
+      setRewardStatus('none');
+    } else {
+      setRewardStatus('failed');
     }
   }, []);
 
@@ -471,6 +481,7 @@ export function NeonBreaker() {
                 }
                 bricksRef.current.splice(i, 1);
                 blocksDestroyedRef.current += 1;
+                setLiveCoins(estimateNeonBreakerCoins(blocksDestroyedRef.current, levelsClearedRef.current, levelRef.current));
 
                 comboRef.current += 1;
                 setCombo(comboRef.current);
@@ -709,13 +720,16 @@ export function NeonBreaker() {
         </div>
       </div>
 
-      {/* Barra de estado: vidas, combo, poder activo */}
+      {/* Barra de estado: vidas, combo, poder activo, monedas estimadas */}
       <div className="px-4 py-1.5 flex items-center justify-between text-[10px] font-bold">
         <span className="text-red-400">
           {'❤'.repeat(Math.max(0, lives)) || 'SIN VIDAS'}
         </span>
         <span className={combo >= 4 ? 'text-amber-400 animate-pulse' : 'text-white/40'}>
           COMBO x{Math.min(5, 1 + Math.floor(combo / 4))} ({combo})
+        </span>
+        <span className="flex items-center gap-1 text-amber-400">
+          <Coins className="w-3 h-3" /> {liveCoins}
         </span>
         <span className="text-[#00f3ff]">{powerMsg || `RÉCORD: ${stats.highScore.toLocaleString()}`}</span>
       </div>
@@ -826,12 +840,9 @@ export function NeonBreaker() {
         continueText={`Ver anuncio para continuar (+${Math.max(10, 30)}% vidas)`}
         userRole={userRole}
         vip={vip}
+        rewardStatus={rewardStatus}
+        rewardAmount={pendingReward}
       />
-      {pendingReward > 0 && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
-          <span className="text-amber-400 text-xs font-black">Recompensa: +{pendingReward} {rewardCreditedFs ? '(acreditado)' : '(abono pendiente)'}</span>
-        </div>
-      )}
     </div>
   );
 }
