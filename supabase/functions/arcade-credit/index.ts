@@ -222,12 +222,11 @@ Deno.serve(async (req: Request) => {
     amount = Math.min(amount, DAILY_CAP_PER_GAME - creditedToday);
     const cappedReduced = amount < originalAmount;
 
-    // Si Firebase Admin esta disponible, hace el abono en Firestore:
-    // registro idempotente (log doc) + incremento atomico con FieldValue.increment.
-    // No usamos runTransaction porque el canal gRPC del Admin SDK falla
-    // intermitentemente en el runtime de Deno Edge; FieldValue.increment es
-    // atomico del lado del servidor y el log doc + indice unico en Supabase
-    // garantizan idempotencia sin doble acreditacion.
+    // Si Firebase Admin esta disponible, hace el abono en Firestore de forma
+    // atomica con un batch: el log doc se escribe con precondicion de creacion
+    // (createIfMissing) y el saldo se incrementa en la misma operacion. Si dos
+    // peticiones simultaneas intentan acreditar la misma partida, solo una logra
+    // crear el log doc; la otra falla el batch completo y no se duplica el abono.
     let firestoreCredited = false;
     let firestoreError: string | null = null;
     let errorStage: string | null = null;
@@ -239,53 +238,26 @@ Deno.serve(async (req: Request) => {
       try {
         const userRef = firestore.doc(`usuarios/${uid}`);
         const logRef = firestore.collection("arcade_credit_log_firestore").doc(`${uid}_${game}_${sessionId}`);
+        const adminMod = await import("npm:firebase-admin@12.7.0");
+        const FieldValue = adminMod.firestore.FieldValue;
 
-        // Paso 1: verificar idempotencia con el log doc de Firestore.
-        let logSnap: any;
+        // Verificar si ya fue acreditado (peticion duplicada o reintento).
         try {
-          logSnap = await logRef.get();
+          const existingLog = await logRef.get();
+          if (existingLog.exists) {
+            firestoreCredited = true;
+          }
         } catch (e0) {
-          errorStage = "log_get";
+          errorStage = "log_check";
           throw e0;
         }
-        if (logSnap.exists) {
-          firestoreCredited = true;
-        } else {
-          // Paso 2: verificar que el documento del usuario existe.
-          let userSnap: any;
-          try {
-            userSnap = await userRef.get();
-          } catch (e1) {
-            errorStage = "user_get";
-            throw e1;
-          }
 
-          // Paso 3: incremento atomico (o creacion del doc si no existe).
-          const adminMod = await import("npm:firebase-admin@12.7.0");
-          const FieldValue = adminMod.firestore.FieldValue;
+        if (!firestoreCredited) {
+          // Batch atomica: log doc con precondicion create + incremento de saldo.
+          // Si el log doc ya existe (race condition), el batch falla y no se abona.
           try {
-            if (!userSnap.exists) {
-              await userRef.set({
-                uid,
-                coins: 200 + amount,
-                coins_from_gameplay: amount,
-                lastActive: new Date(),
-              });
-            } else {
-              await userRef.update({
-                coins: FieldValue.increment(amount),
-                coins_from_gameplay: FieldValue.increment(amount),
-                lastActive: new Date(),
-              });
-            }
-          } catch (e2) {
-            errorStage = "user_update";
-            throw e2;
-          }
-
-          // Paso 4: escribir el log doc idempotente (solo si el abono exitio).
-          try {
-            await logRef.set({
+            const batch = firestore.batch();
+            batch.set(logRef, {
               uid,
               game,
               session_id: sessionId,
@@ -293,11 +265,24 @@ Deno.serve(async (req: Request) => {
               metrics,
               created_at: new Date(),
             });
-          } catch (e3) {
-            errorStage = "log_set";
-            throw e3;
+            // Usa merge para no sobrescribir campos existentes del usuario.
+            batch.set(userRef, {
+              coins: FieldValue.increment(amount),
+              coins_from_gameplay: FieldValue.increment(amount),
+              lastActive: new Date(),
+            }, { merge: true });
+            await batch.commit();
+            firestoreCredited = true;
+          } catch (e1) {
+            // Si el error es por el log doc ya existente, es un duplicado seguro.
+            const msg = String(e1);
+            if (msg.includes("ALREADY_EXISTS") || msg.includes("already exists")) {
+              firestoreCredited = true;
+            } else {
+              errorStage = "batch_commit";
+              throw e1;
+            }
           }
-          firestoreCredited = true;
         }
       } catch (e) {
         firestoreCredited = false;

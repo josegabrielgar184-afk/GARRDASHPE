@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
-import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap, Volume2, VolumeX, Music, Music2 } from 'lucide-react';
+import { ArrowLeft, Trophy, Pause, Play, RotateCcw, Circle, Coins, Zap, Volume2, VolumeX, Music, Music2, Video } from 'lucide-react';
 import { startGameMusic, stopGameMusic, setGameMusicIntensity } from '@/lib/audio';
 
 const W = 360;
@@ -177,6 +177,7 @@ class Sfx {
 }
 
 import { requestArcadeCredit, newSessionId, type RewardStatus } from '@/lib/arcade-credit';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
 
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
 function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
@@ -200,7 +201,7 @@ function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 }
 
 export function CanicasExplosivas() {
-  const { setScreen, creditMonthlyScore } = useGame();
+  const { setScreen, creditMonthlyScore, userRole, vip } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const timeHudRef = useRef<HTMLSpanElement>(null);
@@ -219,6 +220,9 @@ export function CanicasExplosivas() {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('canicas_music') !== '0';
   });
+  const [showInterstitial, setShowInterstitial] = useState(false);
+  const interstitialCheckedRef = useRef(false);
+  const continueUsedRef = useRef(false);
   const musicOnRef = useRef(true);
 
   useEffect(() => {
@@ -293,6 +297,8 @@ export function CanicasExplosivas() {
     lastDiffRef.current = 'FACIL';
     sessionIdRef.current = newSessionId();
     endCreditedRef.current = false;
+    continueUsedRef.current = false;
+    interstitialCheckedRef.current = false;
     setScore(0);
     setEndStats(null);
     setGameStatus('ready');
@@ -382,6 +388,10 @@ export function CanicasExplosivas() {
           setGameStatus('lost');
           sfx().lose();
           void creditGameEndRef.current?.();
+          if (!interstitialCheckedRef.current) {
+            interstitialCheckedRef.current = true;
+            setShowInterstitial(true);
+          }
           return;
         }
         for (let i = 1; i < marbles.length; i++) {
@@ -661,6 +671,24 @@ export function CanicasExplosivas() {
   }, []);
   creditGameEndRef.current = creditGameEnd;
 
+  const handleContinue = () => {
+    if (continueUsedRef.current) return;
+    continueUsedRef.current = true;
+    // Retrocede la cadena 15 espacios y da 10 segundos de respiro
+    const marbles = marblesRef.current;
+    if (marbles.length > 0) {
+      marbles[0].dist = Math.max(0, marbles[0].dist - SPACING * 15);
+      for (let i = 1; i < marbles.length; i++) {
+        const desired = marbles[i - 1].dist - SPACING;
+        marbles[i].dist = Math.min(marbles[i].dist, desired);
+      }
+    }
+    elapsedRef.current = Math.max(0, elapsedRef.current - 10);
+    endCreditedRef.current = false;
+    setGameStatus('playing');
+    setEndStats(null);
+  };
+
   const handleRestart = () => {
     sfx().unlock();
     initGame();
@@ -900,6 +928,14 @@ export function CanicasExplosivas() {
           )}
 
           <div className="flex flex-col gap-3 mt-5 w-52">
+            {status === 'lost' && !continueUsedRef.current && (
+              <button
+                onClick={handleContinue}
+                className={`${actionBtn} bg-gradient-to-r from-green-500/20 to-emerald-600/20 border border-green-500/40 text-green-400 flex items-center justify-center gap-2`}
+              >
+                <Video className="w-4 h-4" /> CONTINUAR
+              </button>
+            )}
             <button onClick={handleRestart} className={`${actionBtn} bg-gradient-to-r from-[#ff2d95] to-[#ffb700] text-black flex items-center justify-center gap-2`}>
               <RotateCcw className="w-4 h-4" /> REINICIAR
             </button>
@@ -908,6 +944,10 @@ export function CanicasExplosivas() {
             </button>
           </div>
         </div>
+      )}
+
+      {showInterstitial && (
+        <InterstitialAd onDone={() => setShowInterstitial(false)} />
       )}
     </div>
   );

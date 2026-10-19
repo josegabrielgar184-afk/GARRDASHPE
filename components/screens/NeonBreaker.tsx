@@ -8,6 +8,7 @@ import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Coins } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
 import { requestArcadeCredit, newSessionId, estimateNeonBreakerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
 
 const W = 360;
 const H = 480;
@@ -154,6 +155,8 @@ export function NeonBreaker() {
   const dragRef = useRef<{ active: boolean; lastX: number }>({ active: false, lastX: 0 });
   const continueUsedRef = useRef(false);
   const screenMsgUntilRef = useRef(0);
+  const [showInterstitial, setShowInterstitial] = useState(false);
+  const interstitialCheckedRef = useRef(false);
 
   const buildBricks = useCallback((lvl: number) => {
     const pattern = LEVELS[(lvl - 1) % LEVELS.length];
@@ -229,6 +232,7 @@ export function NeonBreaker() {
     setRewardCapped(false);
     setRewardCreditedFs(false);
     continueUsedRef.current = false;
+    interstitialCheckedRef.current = false;
     setScore(0);
     setLives(3);
     setCombo(0);
@@ -326,6 +330,10 @@ export function NeonBreaker() {
     creditMonthlyScore('neonbreaker', `nb-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_destroyed: blocksDestroyedRef.current, levels_cleared: levelsClearedRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
+    if (!interstitialCheckedRef.current && !victory) {
+      interstitialCheckedRef.current = true;
+      setShowInterstitial(true);
+    }
     setGameOver(true);
     setRunning(false);
     runningRef.current = false;
@@ -836,7 +844,7 @@ export function NeonBreaker() {
       )}
 
       <MiniGameOverModal
-        open={gameOver && !paused}
+        open={gameOver && !paused && !showInterstitial}
         score={score}
         highScore={victory ? Math.max(stats.highScore, score) : stats.highScore}
         gamesPlayed={stats.gamesPlayed}
@@ -853,6 +861,10 @@ export function NeonBreaker() {
         rewardCapped={rewardCapped}
         capLimit={150}
       />
+
+      {showInterstitial && (
+        <InterstitialAd onDone={() => setShowInterstitial(false)} />
+      )}
     </div>
   );
 }

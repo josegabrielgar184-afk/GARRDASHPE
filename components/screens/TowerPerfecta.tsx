@@ -8,6 +8,7 @@ import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Sparkles, Coins } from 'luci
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
 import { requestArcadeCredit, newSessionId, estimateTowerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
 
 const W = 360;
 const H = 480;
@@ -75,6 +76,8 @@ export function TowerPerfecta() {
   const showInstructionsRef = useRef(false);
   const continueUsedRef = useRef(false);
   const screenMsgUntilRef = useRef(0);
+  const [showInterstitial, setShowInterstitial] = useState(false);
+  const interstitialCheckedRef = useRef(false);
 
   const towerTopY = useCallback(() => {
     const top = towerRef.current[towerRef.current.length - 1];
@@ -116,6 +119,7 @@ export function TowerPerfecta() {
     setRewardCapped(false);
     stabilizeUsedRef.current = false;
     continueUsedRef.current = false;
+    interstitialCheckedRef.current = false;
     gameOverRef.current = false;
     cameraRef.current = 0;
     startTimeRef.current = Date.now();
@@ -196,6 +200,10 @@ export function TowerPerfecta() {
     creditMonthlyScore('tower', `tw-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_placed: blocksPlacedRef.current, perfects: perfectsRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
+    if (!interstitialCheckedRef.current) {
+      interstitialCheckedRef.current = true;
+      setShowInterstitial(true);
+    }
     setGameOver(true);
   }, [creditReward, creditMonthlyScore]);
 
@@ -602,7 +610,7 @@ export function TowerPerfecta() {
       )}
 
       <MiniGameOverModal
-        open={gameOver && !paused}
+        open={gameOver && !paused && !showInterstitial}
         score={score}
         highScore={stats.highScore}
         gamesPlayed={stats.gamesPlayed}
@@ -619,6 +627,10 @@ export function TowerPerfecta() {
         rewardCapped={rewardCapped}
         capLimit={150}
       />
+
+      {showInterstitial && (
+        <InterstitialAd onDone={() => setShowInterstitial(false)} />
+      )}
     </div>
   );
 }
