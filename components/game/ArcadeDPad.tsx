@@ -16,7 +16,7 @@ interface DPadProps {
 export function ArcadeDPad({ onUp, onDown, onLeft, onRight, accent = '#00f3ff' }: DPadProps) {
   const base =
     'absolute w-[62px] h-[62px] rounded-xl flex items-center justify-center touch-none select-none ' +
-    'bg-black/70 border shadow-md active:scale-90 active:brightness-150 transition-transform z-20';
+    'bg-black/70 border shadow-md active:scale-90 active:brightness-150 transition-transform z-20 pointer-events-auto';
 
   const arrowCls = 'w-6 h-6';
 

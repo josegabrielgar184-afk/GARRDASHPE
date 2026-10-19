@@ -27,7 +27,10 @@ export async function requestArcadeCredit(
   const user = auth.currentUser;
   if (!user) return { ok: false, credited: 0 };
   try {
-    const token = await user.getIdToken();
+    // Fuerza el refresh del token: en la WebView de Capacitor (Android) el
+    // token en cache puede estar expirado y getIdToken() sin flag puede
+    // devolver un token invalido o lanzar. Con true se solicita uno nuevo.
+    const token = await user.getIdToken(true);
     const res = await fetch(CREDIT_ENDPOINT, {
       method: 'POST',
       headers: {
