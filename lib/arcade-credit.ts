@@ -13,6 +13,10 @@ export interface CreditResult {
   capped?: boolean;
   cap_limit?: number;
   firestore_credited?: boolean;
+  // Cierto cuando el servidor valido el monto pero no pudo abonar en Firestore
+  // (Admin SDK no disponible en cold start). El cliente debe usar addCoins() con
+  // el monto aprobado para completar el abono en la cartera real de Firebase.
+  client_fallback?: boolean;
 }
 
 // Pide al servidor que calcule y acredite la recompensa de una partida.
@@ -49,6 +53,7 @@ export async function requestArcadeCredit(
         capped: data.capped === true,
         cap_limit: typeof data.cap_limit === 'number' ? data.cap_limit : undefined,
         firestore_credited: data.firestore_credited === true,
+        client_fallback: data.client_fallback === true,
       };
     }
     return { ok: false, credited: 0 };

@@ -9,8 +9,9 @@ import {
   Coins, Gamepad2, Store, Disc, Crown, LogOut, Trophy, Settings, X,
   Droplet, Volume2, VolumeX, ShieldCheck, Palette, Download, ShieldAlert,
   Sparkles, Gem, Lock, Gift, ChevronUp, ChevronDown, Eye, Bell, Users,
-  Move, RotateCcw, Save, Sliders, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+  Move, RotateCcw, Save, Sliders, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Target,
 } from 'lucide-react';
+import { MissionsPanel } from '@/components/screens/MissionsPanel';
 import {
   INFLUENCER_MIN_RUNS, INFLUENCER_MIN_SCORE, INFLUENCER_MIN_BALANCE,
 } from '@/lib/config';
@@ -35,6 +36,7 @@ export function MenuScreen() {
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showControlEditor, setShowControlEditor] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [perfTier, setPerfTierState] = useState<PerformanceTier>('high');
 
@@ -247,6 +249,20 @@ export function MenuScreen() {
             </div>
           </div>
 
+          {/* Misiones semanales — boton compacto bajo el TOP 1 */}
+          <button
+            onClick={() => setShowMissions(true)}
+            className="mb-2 w-full tac-panel tac-stencil rounded-lg py-2 px-3 flex items-center justify-between active:scale-[0.98] transition-transform"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-md bg-amber-500/15 flex items-center justify-center border border-amber-500/30">
+                <Target className="w-4 h-4 text-amber-400" />
+              </div>
+              <span className="text-[#d4d8b8] font-bold text-xs tracking-wider">MISIONES</span>
+            </div>
+            <span className="text-amber-400/80 text-[10px] font-bold">+100 semanal</span>
+          </button>
+
           {/* Balance card */}
           <div className="mb-2">
             <div className="tac-panel tac-stencil p-2.5 flex items-center gap-2">
@@ -386,6 +402,8 @@ export function MenuScreen() {
       )}
 
       <SuggestionModal open={showSuggestion} onClose={() => setShowSuggestion(false)} />
+
+      <MissionsPanel open={showMissions} onClose={() => setShowMissions(false)} />
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in" onClick={() => setShowSettings(false)}>

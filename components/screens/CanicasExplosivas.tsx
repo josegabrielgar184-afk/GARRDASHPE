@@ -178,6 +178,7 @@ class Sfx {
 
 import { requestArcadeCredit, newSessionId, type RewardStatus } from '@/lib/arcade-credit';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
+import { registerGameFinished } from '@/lib/ad-frequency';
 
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
 function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
@@ -201,7 +202,7 @@ function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 }
 
 export function CanicasExplosivas() {
-  const { setScreen, creditMonthlyScore, userRole, vip } = useGame();
+  const { setScreen, creditMonthlyScore, userRole, vip, addCoins } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const timeHudRef = useRef<HTMLSpanElement>(null);
@@ -390,7 +391,9 @@ export function CanicasExplosivas() {
           void creditGameEndRef.current?.();
           if (!interstitialCheckedRef.current) {
             interstitialCheckedRef.current = true;
-            setShowInterstitial(true);
+            if (registerGameFinished('canicas')) {
+              setShowInterstitial(true);
+            }
           }
           return;
         }
@@ -660,7 +663,10 @@ export function CanicasExplosivas() {
     creditMonthlyScore('canicas', `cn-${sessionIdRef.current}`, { score: scoreRef.current, explosions: explosionsRef.current }, scoreRef.current);
     if (result.credited > 0) {
       const fsCredited = result.firestore_credited === true;
-      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: fsCredited ? 'credited' : 'pending', capped: result.capped === true } : prev));
+      if (!fsCredited && result.client_fallback) {
+        addCoins(result.credited, 'arcade');
+      }
+      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: true, rewardStatus: 'credited', capped: result.capped === true } : prev));
     } else if (result.duplicate) {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none' } : prev));
     } else if (result.capped) {
@@ -668,7 +674,7 @@ export function CanicasExplosivas() {
     } else {
       setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'failed' } : prev));
     }
-  }, []);
+  }, [addCoins, creditMonthlyScore]);
   creditGameEndRef.current = creditGameEnd;
 
   const handleContinue = () => {

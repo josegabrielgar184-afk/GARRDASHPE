@@ -292,6 +292,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // Escribe el registro idempotente en Supabase (ledger + conciliacion).
+    // Si el servidor no pudo abonar en Firestore (Admin SDK no disponible en
+    // cold start), marca como pending_client para que el cliente complete el
+    // abono via addCoins() con el monto aprobado por el servidor.
+    const ledgerStatus = firestoreCredited ? "credited" : "pending_client";
     const logRes = await fetch(`${supabaseUrl}/rest/v1/arcade_credit_log`, {
       method: "POST",
       headers: {
@@ -306,7 +310,7 @@ Deno.serve(async (req: Request) => {
         session_id: sessionId,
         metrics,
         amount,
-        status: firestoreCredited ? "credited" : "pending_firestore",
+        status: ledgerStatus,
         firestore_error: firestoreError || null,
       }),
     });
@@ -328,6 +332,7 @@ Deno.serve(async (req: Request) => {
       ok: true,
       credited: amount,
       firestore_credited: firestoreCredited,
+      client_fallback: !firestoreCredited,
       capped: cappedReduced,
       cap_limit: cappedReduced ? DAILY_CAP_PER_GAME : undefined,
     }), {

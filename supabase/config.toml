@@ -16,3 +16,6 @@ verify_jwt = false
 [functions.monthly-score]
 verify_jwt = false
 
+[functions.mission-claim]
+verify_jwt = false
+

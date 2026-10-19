@@ -9,6 +9,7 @@ import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstru
 import { requestArcadeCredit, newSessionId, estimateNeonBreakerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
+import { registerGameFinished } from '@/lib/ad-frequency';
 
 const W = 360;
 const H = 480;
@@ -305,11 +306,18 @@ export function NeonBreaker() {
       max_level: levelRef.current,
     });
     if (result.credited > 0) {
+      // Si el servidor abono en Firestore, solo actualizamos la UI. Si el
+      // servidor no pudo (cold start del Admin SDK), usamos addCoins() con el
+      // monto aprobado por el servidor — mismo camino que los juegos antiguos.
+      const fsCredited = result.firestore_credited === true;
+      if (!fsCredited && result.client_fallback) {
+        addCoins(result.credited, 'arcade');
+      }
       pendingRewardRef.current = result.credited;
+      rewardCreditedFsRef.current = true;
+      setRewardCreditedFs(true);
       setPendingReward(result.credited);
-      rewardCreditedFsRef.current = result.firestore_credited === true;
-      setRewardCreditedFs(result.firestore_credited === true);
-      setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
+      setRewardStatus('credited');
       setRewardCapped(result.capped === true);
     } else if (result.duplicate) {
       setRewardStatus('none');
@@ -319,7 +327,7 @@ export function NeonBreaker() {
     } else {
       setRewardStatus('failed');
     }
-  }, []);
+  }, [addCoins]);
 
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;
@@ -332,7 +340,9 @@ export function NeonBreaker() {
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     if (!interstitialCheckedRef.current && !victory) {
       interstitialCheckedRef.current = true;
-      setShowInterstitial(true);
+      if (registerGameFinished('neonbreaker')) {
+        setShowInterstitial(true);
+      }
     }
     setGameOver(true);
     setRunning(false);

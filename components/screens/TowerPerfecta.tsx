@@ -9,6 +9,7 @@ import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstru
 import { requestArcadeCredit, newSessionId, estimateTowerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
+import { registerGameFinished } from '@/lib/ad-frequency';
 
 const W = 360;
 const H = 480;
@@ -175,11 +176,15 @@ export function TowerPerfecta() {
       perfects: perfectsRef.current,
     });
     if (result.credited > 0) {
+      const fsCredited = result.firestore_credited === true;
+      if (!fsCredited && result.client_fallback) {
+        addCoins(result.credited, 'arcade');
+      }
       pendingRewardRef.current = result.credited;
-      rewardCreditedFsRef.current = result.firestore_credited === true;
+      rewardCreditedFsRef.current = true;
+      setRewardCreditedFs(true);
       setPendingReward(result.credited);
-      setRewardCreditedFs(result.firestore_credited === true);
-      setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
+      setRewardStatus('credited');
       setRewardCapped(result.capped === true);
     } else if (result.duplicate) {
       setRewardStatus('none');
@@ -189,7 +194,7 @@ export function TowerPerfecta() {
     } else {
       setRewardStatus('failed');
     }
-  }, []);
+  }, [addCoins]);
 
   const triggerGameOver = useCallback(() => {
     if (gameOverRef.current) return;
@@ -202,7 +207,9 @@ export function TowerPerfecta() {
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
     if (!interstitialCheckedRef.current) {
       interstitialCheckedRef.current = true;
-      setShowInterstitial(true);
+      if (registerGameFinished('tower')) {
+        setShowInterstitial(true);
+      }
     }
     setGameOver(true);
   }, [creditReward, creditMonthlyScore]);
