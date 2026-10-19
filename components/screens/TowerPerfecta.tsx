@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '@/hooks/use-game';
 import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
-import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Sparkles } from 'lucide-react';
+import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Sparkles, Coins } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
+import { requestArcadeCredit, newSessionId, estimateTowerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 
 const W = 360;
@@ -61,6 +61,8 @@ export function TowerPerfecta() {
   const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
   const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
+  const [rewardStatus, setRewardStatus] = useState<RewardStatus>('idle');
+  const [liveCoins, setLiveCoins] = useState(0);
   const stabilizeUsedRef = useRef(false);
   const gameOverRef = useRef(false);
   const pausedRef = useRef(false);
@@ -107,6 +109,9 @@ export function TowerPerfecta() {
     pendingRewardRef.current = 0;
     sessionIdRef.current = newSessionId();
     setPendingReward(0);
+    setRewardStatus('idle');
+    setRewardCreditedFs(false);
+    setLiveCoins(0);
     stabilizeUsedRef.current = false;
     continueUsedRef.current = false;
     gameOverRef.current = false;
@@ -158,6 +163,7 @@ export function TowerPerfecta() {
   const creditReward = useCallback(async () => {
     if (rewardCreditedRef.current) return;
     rewardCreditedRef.current = true;
+    setRewardStatus('loading');
     const result = await requestArcadeCredit('tower', sessionIdRef.current, {
       blocks_placed: blocksPlacedRef.current,
       perfects: perfectsRef.current,
@@ -165,6 +171,13 @@ export function TowerPerfecta() {
     if (result.credited > 0) {
       pendingRewardRef.current = result.credited;
       rewardCreditedFsRef.current = result.firestore_credited === true;
+      setPendingReward(result.credited);
+      setRewardCreditedFs(result.firestore_credited === true);
+      setRewardStatus(result.firestore_credited === true ? 'credited' : 'pending');
+    } else if (result.duplicate || result.capped) {
+      setRewardStatus('none');
+    } else {
+      setRewardStatus('failed');
     }
   }, []);
 
@@ -176,8 +189,6 @@ export function TowerPerfecta() {
     void creditReward();
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
-    setPendingReward(pendingRewardRef.current);
-    setRewardCreditedFs(rewardCreditedFsRef.current);
     setGameOver(true);
   }, [creditReward]);
 
@@ -246,6 +257,7 @@ export function TowerPerfecta() {
 
     setScore(scoreRef.current);
     setHeightBlocks(towerRef.current.length - 1);
+    setLiveCoins(estimateTowerCoins(blocksPlacedRef.current, perfectsRef.current));
     // Intensidad musical y ciudad segun altura real de la torre
     setGameMusicIntensity(Math.min(1, towerRef.current.length / 40));
 
@@ -492,6 +504,9 @@ export function TowerPerfecta() {
         <span className={combo >= 2 ? 'text-amber-400 animate-pulse' : 'text-white/40'}>
           {combo >= 2 ? `PERFECTOS x${combo}` : 'COMBO 0'}
         </span>
+        <span className="flex items-center gap-1 text-amber-400">
+          <Coins className="w-3 h-3" /> {liveCoins}
+        </span>
         <span className="text-white/50">RÉCORD: {stats.highScore.toLocaleString()}</span>
       </div>
 
@@ -592,12 +607,9 @@ export function TowerPerfecta() {
         continueText="Ver anuncio para continuar"
         userRole={userRole}
         vip={vip}
+        rewardStatus={rewardStatus}
+        rewardAmount={pendingReward}
       />
-      {pendingReward > 0 && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-black/70 border border-amber-500/40">
-          <span className="text-amber-400 text-xs font-black">Recompensa: +{pendingReward} {rewardCreditedFs ? '(acreditado)' : '(abono pendiente)'}</span>
-        </div>
-      )}
     </div>
   );
 }

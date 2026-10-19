@@ -176,7 +176,7 @@ class Sfx {
   }
 }
 
-import { requestArcadeCredit, newSessionId } from '@/lib/arcade-credit';
+import { requestArcadeCredit, newSessionId, type RewardStatus } from '@/lib/arcade-credit';
 
 // Canica con volumen: base de color, sombra inferior, brillo superior y borde sutil
 function drawMarble(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
@@ -210,7 +210,7 @@ export function CanicasExplosivas() {
 
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
-  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; firestoreCredited?: boolean } | null>(null);
+  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; firestoreCredited?: boolean; rewardStatus?: RewardStatus } | null>(null);
   const [soundOn, setSoundOn] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('canicas_sfx') !== '0';
@@ -643,11 +643,17 @@ export function CanicasExplosivas() {
   const creditGameEnd = useCallback(async () => {
     if (endCreditedRef.current) return;
     endCreditedRef.current = true;
+    setEndStats((prev) => prev ? { ...prev, rewardStatus: 'loading' } : prev);
     const result = await requestArcadeCredit('canicas', sessionIdRef.current, {
       explosions: explosionsRef.current,
     });
     if (result.credited > 0) {
-      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: result.firestore_credited === true } : prev));
+      const fsCredited = result.firestore_credited === true;
+      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: fsCredited, rewardStatus: fsCredited ? 'credited' : 'pending' } : prev));
+    } else if (result.duplicate || result.capped) {
+      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none' } : prev));
+    } else {
+      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'failed' } : prev));
     }
   }, []);
   creditGameEndRef.current = creditGameEnd;
@@ -688,7 +694,16 @@ export function CanicasExplosivas() {
         { label: 'Duracion', value: fmtTime(endStats.duration) },
         { label: 'Explosiones validas', value: String(endStats.explosions) },
         { label: 'Puntuacion', value: endStats.score.toLocaleString() },
-        { label: 'Recompensa', value: `${endStats.realCoins ?? 0} ${endStats.firestoreCredited ? '(acreditado)' : '(pendiente)'}` },
+        {
+          label: 'Recompensa',
+          value: endStats.rewardStatus === 'loading'
+            ? 'Calculando...'
+            : endStats.rewardStatus === 'failed'
+            ? 'No acreditada'
+            : endStats.rewardStatus === 'none'
+            ? 'Sin recompensa'
+            : `${endStats.realCoins ?? 0} ${endStats.firestoreCredited ? '(acreditado)' : '(pendiente)'}`,
+        },
       ]
     : [];
 
@@ -861,10 +876,19 @@ export function CanicasExplosivas() {
               ))}
             </div>
           )}
-          <p className="text-white/30 text-[10px] mt-2 max-w-60">
-            {endStats?.firestoreCredited
-              ? 'Recompensa acreditada en tu saldo por el servidor.'
-              : 'Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.'}
+          <p className={`text-[10px] mt-2 max-w-60 font-bold ${
+            endStats?.rewardStatus === 'credited' ? 'text-green-400'
+            : endStats?.rewardStatus === 'pending' ? 'text-amber-400'
+            : endStats?.rewardStatus === 'failed' ? 'text-red-400'
+            : endStats?.rewardStatus === 'loading' ? 'text-white/50'
+            : 'text-white/30'
+          }`}>
+            {endStats?.rewardStatus === 'loading' && 'Calculando recompensa con el servidor...'}
+            {endStats?.rewardStatus === 'credited' && `+${endStats.realCoins ?? 0} monedas acreditadas en tu saldo por el servidor.`}
+            {endStats?.rewardStatus === 'pending' && `${endStats.realCoins ?? 0} monedas aprobadas: abono al saldo pendiente de backend autorizado.`}
+            {endStats?.rewardStatus === 'failed' && 'No se pudo acreditar la recompensa. Reintenta en la proxima partida.'}
+            {endStats?.rewardStatus === 'none' && 'Sin recompensa esta partida (partida duplicada o tope diario alcanzado).'}
+            {endStats?.rewardStatus === undefined && 'Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.'}
           </p>
 
           <div className="flex flex-col gap-3 mt-5 w-52">
