@@ -226,49 +226,67 @@ Deno.serve(async (req: Request) => {
     // registro idempotente + incremento de saldo en una transaccion.
     let firestoreCredited = false;
     let firestoreError: string | null = null;
+    let errorStage: string | null = null;
     const adminReady = await ensureFirebaseAdmin();
-    if (adminReady && firestore) {
+    if (!adminReady || !firestore) {
+      firestoreError = adminInitError || "admin SDK not available";
+      errorStage = "init";
+    } else {
       try {
         const userRef = firestore.doc(`usuarios/${uid}`);
         const logRef = firestore.collection("arcade_credit_log_firestore").doc(`${uid}_${game}_${sessionId}`);
-        await firestore.runTransaction(async (tx: any) => {
-          const logSnap = await tx.get(logRef);
-          if (logSnap.exists) return;
-          const userSnap = await tx.get(userRef);
-          // Si el documento del usuario no existe todavia en Firestore (p.ej.
-          // verificacionYCrearUsuario fallo o se skipeo), lo creamos con el
-          // saldo inicial en vez de abortar la acreditacion.
-          if (!userSnap.exists) {
-            tx.set(userRef, {
+
+        // Paso 1: verificar que el documento del usuario existe y leer sus campos.
+        let userSnap: any;
+        try {
+          userSnap = await userRef.get();
+        } catch (e1) {
+          errorStage = "user_get";
+          throw e1;
+        }
+        const userExists = userSnap.exists;
+        const currentCoins = userExists ? (userSnap.data()?.coins ?? 0) : null;
+        const currentGameplay = userExists ? (userSnap.data()?.coins_from_gameplay ?? 0) : null;
+        const coinsType = userExists ? typeof userSnap.data()?.coins : "n/a";
+
+        // Paso 2: ejecutar la transaccion.
+        try {
+          await firestore.runTransaction(async (tx: any) => {
+            const logSnap = await tx.get(logRef);
+            if (logSnap.exists) return;
+            if (!userExists) {
+              tx.set(userRef, {
+                uid,
+                coins: 200 + amount,
+                coins_from_gameplay: amount,
+                lastActive: new Date(),
+              });
+            } else {
+              tx.update(userRef, {
+                coins: (currentCoins ?? 0) + amount,
+                coins_from_gameplay: (currentGameplay ?? 0) + amount,
+                lastActive: new Date(),
+              });
+            }
+            tx.set(logRef, {
               uid,
-              coins: 200 + amount,
-              coins_from_gameplay: amount,
-              lastActive: new Date(),
+              game,
+              session_id: sessionId,
+              amount,
+              metrics,
+              created_at: new Date(),
             });
-          } else {
-            const currentCoins = userSnap.data()?.coins ?? 0;
-            tx.update(userRef, {
-              coins: currentCoins + amount,
-              coins_from_gameplay: (userSnap.data()?.coins_from_gameplay ?? 0) + amount,
-              lastActive: new Date(),
-            });
-          }
-          tx.set(logRef, {
-            uid,
-            game,
-            session_id: sessionId,
-            amount,
-            metrics,
-            created_at: new Date(),
           });
-        });
-        firestoreCredited = true;
+          firestoreCredited = true;
+        } catch (e2) {
+          errorStage = "transaction";
+          throw e2;
+        }
       } catch (e) {
         firestoreCredited = false;
-        firestoreError = String(e);
+        const errMsg = String(e);
+        firestoreError = `[stage=${errorStage}] ${errMsg}`;
       }
-    } else {
-      firestoreError = adminInitError || "admin SDK not available";
     }
 
     // Escribe el registro idempotente en Supabase (ledger + conciliacion).
@@ -287,6 +305,7 @@ Deno.serve(async (req: Request) => {
         metrics,
         amount,
         status: firestoreCredited ? "credited" : "pending_firestore",
+        firestore_error: firestoreError || null,
       }),
     });
     if (!logRes.ok) {
@@ -309,7 +328,6 @@ Deno.serve(async (req: Request) => {
       firestore_credited: firestoreCredited,
       capped: cappedReduced,
       cap_limit: cappedReduced ? DAILY_CAP_PER_GAME : undefined,
-      firestore_error: firestoreError || undefined,
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
