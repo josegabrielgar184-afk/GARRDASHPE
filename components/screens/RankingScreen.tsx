@@ -10,6 +10,7 @@ export function RankingScreen() {
   const {
     setScreen, spaceRanking, zombieRanking, weeklyRanking, survivalRanking, refreshRanking, refreshWeeklyRanking,
     loadMoreRanking, hasMoreRanking, playerName, currentUserRank, currentUserScore,
+    rankingTab, setRankingTab, weeklyQueryError,
   } = useGame();
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [mainTab, setMainTab] = useState<'weekly' | 'global' | 'survival'>('weekly');
@@ -21,6 +22,12 @@ export function RankingScreen() {
   useEffect(() => {
     setLoading(false);
   }, [mainTab, gameTab]);
+
+  // Mantiene la pestana activa sincronizada con el hook para que el calculo
+  // de currentUserRank use la fuente correcta (semanal vs historico vs survival).
+  useEffect(() => {
+    setRankingTab(mainTab);
+  }, [mainTab, setRankingTab]);
 
   useEffect(() => {
 }, [mainTab, weeklyRanking]);
@@ -122,10 +129,20 @@ export function RankingScreen() {
               <p className="text-white/40 text-sm">Consultando Firebase...</p>
             </div>
 ) : ranking.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <Trophy className="w-10 h-10 text-white/20 mb-3" />
-              <p className="text-white/40 text-sm font-bold mb-1">Aun no hay puntajes</p>
-              <p className="text-white/30 text-xs">Sé el primero en calificar{mainTab === 'weekly' ? ' esta semana' : ''}</p>
+            <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+              {mainTab === 'weekly' && weeklyQueryError ? (
+                <>
+                  <Trophy className="w-10 h-10 text-red-400/40 mb-3" />
+                  <p className="text-red-400 text-sm font-bold mb-1">No se pudo cargar el ranking semanal</p>
+                  <p className="text-red-300/60 text-xs max-w-60">{weeklyQueryError}</p>
+                </>
+              ) : (
+                <>
+                  <Trophy className="w-10 h-10 text-white/20 mb-3" />
+                  <p className="text-white/40 text-sm font-bold mb-1">Aun no hay puntajes</p>
+                  <p className="text-white/30 text-xs">Sé el primero en calificar{mainTab === 'weekly' ? ' esta semana' : ''}</p>
+                </>
+              )}
             </div>
           ) : (
             <div ref={scrollRef} className="h-full overflow-y-auto no-scrollbar space-y-2 pb-4">

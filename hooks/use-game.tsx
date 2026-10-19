@@ -103,6 +103,8 @@ export interface RankEntry {
   level?: number;
 }
 
+export type RankingTab = 'weekly' | 'global' | 'survival';
+
 export type ControlSize = 'small' | 'medium' | 'large';
 export type OrientationMode = 'auto' | 'portrait' | 'landscape';
 export type UITheme = 'tactical-dark' | 'cyan-neon' | 'blood-red' | 'military-green';
@@ -374,6 +376,9 @@ interface GameState {
   transactionLight: TransactionLight;
   currentUserRank: number | null;
   currentUserScore: number;
+  rankingTab: RankingTab;
+  setRankingTab: (tab: RankingTab) => void;
+  weeklyQueryError: string | null;
   allUsersList: Array<{
     uid: string; nombre: string; email: string; coins: number;
     puntos: number; vip: boolean; playerID: string; nickname: string;
@@ -572,6 +577,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [transactionLight, setTransactionLight] = useState<TransactionLight>('green');
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const [currentUserScore, setCurrentUserScore] = useState<number>(0);
+  const [rankingTab, setRankingTab] = useState<RankingTab>('weekly');
+  const [weeklyQueryError, setWeeklyQueryError] = useState<string | null>(null);
   const [allUsersList, setAllUsersList] = useState<Array<{
     uid: string; nombre: string; email: string; coins: number;
     puntos: number; vip: boolean; playerID: string; nickname: string;
@@ -1640,6 +1647,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         limit(RANKING_PAGE_SIZE),
       );
       unsubs.push(onSnapshot(weeklyQ, (snap) => {
+        setWeeklyQueryError(null);
         const entries: RankEntry[] = [];
         snap.forEach((d) => {
           const data = d.data();
@@ -1647,7 +1655,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           entries.push({ name: data.name || 'Jugador', score: data.score ?? 0, uid: data.uid, level: data.level });
         });
         setWeeklyRanking(fillWithBots(entries, 'weekly'));
-      }, () => setWeeklyRanking(fillWithBots([], 'weekly'))));
+      }, (err) => {
+        // No tragar el error: distinguir falta de indice, permisos y semana vacia.
+        const code = (err as { code?: string }).code ?? '';
+        let msg = err instanceof Error ? err.message : String(err);
+        if (code === 'failed-precondition') {
+          msg = 'Falta indice compuesto en Firestore (weekStart ASC + score DESC). Crea el indice desde la consola de Firebase.';
+        } else if (code === 'permission-denied') {
+          msg = 'Permiso denegado: las reglas de Firestore bloquean la lectura de scores_weekly.';
+        }
+        setWeeklyQueryError(msg);
+        setWeeklyRanking(fillWithBots([], 'weekly'));
+      }));
     } catch {}
     return () => unsubs.forEach((u) => u());
   }, []);
@@ -3204,74 +3223,90 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loggedIn || !auth.currentUser) return;
     const userUid = auth.currentUser.uid;
+
+    // Posicion local basada en el ranking ya cargado en la pestaña activa.
+    // No se mezclan puntos historicos (global) con semanales (weekly).
     const checkRank = () => {
-      const rankings = [spaceRanking, zombieRanking, weeklyRanking];
       let bestRank: number | null = null;
-      for (const ranking of rankings) {
-        const idx = ranking.findIndex((e) => e.uid === userUid || e.name === playerName);
-        if (idx >= 0) {
-          if (bestRank === null || idx + 1 < bestRank) bestRank = idx + 1;
+      let bestScore = 0;
+      if (rankingTab === 'weekly') {
+        const idx = weeklyRanking.findIndex((e) => e.uid === userUid);
+        if (idx >= 0) { bestRank = idx + 1; bestScore = weeklyRanking[idx].score; }
+      } else if (rankingTab === 'survival') {
+        const idx = survivalRanking.findIndex((e) => e.uid === userUid);
+        if (idx >= 0) { bestRank = idx + 1; bestScore = survivalRanking[idx].score; }
+      } else {
+        // global: mejor posicion entre space y zombie (historicos), nunca weekly.
+        for (const ranking of [spaceRanking, zombieRanking]) {
+          const idx = ranking.findIndex((e) => e.uid === userUid);
+          if (idx >= 0 && (bestRank === null || idx + 1 < bestRank)) {
+            bestRank = idx + 1;
+            bestScore = ranking[idx].score;
+          }
         }
       }
       setCurrentUserRank(bestRank);
+      setCurrentUserScore(bestScore);
     };
     checkRank();
 
+    // Calculo dinamico de posicion segun la pestaña activa. Solo consulta la
+    // fuente de datos correspondiente: scores_weekly para weekly, usuarios para
+    // global, scores_survival para survival. Nunca combina historico + semanal.
     const computeDynamicRank = async () => {
       try {
-        const userDoc = await getDoc(doc(db, 'usuarios', userUid));
-        if (!userDoc.exists()) {
-          setCurrentUserRank(null);
-          return;
-        }
-        const userData = userDoc.data();
-        const userSpace = userData.puntos_espacio ?? 0;
-        const userZombie = userData.puntos_zombies ?? 0;
-
-        const weekStart = getStartOfWeek();
-        const weeklyRef = doc(db, 'scores_weekly', `${userUid}_${weekStart.toISOString().slice(0, 10)}`);
-        const weeklyDoc = await getDoc(weeklyRef);
-        const userWeekly = weeklyDoc.exists() ? (weeklyDoc.data()?.score ?? 0) : 0;
-
-        if (userSpace <= 0 && userZombie <= 0 && userWeekly <= 0) {
-          setCurrentUserRank(null);
-          setCurrentUserScore(0);
-          return;
-        }
-
-        const bestScore = Math.max(userSpace, userZombie, userWeekly);
-        setCurrentUserScore(bestScore);
-
-        let bestRank: number | null = null;
-
-        if (userSpace > 0) {
-          const spaceQ = query(collection(db, 'usuarios'), where('puntos_espacio', '>', userSpace));
-          const spaceSnap = await getDocs(spaceQ);
-          const rank = spaceSnap.size + 1;
-          if (bestRank === null || rank < bestRank) bestRank = rank;
-        }
-        if (userZombie > 0) {
-          const zombieQ = query(collection(db, 'usuarios'), where('puntos_zombies', '>', userZombie));
-          const zombieSnap = await getDocs(zombieQ);
-          const rank = zombieSnap.size + 1;
-          if (bestRank === null || rank < bestRank) bestRank = rank;
-        }
-        if (userWeekly > 0) {
-          const weeklyCountQ = query(
+        if (rankingTab === 'weekly') {
+          const weekStart = getStartOfWeek();
+          const weeklyRef = doc(db, 'scores_weekly', `${userUid}_${weekStart.toISOString().slice(0, 10)}`);
+          const weeklyDoc = await getDoc(weeklyRef);
+          const userWeekly = weeklyDoc.exists() ? (weeklyDoc.data()?.score ?? 0) : 0;
+          if (userWeekly <= 0) { setCurrentUserRank(null); setCurrentUserScore(0); return; }
+          setCurrentUserScore(userWeekly);
+          const q = query(
             collection(db, 'scores_weekly'),
             where('weekStart', '==', weekStart),
             where('score', '>', userWeekly),
           );
-          const weeklyCountSnap = await getDocs(weeklyCountQ);
-          const rank = weeklyCountSnap.size + 1;
-          if (bestRank === null || rank < bestRank) bestRank = rank;
+          const snap = await getDocs(q);
+          setCurrentUserRank(snap.size + 1);
+          return;
         }
 
+        if (rankingTab === 'survival') {
+          if (survivalBestTime <= 0) { setCurrentUserRank(null); setCurrentUserScore(0); return; }
+          setCurrentUserScore(survivalBestTime);
+          const q = query(collection(db, 'scores_survival'), where('timeMs', '>', survivalBestTime));
+          const snap = await getDocs(q);
+          setCurrentUserRank(snap.size + 1);
+          return;
+        }
+
+        // global: usa puntos historicos acumulados (puntos_espacio / puntos_zombies).
+        const userDoc = await getDoc(doc(db, 'usuarios', userUid));
+        if (!userDoc.exists()) { setCurrentUserRank(null); return; }
+        const userData = userDoc.data();
+        const userSpace = userData.puntos_espacio ?? 0;
+        const userZombie = userData.puntos_zombies ?? 0;
+        if (userSpace <= 0 && userZombie <= 0) {
+          setCurrentUserRank(null); setCurrentUserScore(0); return;
+        }
+        setCurrentUserScore(Math.max(userSpace, userZombie));
+        let bestRank: number | null = null;
+        if (userSpace > 0) {
+          const snap = await getDocs(query(collection(db, 'usuarios'), where('puntos_espacio', '>', userSpace)));
+          const rank = snap.size + 1;
+          if (bestRank === null || rank < bestRank) bestRank = rank;
+        }
+        if (userZombie > 0) {
+          const snap = await getDocs(query(collection(db, 'usuarios'), where('puntos_zombies', '>', userZombie)));
+          const rank = snap.size + 1;
+          if (bestRank === null || rank < bestRank) bestRank = rank;
+        }
         setCurrentUserRank(bestRank);
       } catch {}
     };
     computeDynamicRank();
-  }, [spaceRanking, zombieRanking, weeklyRanking, loggedIn, playerName]);
+  }, [spaceRanking, zombieRanking, weeklyRanking, survivalRanking, loggedIn, playerName, rankingTab, survivalBestTime]);
 
   // ============================================================
   // CREATOR PROGRAM
@@ -3851,7 +3886,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     influencerInfo, refreshInfluencerInfo, requestInfluencerWithdraw,
     adminManualIncome, adminDeleteIncome, adminIncomeRecords, refreshAdminIncomeRecords,
     adminSetExchangeLimit, adminBanUser, adminPanicButton,
-    transactionLight, currentUserRank, currentUserScore, allUsersList,
+    transactionLight, currentUserRank, currentUserScore, rankingTab, setRankingTab, weeklyQueryError, allUsersList,
     observerMode, toggleObserverMode,
     addPlayTime,
     flushPlayTime,
