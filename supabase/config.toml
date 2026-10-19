@@ -10,3 +10,6 @@ verify_jwt = false
 [functions.arcade-credit]
 verify_jwt = false
 
+[functions.admin-ops]
+verify_jwt = false
+

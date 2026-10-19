@@ -12,7 +12,7 @@ import {
   Clock, Crown, Shield, Ban, Zap, Activity, UserCheck, UserX, RotateCw, Siren,
   Filter, Settings2, BarChart3, Coins, ScrollText, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff,
   RefreshCw, AlertCircle, XCircle, Loader2, Key, List, Mail, Gamepad2, Timer, IdCard,
-  MessageSquare, Send, Megaphone, Radio, Check, X,
+  MessageSquare, Send, Megaphone, Radio, Check, X, Search,
 } from 'lucide-react';
 import {
   fetchSuggestions, handleSuggestion, fetchInactiveUsers, fetchActiveUsersNow,
@@ -22,7 +22,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { fetchAnalytics, getModeLabel, formatDuration, type AnalyticsPeriod, type AnalyticsData } from '@/lib/analytics';
 
-type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'top50' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores';
+type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'top50' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores' | 'seguridad';
 
 export function AdminScreen() {
   const {
@@ -38,6 +38,7 @@ export function AdminScreen() {
     allUsersList,
     adminCreatorApplications, adminCreatorCodes, refreshAdminCreators,
     adminApproveCreator, adminRejectCreator, adminSuspendCreator, adminReactivateCreator,
+    isAdminByClaim,
   } = useGame();
   const [tab, setTab] = useState<Tab>('balance');
   const [processing, setProcessing] = useState<string | null>(null);
@@ -265,6 +266,7 @@ export function AdminScreen() {
     { id: 'telemetry', label: 'Telemetria', icon: Radio, group: 'Sistema' },
     { id: 'winback', label: 'Win-Back', icon: UserX, group: 'Sistema' },
     { id: 'promos', label: 'Promos', icon: Megaphone, group: 'Sistema' },
+    { id: 'seguridad', label: 'Seguridad', icon: Shield, group: 'Sistema' },
   ];
 
   return (
@@ -1390,6 +1392,8 @@ export function AdminScreen() {
               onRefresh={refreshAdminCreators}
             />
           )}
+
+          {tab === 'seguridad' && <AdminSeguridadTab isAdminByClaim={isAdminByClaim} />}
         </div>
       </div>
     </div>
@@ -2338,6 +2342,227 @@ function AdminCreatorsTab({
                     {actionLoading === c.code ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : 'Reactivar'}
                   </button>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminSeguridadTab({ isAdminByClaim }: { isAdminByClaim: boolean }) {
+  const [email, setEmail] = useState('');
+  const [resolvedUid, setResolvedUid] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [authorizing, setAuthorizing] = useState(false);
+  const [testCoins, setTestCoins] = useState('');
+  const [coinActionUid, setCoinActionUid] = useState('');
+  const [auditLog, setAuditLog] = useState<Array<{ id: string; action: string; email: string | null; targetUid: string; coinsDelta: number; timestamp: string | null }>>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [statusType, setStatusType] = useState<'ok' | 'error'>('ok');
+
+  const showStatus = (msg: string, type: 'ok' | 'error' = 'ok') => {
+    setStatus(msg);
+    setStatusType(type);
+    setTimeout(() => setStatus(null), 5000);
+  };
+
+  const handleResolve = async () => {
+    if (!email.trim()) return;
+    setResolving(true);
+    setResolvedUid(null);
+    const { resolveEmail } = await import('@/lib/admin-ops');
+    const result = await resolveEmail(email.trim());
+    setResolving(false);
+    if (result.ok && result.uid) {
+      setResolvedUid(result.uid);
+      setCoinActionUid(result.uid);
+      showStatus('Correo encontrado: ' + result.uid.substring(0, 16) + '...');
+    } else {
+      showStatus(result.error || 'Correo no encontrado', 'error');
+    }
+  };
+
+  const handleAuthorize = async () => {
+    if (!email.trim()) return;
+    setAuthorizing(true);
+    const { authorizeTestAccount } = await import('@/lib/admin-ops');
+    const result = await authorizeTestAccount(email.trim());
+    setAuthorizing(false);
+    if (result.ok) {
+      showStatus('Cuenta autorizada como pruebas');
+      setEmail('');
+      setResolvedUid(null);
+      loadAudit();
+    } else {
+      showStatus(result.error || 'Error al autorizar', 'error');
+    }
+  };
+
+  const handleRevoke = async (uid: string) => {
+    if (!uid || !confirm('¿Revocar esta cuenta de pruebas? Se eliminarán las monedas de prueba no utilizadas.')) return;
+    const { revokeTestAccount } = await import('@/lib/admin-ops');
+    const result = await revokeTestAccount(uid);
+    if (result.ok) {
+      showStatus('Autorización revocada');
+      loadAudit();
+    } else {
+      showStatus(result.error || 'Error al revocar', 'error');
+    }
+  };
+
+  const handleAddCoins = async (amount: number) => {
+    if (!coinActionUid.trim() || amount === 0) return;
+    const { addTestCoins } = await import('@/lib/admin-ops');
+    const result = await addTestCoins(coinActionUid.trim(), amount);
+    if (result.ok) {
+      showStatus('Monedas ajustadas. Nuevo saldo: ' + (result.newBalance ?? 0));
+      loadAudit();
+    } else {
+      showStatus(result.error || 'Error al ajustar monedas', 'error');
+    }
+  };
+
+  const loadAudit = async () => {
+    setAuditLoading(true);
+    const { listAuditLog } = await import('@/lib/admin-ops');
+    const result = await listAuditLog(50);
+    setAuditLoading(false);
+    if (result.ok && result.entries) {
+      setAuditLog(result.entries);
+    }
+  };
+
+  useEffect(() => { loadAudit(); }, []);
+
+  return (
+    <div className="space-y-4">
+      {/* Estado del admin */}
+      <div className={`rounded-2xl border p-4 shadow-lg ${isAdminByClaim ? 'bg-gradient-to-br from-green-900/30 to-card border-green-500/40' : 'bg-gradient-to-br from-amber-900/30 to-card border-amber-500/40'}`}>
+        <div className="flex items-center gap-3">
+          <Shield className={`w-6 h-6 ${isAdminByClaim ? 'text-green-400' : 'text-amber-400'}`} />
+          <div>
+            <p className="text-white font-bold text-sm">Administrador por Custom Claim</p>
+            <p className={`text-xs ${isAdminByClaim ? 'text-green-400' : 'text-amber-400'}`}>
+              {isAdminByClaim ? 'Verificado: claim admin = true' : 'No verificado: usa claim admin de Firebase'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {status && (
+        <div className={`rounded-xl p-3 text-xs font-bold ${statusType === 'ok' ? 'bg-green-500/10 border border-green-500/40 text-green-400' : 'bg-red-500/10 border border-red-500/40 text-red-400'}`}>
+          {status}
+        </div>
+      )}
+
+      {/* Autorizar cuenta de pruebas */}
+      <div className="rounded-2xl bg-card border border-cyan-500/30 p-4 shadow-lg">
+        <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Mail className="w-4 h-4 text-cyan-400" />Autorizar Cuenta de Pruebas</p>
+        <p className="text-white/40 text-xs mb-3">Escribe el correo de una cuenta registrada. Solo se permite una autorización cada 7 días.</p>
+        <div className="flex gap-2 mb-2">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="correo@ejemplo.com"
+            className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400"
+          />
+          <button onClick={handleResolve} disabled={resolving || !email.trim()} className="px-4 py-2 rounded-xl bg-cyan-500 text-white font-bold text-sm hover:bg-cyan-400 disabled:opacity-50 flex items-center gap-1">
+            {resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            Verificar
+          </button>
+        </div>
+        {resolvedUid && (
+          <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/30 p-3 mb-3">
+            <p className="text-cyan-400 text-xs font-bold mb-1">UID resuelto:</p>
+            <p className="text-white/60 text-xs font-mono break-all">{resolvedUid}</p>
+          </div>
+        )}
+        <button onClick={handleAuthorize} disabled={authorizing || !email.trim()} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+          {authorizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+          Autorizar como Pruebas
+        </button>
+      </div>
+
+      {/* Monedas de prueba */}
+      <div className="rounded-2xl bg-card border border-amber-500/30 p-4 shadow-lg">
+        <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Coins className="w-4 h-4 text-amber-400" />Monedas de Prueba</p>
+        <p className="text-white/40 text-xs mb-3">Agrega o retira monedas de prueba. Estas monedas son separadas del saldo legítimo y se eliminan al revocar.</p>
+        <input
+          type="text"
+          value={coinActionUid}
+          onChange={(e) => setCoinActionUid(e.target.value)}
+          placeholder="UID de la cuenta de pruebas"
+          className="w-full px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 mb-3"
+        />
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={testCoins}
+            onChange={(e) => setTestCoins(e.target.value)}
+            placeholder="Cantidad"
+            className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+          />
+          <button
+            onClick={() => { const n = parseInt(testCoins, 10); if (!isNaN(n) && n > 0) handleAddCoins(n); }}
+            className="px-4 py-2 rounded-xl bg-green-500 text-white font-bold text-sm hover:bg-green-400"
+          >
+            +
+          </button>
+          <button
+            onClick={() => { const n = parseInt(testCoins, 10); if (!isNaN(n) && n > 0) handleAddCoins(-n); }}
+            className="px-4 py-2 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-400"
+          >
+            -
+          </button>
+        </div>
+      </div>
+
+      {/* Revocar */}
+      <div className="rounded-2xl bg-card border border-red-500/30 p-4 shadow-lg">
+        <p className="text-white font-bold text-sm mb-3 flex items-center gap-2"><UserX className="w-4 h-4 text-red-400" />Revocar Cuenta</p>
+        <p className="text-white/40 text-xs mb-3">Pega el UID de la cuenta a revocar. Se eliminarán las monedas de prueba no utilizadas. Las monedas ganadas jugando no se afectan.</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={coinActionUid}
+            onChange={(e) => setCoinActionUid(e.target.value)}
+            placeholder="UID"
+            className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+          />
+          <button onClick={() => handleRevoke(coinActionUid.trim())} disabled={!coinActionUid.trim()} className="px-4 py-2 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-400 disabled:opacity-50">
+            Revocar
+          </button>
+        </div>
+      </div>
+
+      {/* Historial de auditoría */}
+      <div className="rounded-2xl bg-card border border-border p-4 shadow-lg">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-white font-bold text-sm flex items-center gap-2"><ScrollText className="w-4 h-4 text-cyan-400" />Historial de Seguridad</p>
+          <button onClick={loadAudit} disabled={auditLoading} className="text-white/50 hover:text-white text-xs flex items-center gap-1">
+            {auditLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Actualizar
+          </button>
+        </div>
+        <p className="text-white/30 text-[10px] mb-3">Inmutable desde el cliente. Solo el backend puede escribir aquí.</p>
+        {auditLog.length === 0 ? (
+          <p className="text-white/30 text-xs text-center py-4">Sin registros</p>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto no-scrollbar">
+            {auditLog.map((entry) => (
+              <div key={entry.id} className="rounded-xl bg-background/40 border border-border p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-white font-bold text-xs">{entry.action}</span>
+                  <span className="text-white/30 text-[10px]">{entry.timestamp ? new Date(entry.timestamp).toLocaleDateString('es-ES') : ''}</span>
+                </div>
+                <div className="text-[10px] text-white/40 space-y-0.5">
+                  {entry.email && <p>Correo: {entry.email}</p>}
+                  <p>UID: {entry.targetUid.substring(0, 20)}...</p>
+                  {entry.coinsDelta !== 0 && <p className={entry.coinsDelta > 0 ? 'text-green-400' : 'text-red-400'}>Monedas: {entry.coinsDelta > 0 ? '+' : ''}{entry.coinsDelta}</p>}
+                </div>
               </div>
             ))}
           </div>

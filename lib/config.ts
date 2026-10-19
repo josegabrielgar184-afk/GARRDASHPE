@@ -37,9 +37,31 @@ export const ADMOB_CONFIG = {
   fallbackRewardedId: "ca-app-pub-4019857759287283/4624626939",
 };
 
+// IDs oficiales de prueba de AdMob (Google documentation).
+// Se usan exclusivamente para cuentas de prueba (testAccount: true) para que
+// los anuncios reales nunca se sirvan ni generen impresiones inválidas.
+export const ADMOB_TEST_CONFIG = {
+  appId: "ca-app-pub-3940256099942544~3347511713",
+  bannerId: "ca-app-pub-3940256099942544/9214589741",
+  anuncioTiempoId: "ca-app-pub-3940256099942544/1033173712",
+  revivirId: "ca-app-pub-3940256099942544/5224354917",
+  ruletaId: "ca-app-pub-3940256099942544/5224354917",
+  shopRewardedId: "ca-app-pub-3940256099942544/5224354917",
+  fallbackRewardedId: "ca-app-pub-3940256099942544/5224354917",
+};
+
+// Bandera global que el GameProvider activa cuando detecta testAccount: true.
+let _isTestAccountMode = false;
+export function setTestAdMode(enabled: boolean) { _isTestAccountMode = enabled; }
+export function isTestAdMode(): boolean { return _isTestAccountMode; }
+
+function activeAdmobConfig() {
+  return _isTestAccountMode ? ADMOB_TEST_CONFIG : ADMOB_CONFIG;
+}
+
 export function getRewardedAdId(type: 'ruleta' | 'shop' | 'revivir'): string {
   if (!isProductionEnv()) return '';
-  const ids = ADMOB_CONFIG;
+  const ids = activeAdmobConfig();
   switch (type) {
     case 'ruleta': return ids.ruletaId;
     case 'shop': return ids.shopRewardedId;
@@ -48,7 +70,15 @@ export function getRewardedAdId(type: 'ruleta' | 'shop' | 'revivir'): string {
 }
 
 export function getFallbackRewardedId(): string {
-  return ADMOB_CONFIG.fallbackRewardedId;
+  return activeAdmobConfig().fallbackRewardedId;
+}
+
+export function getBannerAdId(): string {
+  return activeAdmobConfig().bannerId;
+}
+
+export function getInterstitialAdId(): string {
+  return activeAdmobConfig().anuncioTiempoId;
 }
 
 function isProductionEnv(): boolean {

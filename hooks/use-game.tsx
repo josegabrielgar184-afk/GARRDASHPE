@@ -323,6 +323,8 @@ interface GameState {
   offerwallDownloadsToday: number;
   recordOfferwallDownload: () => Promise<{ ok: boolean; error?: string }>;
   userRole: 'user' | 'operador' | 'admin';
+  isTestAccount: boolean;
+  isAdminByClaim: boolean;
   pendingRequests: PendingRequest[];
   refreshPendingRequests: () => Promise<void>;
   confirmPendingRequest: (requestId: string) => Promise<{ ok: boolean; error?: string }>;
@@ -543,6 +545,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [offerwallConfig, setOfferwallConfig] = useState<OfferwallConfig | null>(null);
   const [offerwallDownloadsToday, setOfferwallDownloadsToday] = useState(0);
   const [userRole, setUserRole] = useState<'user' | 'operador' | 'admin'>('user');
+  const [isTestAccount, setIsTestAccount] = useState(false);
+  const [isAdminByClaim, setIsAdminByClaim] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [canjes, setCanjes] = useState<CanjeRequest[]>([]);
   const [approvedCanjes, setApprovedCanjes] = useState<CanjeRequest[]>([]);
@@ -682,6 +686,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         else if (role === 'operador') setScreenState('operator');
         else setScreenState('menu');
 
+        // Verificacion de custom claims via backend: el claim admin: true
+        // tiene prioridad sobre el campo rol de Firestore y no es editable
+        // desde el cliente. testAccount: true activa el modo de pruebas.
+        try {
+          const { checkClaims } = await import('@/lib/admin-ops');
+          const claimsResult = await checkClaims();
+          if (claimsResult.ok) {
+            if (claimsResult.admin === true) {
+              setIsAdminByClaim(true);
+              setUserRole('admin');
+              setScreenState('admin');
+            }
+            if (claimsResult.testAccount === true) {
+              setIsTestAccount(true);
+            } else {
+              setIsTestAccount(false);
+            }
+          }
+        } catch {
+          // Si la edge function no responde, se conserva el rol de Firestore.
+        }
+
         setupDailyNotifications();
 
         try {
@@ -735,6 +761,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser(null);
         setLoggedInState(false);
         setUserRole('user');
+        setIsTestAccount(false);
+        setIsAdminByClaim(false);
         setCoins(0);
         setPoints(0);
         setPlayerName('');
@@ -868,6 +896,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setGameMusicUserEnabled(!muted && musicEnabled);
   }, [muted, musicEnabled]);
+
+  // Activa IDs de prueba de AdMob para cuentas de prueba (testAccount: true).
+  useEffect(() => {
+    import('@/lib/config').then(({ setTestAdMode }) => setTestAdMode(isTestAccount)).catch(() => {});
+  }, [isTestAccount]);
 
   // Musica del menu: se pausa (conservando posicion) dentro de los minijuegos
   // de arcade para que no se mezcle con la pista propia del juego.
@@ -3805,7 +3838,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     signIn, signUp, logOut,
     claimDiamonds, sendSuggestion,
     offerwallConfig, refreshOfferwallConfig, offerwallDownloadsToday, recordOfferwallDownload,
-    userRole, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
+    userRole, isTestAccount, isAdminByClaim, pendingRequests, refreshPendingRequests, confirmPendingRequest, rejectPendingRequest,
     canjes, refreshCanjes, submitCanje, correctCanjeId, cancelCanje,
     adminApproveCanje, adminMarkCorrection, adminRejectCanje,
     approvedCanjes, canjesPagination, setCanjesPage,
