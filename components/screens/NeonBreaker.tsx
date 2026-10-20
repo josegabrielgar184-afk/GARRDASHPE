@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
 import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Coins } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { requestArcadeCredit, newSessionId, estimateNeonBreakerCoins, type RewardStatus } from '@/lib/arcade-credit';
+import { estimateNeonBreakerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playCoin, playPickup, playVictory, playGameOver, playBarrelHit, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { registerGameFinished } from '@/lib/ad-frequency';
@@ -142,12 +142,8 @@ export function NeonBreaker() {
   const levelsClearedRef = useRef(0);
   const rewardCreditedRef = useRef(false);
   const pendingRewardRef = useRef(0);
-  const rewardCreditedFsRef = useRef(false);
-  const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
-  const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
   const [rewardStatus, setRewardStatus] = useState<RewardStatus>('idle');
-  const [rewardCapped, setRewardCapped] = useState(false);
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef(0);
   const startTimeRef = useRef(0);
@@ -228,11 +224,8 @@ export function NeonBreaker() {
     levelsClearedRef.current = 0;
     rewardCreditedRef.current = false;
     pendingRewardRef.current = 0;
-    sessionIdRef.current = newSessionId();
     setPendingReward(0);
     setRewardStatus('idle');
-    setRewardCapped(false);
-    setRewardCreditedFs(false);
     continueUsedRef.current = false;
     interstitialCheckedRef.current = false;
     setScore(0);
@@ -294,39 +287,25 @@ export function NeonBreaker() {
     }
   };
 
-  // Aprobacion de recompensa en el servidor (registro idempotente con tope diario).
-  // Sin backend autorizado para Firestore, la aprobacion NO se abona al saldo:
-  // el monto aprobado se muestra como pendiente de acreditacion.
-  const creditReward = useCallback(async () => {
+  // Recompensa con el mismo flujo que los juegos antiguos: el monto se calcula
+  // en el cliente y se abona directo a la cartera de Firebase con addCoins().
+  // El candado rewardCreditedRef impide pagar dos veces la misma partida y
+  // addCoins valida el rango del monto.
+  const creditReward = useCallback(() => {
     if (rewardCreditedRef.current) return;
     rewardCreditedRef.current = true;
-    setRewardStatus('loading');
-    const result = await requestArcadeCredit('neonbreaker', sessionIdRef.current, {
-      blocks_destroyed: blocksDestroyedRef.current,
-      levels_cleared: levelsClearedRef.current,
-      max_level: levelRef.current,
-    });
-    if (result.credited > 0) {
-      // Si el servidor abono en Firestore, solo actualizamos la UI. Si el
-      // servidor no pudo (cold start del Admin SDK), usamos addCoins() con el
-      // monto aprobado por el servidor — mismo camino que los juegos antiguos.
-      const fsCredited = result.firestore_credited === true;
-      if (!fsCredited && result.client_fallback) {
-        addCoins(result.credited, 'arcade');
-      }
-      pendingRewardRef.current = result.credited;
-      rewardCreditedFsRef.current = true;
-      setRewardCreditedFs(true);
-      setPendingReward(result.credited);
+    const amount = estimateNeonBreakerCoins(
+      blocksDestroyedRef.current,
+      levelsClearedRef.current,
+      levelRef.current,
+    );
+    if (amount > 0) {
+      addCoins(amount, 'arcade');
+      pendingRewardRef.current = amount;
+      setPendingReward(amount);
       setRewardStatus('credited');
-      setRewardCapped(result.capped === true);
-    } else if (result.duplicate) {
-      setRewardStatus('none');
-    } else if (result.capped) {
-      setRewardStatus('none');
-      setRewardCapped(true);
     } else {
-      setRewardStatus('failed');
+      setRewardStatus('none');
     }
     void recordMissionProgress('neonbreaker', blocksDestroyedRef.current);
   }, [addCoins]);
@@ -336,7 +315,7 @@ export function NeonBreaker() {
     gameOverRef.current = true;
     stopGameMusic();
     playGameOver();
-    void creditReward();
+    creditReward();
     creditMonthlyScore('neonbreaker', `nb-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_destroyed: blocksDestroyedRef.current, levels_cleared: levelsClearedRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
@@ -358,7 +337,7 @@ export function NeonBreaker() {
     playVictory();
     scoreRef.current += 1000;
     setScore(scoreRef.current);
-    void creditReward();
+    creditReward();
     creditMonthlyScore('neonbreaker', `nb-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_destroyed: blocksDestroyedRef.current, levels_cleared: levelsClearedRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
@@ -870,8 +849,6 @@ export function NeonBreaker() {
         vip={vip}
         rewardStatus={rewardStatus}
         rewardAmount={pendingReward}
-        rewardCapped={rewardCapped}
-        capLimit={150}
       />
 
       {showInterstitial && (

@@ -6,7 +6,7 @@ import { MuteButton } from '@/components/game/MuteButton';
 import { MiniGameOverModal } from '@/components/game/MiniGameOverModal';
 import { ArrowLeft, Pause, Play, RotateCcw, Trophy, Sparkles, Coins } from 'lucide-react';
 import { getMiniGameStats, recordMiniGameResult, hasSeenInstructions, markInstructionsSeen } from '@/lib/minigame-stats';
-import { requestArcadeCredit, newSessionId, estimateTowerCoins, type RewardStatus } from '@/lib/arcade-credit';
+import { estimateTowerCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { playHit, playPickup, playGameOver, playCoin, startGameMusic, stopGameMusic, setGameMusicIntensity, initAudio } from '@/lib/audio';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { registerGameFinished } from '@/lib/ad-frequency';
@@ -60,13 +60,9 @@ export function TowerPerfecta() {
   const perfectsRef = useRef(0);
   const rewardCreditedRef = useRef(false);
   const pendingRewardRef = useRef(0);
-  const rewardCreditedFsRef = useRef(false);
-  const sessionIdRef = useRef(newSessionId());
   const [pendingReward, setPendingReward] = useState(0);
-  const [rewardCreditedFs, setRewardCreditedFs] = useState(false);
   const [rewardStatus, setRewardStatus] = useState<RewardStatus>('idle');
   const [liveCoins, setLiveCoins] = useState(0);
-  const [rewardCapped, setRewardCapped] = useState(false);
   const stabilizeUsedRef = useRef(false);
   const gameOverRef = useRef(false);
   const pausedRef = useRef(false);
@@ -113,12 +109,9 @@ export function TowerPerfecta() {
     perfectsRef.current = 0;
     rewardCreditedRef.current = false;
     pendingRewardRef.current = 0;
-    sessionIdRef.current = newSessionId();
     setPendingReward(0);
     setRewardStatus('idle');
-    setRewardCreditedFs(false);
     setLiveCoins(0);
-    setRewardCapped(false);
     stabilizeUsedRef.current = false;
     continueUsedRef.current = false;
     interstitialCheckedRef.current = false;
@@ -165,35 +158,21 @@ export function TowerPerfecta() {
     }, 1900);
   };
 
-  // Aprobacion de recompensa en el servidor (registro idempotente con tope diario).
-  // Sin backend autorizado para Firestore, la aprobacion NO se abona al saldo:
-  // el monto aprobado se muestra como pendiente de acreditacion.
-  const creditReward = useCallback(async () => {
+  // Recompensa con el mismo flujo que los juegos antiguos: el monto se calcula
+  // en el cliente y se abona directo a la cartera de Firebase con addCoins().
+  // El candado rewardCreditedRef impide pagar dos veces la misma partida y
+  // addCoins valida el rango del monto.
+  const creditReward = useCallback(() => {
     if (rewardCreditedRef.current) return;
     rewardCreditedRef.current = true;
-    setRewardStatus('loading');
-    const result = await requestArcadeCredit('tower', sessionIdRef.current, {
-      blocks_placed: blocksPlacedRef.current,
-      perfects: perfectsRef.current,
-    });
-    if (result.credited > 0) {
-      const fsCredited = result.firestore_credited === true;
-      if (!fsCredited && result.client_fallback) {
-        addCoins(result.credited, 'arcade');
-      }
-      pendingRewardRef.current = result.credited;
-      rewardCreditedFsRef.current = true;
-      setRewardCreditedFs(true);
-      setPendingReward(result.credited);
+    const amount = estimateTowerCoins(blocksPlacedRef.current);
+    if (amount > 0) {
+      addCoins(amount, 'arcade');
+      pendingRewardRef.current = amount;
+      setPendingReward(amount);
       setRewardStatus('credited');
-      setRewardCapped(result.capped === true);
-    } else if (result.duplicate) {
-      setRewardStatus('none');
-    } else if (result.capped) {
-      setRewardStatus('none');
-      setRewardCapped(true);
     } else {
-      setRewardStatus('failed');
+      setRewardStatus('none');
     }
     void recordMissionProgress('tower', blocksPlacedRef.current);
   }, [addCoins]);
@@ -203,7 +182,7 @@ export function TowerPerfecta() {
     gameOverRef.current = true;
     stopGameMusic();
     playGameOver();
-    void creditReward();
+    creditReward();
     creditMonthlyScore('tower', `tw-${Date.now().toString(36)}-${Math.floor(Math.random()*1e9).toString(36)}`, { score: scoreRef.current, blocks_placed: blocksPlacedRef.current, perfects: perfectsRef.current }, scoreRef.current);
     const dur = Math.floor((Date.now() - startTimeRef.current) / 1000);
     setStats(recordMiniGameResult(GAME_ID, scoreRef.current, dur));
@@ -633,8 +612,6 @@ export function TowerPerfecta() {
         vip={vip}
         rewardStatus={rewardStatus}
         rewardAmount={pendingReward}
-        rewardCapped={rewardCapped}
-        capLimit={150}
       />
 
       {showInterstitial && (

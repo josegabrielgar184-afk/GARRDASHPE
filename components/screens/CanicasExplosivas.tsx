@@ -176,7 +176,7 @@ class Sfx {
   }
 }
 
-import { requestArcadeCredit, newSessionId, type RewardStatus } from '@/lib/arcade-credit';
+import { newSessionId, estimateCanicasCoins, type RewardStatus } from '@/lib/arcade-credit';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { registerGameFinished } from '@/lib/ad-frequency';
 import { recordMissionProgress } from '@/lib/missions';
@@ -213,7 +213,7 @@ export function CanicasExplosivas() {
 
   const [score, setScore] = useState(0);
   const [status, setStatus] = useState<Status>('ready');
-  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; firestoreCredited?: boolean; rewardStatus?: RewardStatus; capped?: boolean } | null>(null);
+  const [endStats, setEndStats] = useState<{ duration: number; explosions: number; coins: number; score: number; realCoins?: number; rewardStatus?: RewardStatus } | null>(null);
   const [soundOn, setSoundOn] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('canicas_sfx') !== '0';
@@ -648,32 +648,22 @@ export function CanicasExplosivas() {
     }
   };
 
-  // Recompensa real por progreso: el servidor calcula y acredita el monto (una vez por partida)
-  const creditGameEndRef = useRef<(() => Promise<void>) | null>(null);
+  // Recompensa real por progreso (una vez por partida).
+  const creditGameEndRef = useRef<(() => void) | null>(null);
 
-  // Aprobacion de recompensa en el servidor (registro idempotente con tope diario).
-  // Sin backend autorizado para Firestore, la aprobacion NO se abona al saldo:
-  // el monto aprobado se muestra como pendiente de acreditacion.
-  const creditGameEnd = useCallback(async () => {
+  // Recompensa con el mismo flujo que los juegos antiguos: el monto se calcula
+  // en el cliente y se abona directo a la cartera de Firebase con addCoins().
+  // El candado endCreditedRef impide pagar dos veces la misma partida.
+  const creditGameEnd = useCallback(() => {
     if (endCreditedRef.current) return;
     endCreditedRef.current = true;
-    setEndStats((prev) => prev ? { ...prev, rewardStatus: 'loading' } : prev);
-    const result = await requestArcadeCredit('canicas', sessionIdRef.current, {
-      explosions: explosionsRef.current,
-    });
+    const amount = estimateCanicasCoins(explosionsRef.current);
     creditMonthlyScore('canicas', `cn-${sessionIdRef.current}`, { score: scoreRef.current, explosions: explosionsRef.current }, scoreRef.current);
-    if (result.credited > 0) {
-      const fsCredited = result.firestore_credited === true;
-      if (!fsCredited && result.client_fallback) {
-        addCoins(result.credited, 'arcade');
-      }
-      setEndStats((prev) => (prev ? { ...prev, realCoins: result.credited, firestoreCredited: true, rewardStatus: 'credited', capped: result.capped === true } : prev));
-    } else if (result.duplicate) {
-      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none' } : prev));
-    } else if (result.capped) {
-      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none', capped: true } : prev));
+    if (amount > 0) {
+      addCoins(amount, 'arcade');
+      setEndStats((prev) => (prev ? { ...prev, realCoins: amount, rewardStatus: 'credited' } : prev));
     } else {
-      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'failed' } : prev));
+      setEndStats((prev) => (prev ? { ...prev, rewardStatus: 'none' } : prev));
     }
     void recordMissionProgress('canicas', explosionsRef.current);
   }, [addCoins, creditMonthlyScore]);
@@ -735,13 +725,9 @@ export function CanicasExplosivas() {
         { label: 'Puntuacion', value: endStats.score.toLocaleString() },
         {
           label: 'Recompensa',
-          value: endStats.rewardStatus === 'loading'
-            ? 'Calculando...'
-            : endStats.rewardStatus === 'failed'
-            ? 'No acreditada'
-            : endStats.rewardStatus === 'none'
+          value: endStats.rewardStatus === 'none'
             ? 'Sin recompensa'
-            : `${endStats.realCoins ?? 0} ${endStats.firestoreCredited ? '(acreditado)' : '(pendiente)'}`,
+            : `+${endStats.realCoins ?? 0} monedas`,
         },
       ]
     : [];
@@ -916,24 +902,12 @@ export function CanicasExplosivas() {
             </div>
           )}
           <p className={`text-[10px] mt-2 max-w-60 font-bold ${
-            endStats?.rewardStatus === 'credited' ? 'text-green-400'
-            : endStats?.rewardStatus === 'pending' ? 'text-amber-400'
-            : endStats?.rewardStatus === 'failed' ? 'text-red-400'
-            : endStats?.rewardStatus === 'loading' ? 'text-white/50'
-            : 'text-white/30'
+            endStats?.rewardStatus === 'credited' ? 'text-green-400' : 'text-white/30'
           }`}>
-            {endStats?.rewardStatus === 'loading' && 'Calculando recompensa con el servidor...'}
-            {endStats?.rewardStatus === 'credited' && `+${endStats.realCoins ?? 0} monedas acreditadas en tu saldo por el servidor.`}
-            {endStats?.rewardStatus === 'pending' && `${endStats.realCoins ?? 0} monedas aprobadas: abono al saldo pendiente de backend autorizado.`}
-            {endStats?.rewardStatus === 'failed' && 'No se pudo acreditar la recompensa. Reintenta en la proxima partida.'}
-            {endStats?.rewardStatus === 'none' && 'Sin recompensa esta partida (partida duplicada o tope diario alcanzado).'}
-            {endStats?.rewardStatus === undefined && 'Recompensa aprobada en el servidor: abono al saldo pendiente de backend autorizado.'}
+            {endStats?.rewardStatus === 'credited' && `+${endStats.realCoins ?? 0} monedas acreditadas en tu saldo.`}
+            {endStats?.rewardStatus === 'none' && 'Sin recompensa esta partida.'}
+            {endStats?.rewardStatus === undefined && 'Recompensa acreditada en tu saldo.'}
           </p>
-          {endStats?.capped && (
-            <p className="text-amber-400/80 text-[10px] mt-1 max-w-60">
-              Tope diario alcanzado (150/juego). La recompensa se redujo al cupo restante.
-            </p>
-          )}
 
           <div className="flex flex-col gap-3 mt-5 w-52">
             {status === 'lost' && !continueUsedRef.current && (
