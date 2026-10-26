@@ -20,7 +20,7 @@ import {
 } from '@/lib/economy-service';
 import { fetchAdminPolls, createPoll, closePoll, deletePoll, type AdminPoll } from '@/lib/polls';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, startAfter, where, doc, getDoc } from 'firebase/firestore';
 import { fetchAnalytics, getModeLabel, formatDuration, type AnalyticsPeriod, type AnalyticsData } from '@/lib/analytics';
 
 type Tab = 'balance' | 'finance' | 'requests' | 'canjes' | 'near' | 'users' | 'dusers' | 'top50' | 'su' | 'control' | 'observer' | 'stats' | 'levels' | 'analytics' | 'suggestions' | 'telemetry' | 'winback' | 'promos' | 'creadores' | 'seguridad' | 'polls';
@@ -36,7 +36,6 @@ export function AdminScreen() {
     adminCanjesList, adminApprovedList, refreshAdminCanjes, adminCanjesPage, setAdminCanjesPage,
     adminApproveCanje, adminMarkCorrection, adminRejectCanje,
     campaignLevelStats, refreshCampaignLevelStats,
-    allUsersList,
     adminCreatorApplications, adminCreatorCodes, refreshAdminCreators,
     adminApproveCreator, adminRejectCreator, adminSuspendCreator, adminReactivateCreator,
     isAdminByClaim,
@@ -52,37 +51,146 @@ export function AdminScreen() {
   const [searching, setSearching] = useState(false);
   const [openAuditUid, setOpenAuditUid] = useState<string | null>(null);
 
-  type TopCoinsEntry = { uid: string; nombre: string; coins: number };
+  type TopCoinsEntry = {
+    uid: string; nombre: string; email: string; coins: number;
+    tiempo_jugado_min: number; totalRuns: number;
+    coins_from_gameplay: number; coins_from_bonus: number; coins_from_referral: number;
+    coins_from_roulette: number; coins_from_ads: number; coins_from_suggestions: number;
+    coins_spent_canje: number; coins_spent_influencer: number; coins_spent_shop: number; coins_spent_keys: number;
+    audit_start_coins?: number;
+  };
+  const PAGE_SIZE = 50;
   const [topCoins, setTopCoins] = useState<TopCoinsEntry[]>([]);
+  const [topCoinsPage, setTopCoinsPage] = useState(0);
+  const [pageCursors, setPageCursors] = useState<Array<{ coins: number; uid: string }>>([]);
+  const [topCoinsHasMore, setTopCoinsHasMore] = useState(true);
   const [topCoinsLoading, setTopCoinsLoading] = useState(false);
   const [topCoinsError, setTopCoinsError] = useState<string | null>(null);
   const [topCoinsUpdatedAt, setTopCoinsUpdatedAt] = useState<Date | null>(null);
+  // Detalle de auditoria cargado solo al abrir una tarjeta
+  const [auditDetail, setAuditDetail] = useState<Record<string, Array<{ fecha: string; recompensa: string; origen: string }>> | null>(null);
+  const [auditDetailLoading, setAuditDetailLoading] = useState<string | null>(null);
 
-  const fetchTopCoins = async () => {
+  const entryFromDoc = (id: string, data: Record<string, unknown>): TopCoinsEntry => ({
+    uid: id,
+    nombre: (data.nombre as string) ?? (data.email as string)?.split('@')[0] ?? 'Jugador',
+    email: (data.email as string) ?? '',
+    coins: (data.coins as number) ?? 0,
+    tiempo_jugado_min: (data.tiempo_jugado_min as number) ?? 0,
+    totalRuns: (data.totalRuns as number) ?? 0,
+    coins_from_gameplay: (data.coins_from_gameplay as number) ?? 0,
+    coins_from_bonus: (data.coins_from_bonus as number) ?? 0,
+    coins_from_referral: (data.coins_from_referral as number) ?? 0,
+    coins_from_roulette: (data.coins_from_roulette as number) ?? 0,
+    coins_from_ads: (data.coins_from_ads as number) ?? 0,
+    coins_from_suggestions: (data.coins_from_suggestions as number) ?? 0,
+    coins_spent_canje: (data.coins_spent_canje as number) ?? 0,
+    coins_spent_influencer: (data.coins_spent_influencer as number) ?? 0,
+    coins_spent_shop: (data.coins_spent_shop as number) ?? 0,
+    coins_spent_keys: (data.coins_spent_keys as number) ?? 0,
+    audit_start_coins: data.audit_start_coins as number | undefined,
+  });
+
+  // Pagina 0 (o recarga): top 50 por saldo; paginas siguientes: cursor de Firestore
+  const fetchTopCoinsPage = async (page: number) => {
+    if (page < 0) return;
     setTopCoinsLoading(true);
     setTopCoinsError(null);
     try {
-      const snap = await getDocs(query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(50)));
+      let q;
+      if (page === 0) {
+        q = query(collection(db, 'usuarios'), orderBy('coins', 'desc'), limit(PAGE_SIZE));
+      } else {
+        // Cursor guardado al terminar la pagina anterior: navegacion real adelante y atras
+        const cursor = pageCursors[page - 1];
+        if (!cursor) { setTopCoinsError('No hay mas paginas.'); setTopCoinsLoading(false); return; }
+        q = query(
+          collection(db, 'usuarios'), orderBy('coins', 'desc'),
+          startAfter(cursor.coins), limit(PAGE_SIZE),
+        );
+      }
+      const snap = await getDocs(q);
       const entries: TopCoinsEntry[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        entries.push({ uid: d.id, nombre: data.nombre ?? data.email?.split('@')[0] ?? 'Jugador', coins: data.coins ?? 0 });
-      });
+      snap.forEach((d) => entries.push(entryFromDoc(d.id, d.data())));
       setTopCoins(entries);
+      setTopCoinsPage(page);
+      setTopCoinsHasMore(snap.size === PAGE_SIZE);
+      if (snap.size > 0) {
+        const last = snap.docs[snap.size - 1];
+        const nextCursor = { coins: last.data().coins as number, uid: last.id };
+        setPageCursors((prev) => {
+          const next = [...prev];
+          next[page] = nextCursor;
+          return next;
+        });
+      }
       setTopCoinsUpdatedAt(new Date());
     } catch {
-      setTopCoinsError('No se pudo cargar el Top 50.');
+      setTopCoinsError('No se pudo cargar la lista.');
     } finally {
       setTopCoinsLoading(false);
     }
   };
 
+  const fetchTopCoins = async () => { await fetchTopCoinsPage(0); };
+
   useEffect(() => {
-    if (tab !== 'top50') return;
-    fetchTopCoins();
-    const interval = setInterval(fetchTopCoins, 3 * 60 * 1000);
+    if (tab !== 'dusers' && tab !== 'top50') return;
+    const interval = setInterval(() => {
+      // Auto-actualiza solo la primera pagina visible; sin listeners de toda la coleccion
+      void fetchTopCoinsPage(0);
+    }, 3 * 60 * 1000);
     return () => clearInterval(interval);
   }, [tab]);
+
+  // Carga inicial al entrar a la seccion (pagina 0)
+  useEffect(() => {
+    if (tab !== 'dusers' && tab !== 'top50') return;
+    void fetchTopCoinsPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const goNextTopCoinsPage = () => {
+    void fetchTopCoinsPage(topCoinsPage + 1);
+  };
+  const goPrevTopCoinsPage = () => {
+    if (topCoinsPage <= 1) { void fetchTopCoinsPage(0); return; }
+    void fetchTopCoinsPage(topCoinsPage - 1);
+  };
+
+  // Auditoria detallada: se carga solo al abrir la tarjeta de un jugador
+  const loadAuditDetail = async (uid: string) => {
+    if (auditDetail?.[uid]) return;
+    setAuditDetailLoading(uid);
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'canjes'),
+        where('userId', '==', uid),
+        orderBy('createdAt', 'desc'),
+        limit(30),
+      ));
+      const rows: Array<{ fecha: string; recompensa: string; origen: string }> = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        const ts = data.createdAt;
+        const fecha = typeof ts === 'number'
+          ? new Date(ts).toLocaleDateString('es-ES')
+          : ts && typeof ts.toDate === 'function'
+          ? new Date(ts.toDate().getTime()).toLocaleDateString('es-ES')
+          : 'Sin fecha';
+        rows.push({
+          fecha,
+          recompensa: `${data.selectedReward ?? 'Canje'} (${data.coinCost ?? 0} monedas)`,
+          origen: `Canje - estado: ${data.status ?? 'sin estado'}`,
+        });
+      });
+      setAuditDetail((prev) => ({ ...(prev ?? {}), [uid]: rows }));
+    } catch {
+      setAuditDetail((prev) => ({ ...(prev ?? {}), [uid]: [] }));
+    } finally {
+      setAuditDetailLoading(null);
+    }
+  };
 
   useEffect(() => {
     refreshPendingRequests();
@@ -111,16 +219,27 @@ export function AdminScreen() {
     fetchAnalytics(analyticsPeriod).then((d) => { setAnalyticsData(d); setAnalyticsLoading(false); });
   };
 
+  // Busqueda directa por UID exacto (fuera del Top 50)
+  const [uidLookup, setUidLookup] = useState<TopCoinsEntry | null>(null);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userSearchQuery.trim()) return;
+    const q = userSearchQuery.trim();
+    if (!q) return;
     setSearching(true);
-    await searchUsers(userSearchQuery.trim());
+    setUidLookup(null);
+    let directHit = false;
+    try {
+      const snap = await getDoc(doc(db, 'usuarios', q));
+      if (snap.exists()) { setUidLookup(entryFromDoc(snap.id, snap.data())); directHit = true; }
+    } catch { directHit = false; }
+    if (!directHit) await searchUsers(q);
     setSearching(false);
   };
 
   const handleClearSearch = () => {
     setUserSearchQuery('');
+    setUidLookup(null);
     clearUserSearch();
   };
 
@@ -971,92 +1090,140 @@ export function AdminScreen() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <List className="w-5 h-5 text-amber-400" />
-                  <h3 className="text-white font-bold text-sm">Usuarios Detallados ({allUsersList.length})</h3>
+                  <h3 className="text-white font-bold text-sm">Usuarios Detallados por Saldo (pag. {topCoinsPage + 1})</h3>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-white/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-white/30">
+                    {topCoinsUpdatedAt ? `Act. ${topCoinsUpdatedAt.toLocaleTimeString('es-ES')}` : ''}
+                  </span>
                   <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  Tiempo Real
+                  <span className="text-[10px] text-white/40">auto cada 3 min</span>
                 </div>
               </div>
-              {allUsersList.length === 0 ? (
+              <p className="text-white/30 text-[10px]">Top 50 por monedas, ordenado de mayor a menor. Si un jugador baja al puesto 51, sale de esta pagina.</p>
+              {topCoinsError && <p className="text-red-400 text-xs">{topCoinsError}</p>}
+
+              <form onSubmit={handleSearch} className="rounded-xl bg-card border border-border p-3">
+                <p className="text-white font-bold text-xs mb-2 flex items-center gap-2"><Search className="w-4 h-4 text-cyan-400" />Buscar jugador (UID, nombre o correo)</p>
+                <div className="flex gap-2">
+                  <input type="text" value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} placeholder="Nombre, correo o UID" className="flex-1 px-3 py-2 rounded-xl bg-background/60 border border-border text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400" />
+                  <button type="submit" disabled={searching} className="px-4 py-2 rounded-xl bg-cyan-500 text-white font-bold text-sm hover:bg-cyan-400 disabled:opacity-50">Buscar</button>
+                </div>
+                {(userSearchResults.length > 0 || uidLookup) && (
+                  <button type="button" onClick={handleClearSearch} className="mt-2 px-3 py-1 rounded-xl bg-card border border-border text-white/50 text-xs hover:text-white">Limpiar busqueda</button>
+                )}
+              </form>
+
+                {searching && (
+                  <p className="text-white/30 text-xs pt-1">Buscando...</p>
+                )}
+              {uidLookup && (
+                <div className="space-y-2">
+                  <p className="text-white/40 text-xs font-bold">Jugador encontrado por UID exacto</p>
+                  <div className="rounded-xl bg-card border border-cyan-500/30 p-3">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <p className="text-white font-bold text-sm">{uidLookup.nombre}</p>
+                      {uidLookup.coins >= 40000 && uidLookup.tiempo_jugado_min === 0 && (
+                        <span className="text-amber-400 text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">ACTIVIDAD POR VERIFICAR</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-[10px]">
+                      <div className="flex justify-between"><span className="text-white/40">UID:</span><span className="text-white/60 font-mono truncate ml-1">{uidLookup.uid}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Email:</span><span className="text-white/60 truncate ml-1">{uidLookup.email}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Monedas:</span><span className="text-amber-400 font-bold">{uidLookup.coins.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Tiempo jugado:</span><span className="text-white/60">{Math.floor(uidLookup.tiempo_jugado_min).toLocaleString()} min</span></div>
+                      <div className="flex justify-between"><span className="text-white/40">Partidas:</span><span className="text-white/60">{uidLookup.totalRuns.toLocaleString()}</span></div>
+                    </div>
+                    <p className="text-white/30 text-[10px] mt-1 italic">No esta entre los primeros {PAGE_SIZE} mostrados arriba.</p>
+                  </div>
+                </div>
+              )}
+
+              {userSearchResults.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-white/40 text-xs font-bold">Resultados de busqueda ({userSearchResults.length})</p>
+                  {userSearchResults.map((u) => (
+                    <div key={u.uid} className="rounded-xl bg-card border border-cyan-500/30 p-3">
+                      <p className="text-white font-bold text-sm mb-1">{u.nombre}</p>
+                      <div className="grid grid-cols-2 gap-1 text-[10px]">
+                        <div className="flex justify-between"><span className="text-white/40">UID:</span><span className="text-white/60 font-mono truncate ml-1">{u.uid}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Email:</span><span className="text-white/60 truncate ml-1">{u.email}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Monedas:</span><span className="text-amber-400 font-bold">{u.coins.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Tiempo jugado:</span><span className="text-white/60">{(u.tiempo_jugado_min ?? 0).toLocaleString()} min</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Partidas:</span><span className="text-white/60">{u.totalRuns ?? 0}</span></div>
+                        <div className="flex justify-between"><span className="text-white/40">Puntos:</span><span className="text-cyan-400 font-bold">{(u.puntos ?? 0).toLocaleString()}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {topCoinsLoading && topCoins.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-white/30">
                   <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                  <p className="text-sm">Cargando usuarios...</p>
+                  <p className="text-sm">Cargando Top 50...</p>
                 </div>
+              ) : topCoins.length === 0 ? (
+                <p className="text-white/30 text-xs py-6 text-center">No hay jugadores para mostrar.</p>
               ) : (
                 <div className="space-y-2">
-                  {allUsersList.map((user, idx) => (
-                    <div
-                      key={user.uid}
-                      className={`rounded-xl border p-3 transition-all hover:border-amber-500/40 ${user.banned ? 'bg-red-950/30 border-red-500/30' : 'bg-card border-border'}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 shrink-0">
-                          <span className="text-amber-400 font-bold text-xs">{idx + 1}</span>
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-white font-bold text-sm truncate">{user.nombre}</span>
-                            {user.vip && <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                            {user.banned && <span className="text-red-400 text-[10px] font-bold bg-red-500/10 px-1.5 py-0.5 rounded">BANEADO</span>}
+                  {topCoins.map((user, idx) => {
+                    const globalRank = topCoinsPage * PAGE_SIZE + idx + 1;
+                    const earned = user.coins_from_gameplay + user.coins_from_bonus + user.coins_from_referral + user.coins_from_roulette + user.coins_from_ads + user.coins_from_suggestions;
+                    const spent = user.coins_spent_canje + user.coins_spent_influencer + user.coins_spent_shop + user.coins_spent_keys;
+                    const isOpen = openAuditUid === user.uid;
+                    const detail = auditDetail?.[user.uid];
+                    // Umbral de revision: saldo alto sin tiempo de juego registrado. NO es trampa confirmada.
+                    const needsReview = user.coins >= 40000 && user.tiempo_jugado_min === 0;
+                    return (
+                      <div key={user.uid} className="rounded-xl border p-3 bg-card border-border hover:border-amber-500/40 transition-all">
+                        <div className="flex items-start gap-3">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 shrink-0">
+                            <span className="text-amber-400 font-bold text-xs">{globalRank}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-white/50 text-xs">
-                            <Mail className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{user.email || 'Sin correo'}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-white/50 text-xs">
-                            <IdCard className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{user.playerID || 'Sin Player ID'}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-white/50 text-xs">
-                            <Gamepad2 className="w-3 h-3 shrink-0" />
-                            <span>Nick: {user.nickname || 'Sin nick'}</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-xs">
-                            <span className="flex items-center gap-1 text-cyan-400">
-                              <Timer className="w-3 h-3" />
-                              {Math.floor(user.tiempo_jugado_min)}min jugado
-                            </span>
-                            <span className="flex items-center gap-1 text-emerald-400">
-                              <Clock className="w-3 h-3" />
-                              {Math.floor(user.tiempo_app_min)}min app
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 text-xs">
-                            <span className="flex items-center gap-1 text-amber-400">
-                              <Coins className="w-3 h-3" />
-                              {user.coins.toLocaleString()} monedas
-                            </span>
-                            <span className="flex items-center gap-1 text-white/50">
-                              <TrendingUp className="w-3 h-3" />
-                              {user.puntos.toLocaleString()} puntos
-                            </span>
-                          </div>
-                          {user.currentRequest && (
-                            <div className="flex items-center gap-1.5 text-xs text-blue-400">
-                              <AlertCircle className="w-3 h-3 shrink-0" />
-                              <span>Solicitud: {user.currentRequest}</span>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-white font-bold text-sm truncate">{user.nombre}</span>
+                              {needsReview && (
+                                <span className="text-amber-400 text-[10px] font-bold bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">ACTIVIDAD POR VERIFICAR</span>
+                              )}
                             </div>
-                          )}
-                          <button
-                            onClick={() => setOpenAuditUid(openAuditUid === user.uid ? null : user.uid)}
-                            className="flex items-center gap-1.5 text-xs text-white/40 hover:text-amber-400 transition-colors mt-1"
-                          >
-                            <ScrollText className="w-3 h-3" />
-                            Ver auditoría
-                            <ChevronDown className={`w-3 h-3 transition-transform ${openAuditUid === user.uid ? 'rotate-180' : ''}`} />
-                          </button>
-                          {openAuditUid === user.uid && (() => {
-                            const earned = user.coins_from_gameplay + user.coins_from_bonus + user.coins_from_referral + user.coins_from_roulette + user.coins_from_ads + user.coins_from_suggestions;
-                            const spent = user.coins_spent_canje + user.coins_spent_influencer + user.coins_spent_shop + user.coins_spent_keys;
-                            const hasAuditStart = user.audit_start_coins !== undefined;
-                            const expectedBalance = hasAuditStart ? (user.audit_start_coins! + earned - spent) : null;
-                            const diff = expectedBalance !== null ? (user.coins - expectedBalance) : null;
-                            const hasTimeAndCoins = user.tiempo_jugado_min > 0 && user.coins_from_gameplay > 0;
-                            const coinsPerMin = hasTimeAndCoins ? (user.coins_from_gameplay / user.tiempo_jugado_min).toFixed(1) : null;
-                            return (
+                            <div className="flex items-center gap-1.5 text-white/50 text-xs">
+                              <IdCard className="w-3 h-3 shrink-0" />
+                              <span className="truncate font-mono">{user.uid}</span>
+                            </div>
+                            {user.email && (
+                              <div className="flex items-center gap-1.5 text-white/50 text-xs">
+                                <Mail className="w-3 h-3 shrink-0" />
+                                <span className="truncate">{user.email}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3 text-xs flex-wrap">
+                              <span className="flex items-center gap-1 text-amber-400"><Coins className="w-3 h-3" />{user.coins.toLocaleString()} monedas</span>
+                              <span className="flex items-center gap-1 text-cyan-400"><Timer className="w-3 h-3" />{Math.floor(user.tiempo_jugado_min).toLocaleString()} min jugados</span>
+                              <span className="flex items-center gap-1 text-emerald-400"><Gamepad2 className="w-3 h-3" />{user.totalRuns.toLocaleString()} partidas</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 text-[10px]">
+                              <div className="flex justify-between"><span className="text-white/40">Ganadas:</span><span className="text-emerald-400 font-mono">+{earned.toLocaleString()}</span></div>
+                              <div className="flex justify-between"><span className="text-white/40">Gastadas:</span><span className="text-red-400 font-mono">-{spent.toLocaleString()}</span></div>
+                              <div className="flex justify-between"><span className="text-white/40">Canjeadas:</span><span className="text-cyan-400 font-mono">{user.coins_spent_canje.toLocaleString()}</span></div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (isOpen) { setOpenAuditUid(null); return; }
+                                setOpenAuditUid(user.uid);
+                                void loadAuditDetail(user.uid);
+                              }}
+                              className="flex items-center gap-1.5 text-xs text-white/40 hover:text-amber-400 transition-colors mt-1"
+                            >
+                              <ScrollText className="w-3 h-3" />
+                              Ver auditoria
+                              <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isOpen && (
                               <div className="mt-2 rounded-lg bg-black/30 border border-white/10 p-2.5 space-y-1.5">
-                                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">Auditoría de monedas</p>
+                                <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">Auditoria de monedas</p>
                                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
                                   <span className="text-white/40">Jugadas</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_gameplay.toLocaleString()}</span>
                                   <span className="text-white/40">Anuncios</span><span className="text-emerald-400 font-mono text-right">+{user.coins_from_ads.toLocaleString()}</span>
@@ -1074,48 +1241,74 @@ export function AdminScreen() {
                                   <span className="text-white/40 border-t border-white/10 pt-1">Total gastado</span><span className="text-red-400 font-mono font-bold text-right border-t border-white/10 pt-1">-{spent.toLocaleString()}</span>
                                 </div>
                                 <div className="border-t border-white/10 pt-1.5 mt-1 space-y-1 text-[10px]">
-                                  <div className="flex justify-between">
-                                    <span className="text-white/40">Min. jugados</span>
-                                    <span className="text-cyan-400 font-mono">{Math.floor(user.tiempo_jugado_min)} min</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-white/40">Monedas/min</span>
-                                    <span className="text-white/60 font-mono">{coinsPerMin !== null ? coinsPerMin : 'No disponible'}</span>
-                                  </div>
-                                  {hasAuditStart ? (
+                                  {user.audit_start_coins !== undefined ? (
                                     <>
-                                      <div className="flex justify-between">
-                                        <span className="text-white/40">Saldo inicial (auditoría)</span>
-                                        <span className="text-white/60 font-mono">{user.audit_start_coins!.toLocaleString()}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-white/40">Saldo esperado</span>
-                                        <span className="text-white/60 font-mono">{expectedBalance!.toLocaleString()}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-white/40">Saldo real</span>
-                                        <span className="text-amber-400 font-mono font-bold">{user.coins.toLocaleString()}</span>
-                                      </div>
+                                      <div className="flex justify-between"><span className="text-white/40">Saldo inicial (auditoria)</span><span className="text-white/60 font-mono">{user.audit_start_coins.toLocaleString()}</span></div>
+                                      <div className="flex justify-between"><span className="text-white/40">Saldo esperado</span><span className="text-white/60 font-mono">{(user.audit_start_coins + earned - spent).toLocaleString()}</span></div>
+                                      <div className="flex justify-between"><span className="text-white/40">Saldo real</span><span className="text-amber-400 font-mono font-bold">{user.coins.toLocaleString()}</span></div>
                                       <div className="flex justify-between">
                                         <span className="text-white/40">Diferencia</span>
-                                        <span className={`font-mono font-bold ${diff! === 0 ? 'text-green-400' : diff! > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                          {diff! > 0 ? '+' : ''}{diff!.toLocaleString()}
+                                        <span className="font-mono font-bold text-white/60">
+                                          {(user.coins - (user.audit_start_coins + earned - spent)).toLocaleString()}
                                         </span>
                                       </div>
                                     </>
                                   ) : (
-                                    <p className="text-white/30 text-[10px] italic">Saldo inicial previo a la auditoría — datos históricos no disponibles para cruce.</p>
+                                    <p className="text-white/30 italic">Sin registros suficientes: saldo inicial previo a la auditoria no disponible.</p>
+                                  )}
+                                  {needsReview && (
+                                    <p className="text-amber-400/90 text-[10px] pt-1">Actividad por verificar: saldo alto sin tiempo de juego registrado. Revisar historial antes de cualquier accion.</p>
+                                  )}
+                                  <p className="text-white/40 pt-1">Monedas/min: {user.tiempo_jugado_min > 0 && user.coins_from_gameplay > 0 ? (user.coins_from_gameplay / user.tiempo_jugado_min).toFixed(1) : 'Sin registros suficientes'}</p>
+                                </div>
+                                <div className="border-t border-white/10 pt-1.5 mt-1">
+                                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">Historial de canjes</p>
+                                  {auditDetailLoading === user.uid ? (
+                                    <div className="flex items-center gap-1.5 text-white/40 text-[10px]"><Loader2 className="w-3 h-3 animate-spin" />Cargando historial...</div>
+                                  ) : !detail ? (
+                                    <p className="text-white/30 text-[10px] italic">Pulsa de nuevo para cargar.</p>
+                                  ) : detail.length === 0 ? (
+                                    <p className="text-white/30 text-[10px] italic">Sin registros suficientes.</p>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {detail.map((row, i) => (
+                                        <div key={i} className="flex items-center justify-between gap-2 text-[10px]">
+                                          <span className="text-white/50 font-mono shrink-0">{row.fecha}</span>
+                                          <span className="text-white/70 truncate">{row.recompensa}</span>
+                                          <span className="text-cyan-400/80 shrink-0">{row.origen}</span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
                               </div>
-                            );
-                          })()}
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
+
+              {/* Paginacion real: Siguientes 50 / Anteriores 50 con cursores */}
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  onClick={goPrevTopCoinsPage}
+                  disabled={topCoinsLoading || topCoinsPage === 0}
+                  className="flex-1 py-2 rounded-xl bg-card border border-border text-white/60 text-xs font-bold hover:text-white disabled:opacity-30 flex items-center justify-center gap-1.5"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Anteriores {PAGE_SIZE}
+                </button>
+                <span className="text-white/30 text-[10px] font-bold px-1">PAG {topCoinsPage + 1}</span>
+                <button
+                  onClick={goNextTopCoinsPage}
+                  disabled={topCoinsLoading || !topCoinsHasMore}
+                  className="flex-1 py-2 rounded-xl bg-card border border-border text-white/60 text-xs font-bold hover:text-white disabled:opacity-30 flex items-center justify-center gap-1.5"
+                >
+                  Siguientes {PAGE_SIZE} <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
 
